@@ -27,7 +27,7 @@ UNSET_DENIALS = [
 ]
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,

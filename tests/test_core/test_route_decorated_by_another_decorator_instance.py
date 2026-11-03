@@ -12,7 +12,7 @@ from tests.test_core.conftest import build_route_pipeline, send_request
 _LOGGER = logging.getLogger("pipeline_harness")
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     return SecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,

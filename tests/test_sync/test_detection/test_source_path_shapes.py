@@ -25,11 +25,11 @@ def _body(content_type: str, body: bytes) -> SyncMockGuardRequest:
     )
 
 
-def _json(payload: Any) -> SyncMockGuardRequest:
+def _json(payload: object) -> SyncMockGuardRequest:
     return _body("application/json", json.dumps(payload).encode())
 
 
-def _text(payload: Any) -> SyncMockGuardRequest:
+def _text(payload: object) -> SyncMockGuardRequest:
     return _body("text/plain", json.dumps(payload).encode())
 
 

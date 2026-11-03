@@ -31,7 +31,7 @@ DETECT = "guard_core.core.checks.implementations.suspicious_activity"
 HELPERS = "guard_core.core.checks.helpers"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": engine_redis_url(REDIS_URL),
@@ -81,7 +81,7 @@ class _Worker:
     async def detect(self, monkeypatch: pytest.MonkeyPatch, *categories: str) -> None:
         result = _threat(*categories)
 
-        async def fake(*_args: Any, **_kwargs: Any) -> DetectionResult:
+        async def fake(*_args: object, **_kwargs: object) -> DetectionResult:
             return result
 
         monkeypatch.setattr(f"{DETECT}.get_cached_detection_result", fake)
@@ -138,7 +138,7 @@ async def test_the_identity_violation_event_counts_every_workers_strikes(
     for _ in range(2):
         await first.detect(monkeypatch, "xss")
 
-    async def fake(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def fake(*_args: object, **_kwargs: object) -> DetectionResult:
         return _threat("xss")
 
     monkeypatch.setattr(f"{HELPERS}.get_cached_detection_result", fake)

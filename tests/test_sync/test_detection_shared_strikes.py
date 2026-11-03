@@ -24,7 +24,7 @@ WORKERS = 4
 DETECT_MODULE = "guard_core.sync.core.checks.implementations.suspicious_activity"
 
 
-def _config(redis: bool = True, **overrides: Any) -> SyncSecurityConfig:
+def _config(redis: bool = True, **overrides: object) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": redis,
         "redis_url": engine_redis_url(REDIS_URL),
@@ -80,10 +80,10 @@ class _Worker:
         self.result = result
         self.monkeypatch = monkeypatch
 
-    def detect(self, result: DetectionResult | None = None) -> Any:
+    def detect(self, result: DetectionResult | None = None) -> object:
         chosen = result or self.result
 
-        def fake_detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+        def fake_detect(*_args: object, **_kwargs: object) -> DetectionResult:
             return chosen
 
         self.monkeypatch.setattr(

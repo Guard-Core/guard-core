@@ -8,8 +8,8 @@ import pytest
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
-from tests.fake_agent import mock_agent
 from tests.test_sync.conftest import suite_redis_prefix
+from tests.test_sync.fake_agent import mock_agent
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 

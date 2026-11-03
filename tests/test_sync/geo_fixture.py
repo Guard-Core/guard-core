@@ -442,7 +442,7 @@ def count_connections(monkeypatch: pytest.MonkeyPatch) -> list[object]:
 def _counting(
     new_connection: Callable[[Any], Any], connections: list[object]
 ) -> Callable[[Any], Any]:
-    def counting(pool: Any) -> Any:
+    def counting(pool: object) -> object:
         connection = new_connection(pool)
         connections.append(connection)
         return connection

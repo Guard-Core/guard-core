@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,7 +11,7 @@ from tests.test_sync.conftest import SyncMockGuardRequest
 from tests.test_sync.test_core.conftest import LOGGER, build_middleware
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,

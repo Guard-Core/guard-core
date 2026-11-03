@@ -1,12 +1,12 @@
 import logging
 import time
 from collections.abc import Generator
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from guard_core.sync.handlers.ipban_handler import IPBanManager
-from tests.fake_agent import redis_slot
+from tests.test_sync.fake_agent import redis_slot
 
 LONG_BAN = 86_400
 
@@ -16,11 +16,6 @@ def reset_singleton() -> Generator[None, None, None]:
     IPBanManager._instance = None
     yield
     IPBanManager._instance = None
-
-
-class _FailingRedisHandler:
-    def set_key(self, *args: object, **kwargs: object) -> None:
-        raise ConnectionError("down")
 
 
 def test_a_ban_longer_than_an_hour_keeps_its_whole_duration_in_memory(
@@ -63,7 +58,11 @@ def test_a_redis_write_failure_keeps_the_whole_duration_in_this_process(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
-    manager.redis_handler = redis_slot(_FailingRedisHandler())
+    manager.redis_handler = redis_slot(
+        MagicMock(
+            spec=["set_key"], set_key=MagicMock(side_effect=ConnectionError("down"))
+        )
+    )
     caplog.set_level(logging.WARNING, logger="guard_core.sync.handlers.ipban")
 
     manager.ban_ip("8.8.8.9", duration=LONG_BAN, reason="test")

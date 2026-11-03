@@ -65,7 +65,7 @@ def test_rules_differing_only_in_threshold_do_not_share_a_hit_list() -> None:
     assert tracker.track_endpoint_usage("route", "203.0.113.6", second) is False
 
 
-def _return_rule(**overrides: Any) -> BehaviorRule:
+def _return_rule(**overrides: object) -> BehaviorRule:
     fields: dict[str, Any] = {
         "rule_type": "return_pattern",
         "threshold": 3,

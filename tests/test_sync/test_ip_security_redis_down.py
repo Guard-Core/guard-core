@@ -1,5 +1,4 @@
 from collections.abc import Generator
-from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -27,7 +26,7 @@ def _redis_down() -> Generator[None, None]:
     ip_ban_manager.banned_ips.clear()
 
 
-def _pipeline(**settings: Any) -> SecurityCheckPipeline:
+def _pipeline(**settings: object) -> SecurityCheckPipeline:
     config = SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,

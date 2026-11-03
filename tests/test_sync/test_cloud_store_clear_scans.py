@@ -1,6 +1,5 @@
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
-from typing import Any
 
 import pytest
 from redis import Redis
@@ -17,10 +16,10 @@ class NoKeysConnection:
     def __init__(self, conn: Redis) -> None:
         self._conn = conn
 
-    def keys(self, *args: Any, **kwargs: Any) -> Any:
+    def keys(self, *args: object, **kwargs: object) -> object:
         raise AssertionError("the cloud store issued KEYS on the shared Redis")
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         return getattr(self._conn, name)
 
 

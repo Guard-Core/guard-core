@@ -1,7 +1,6 @@
 import os
 import time
 from collections.abc import Generator
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -36,7 +35,7 @@ def live_redis() -> Generator[RedisManager, None]:
     manager.close()
 
 
-def _manager(whitelist: list[str], **settings: Any) -> IPBanManager:
+def _manager(whitelist: list[str], **settings: object) -> IPBanManager:
     manager = IPBanManager()
     manager.redis_handler = None
     manager.config = SyncSecurityConfig(

@@ -27,7 +27,7 @@ UNSET_DENIALS = [
 ]
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,

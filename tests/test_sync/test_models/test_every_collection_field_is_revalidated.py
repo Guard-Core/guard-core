@@ -15,7 +15,7 @@ _UNION_TYPES = (typing.Union, types.UnionType)
 _COLLECTION_ORIGINS = (list, set, frozenset, tuple, dict)
 
 
-def _unwrap_optional(annotation: Any) -> Any:
+def _unwrap_optional(annotation: object) -> object:
     origin = typing.get_origin(annotation)
     if origin in _UNION_TYPES:
         args = [a for a in typing.get_args(annotation) if a is not type(None)]
@@ -24,7 +24,7 @@ def _unwrap_optional(annotation: Any) -> Any:
     return annotation
 
 
-def _is_collection_annotation(annotation: Any) -> bool:
+def _is_collection_annotation(annotation: object) -> bool:
     unwrapped = _unwrap_optional(annotation)
     origin = typing.get_origin(unwrapped)
     return origin in _COLLECTION_ORIGINS or unwrapped in _COLLECTION_ORIGINS
@@ -76,7 +76,7 @@ _NEWLY_REGISTERED_FIELDS: tuple[tuple[str, Any, Any], ...] = (
     ("field_name", "valid_value", "bad_value"), _NEWLY_REGISTERED_FIELDS
 )
 def test_newly_registered_field_reassignment_accepts_valid_value(
-    field_name: str, valid_value: Any, bad_value: Any
+    field_name: str, valid_value: object, bad_value: object
 ) -> None:
     config = SyncSecurityConfig()
 
@@ -89,7 +89,7 @@ def test_newly_registered_field_reassignment_accepts_valid_value(
     ("field_name", "valid_value", "bad_value"), _NEWLY_REGISTERED_FIELDS
 )
 def test_newly_registered_field_reassignment_rejects_bare_string(
-    field_name: str, valid_value: Any, bad_value: Any
+    field_name: str, valid_value: object, bad_value: object
 ) -> None:
     config = SyncSecurityConfig()
 

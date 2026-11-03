@@ -1,5 +1,4 @@
 from collections.abc import AsyncGenerator
-from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -27,7 +26,7 @@ async def _redis_down() -> AsyncGenerator[None, None]:
     ip_ban_manager.banned_ips.clear()
 
 
-def _pipeline(**settings: Any) -> SecurityCheckPipeline:
+def _pipeline(**settings: object) -> SecurityCheckPipeline:
     config = SecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,

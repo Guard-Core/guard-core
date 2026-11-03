@@ -166,11 +166,13 @@ def test_fallback_pattern_check_unexpected_exception_propagates() -> None:
             raise AssertionError("expected ValueError to propagate")
 
 
-def _raising_detect(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+def _raising_detect(*_args: object, **_kwargs: object) -> dict[str, Any]:
     raise RuntimeError("Detection engine failure")
 
 
-def _raising_recursion_error_detect(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+def _raising_recursion_error_detect(
+    *_args: object, **_kwargs: object
+) -> dict[str, Any]:
     raise RecursionError("maximum recursion depth exceeded")
 
 

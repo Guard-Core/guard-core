@@ -8,7 +8,7 @@ from tests.conftest import MockGuardRequest
 UNTRUSTED_PEER = "198.51.100.9"
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     return SecurityConfig(enable_redis=False, trusted_proxies=["10.0.0.5"], **settings)
 
 

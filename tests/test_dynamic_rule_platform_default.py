@@ -19,7 +19,7 @@ def reset_singleton() -> Iterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _wire_rules(**overrides: Any) -> dict[str, Any]:
+def _wire_rules(**overrides: object) -> dict[str, Any]:
     wire: dict[str, Any] = {
         "rule_id": "default-proj",
         "version": 1,
@@ -41,7 +41,7 @@ def test_engine_model_tolerates_unknown_fields() -> None:
     assert dump_last_known_rules_snapshot(rules)
 
 
-def _manager(**config_kwargs: Any) -> tuple[DynamicRuleManager, SecurityConfig, Any]:
+def _manager(**config_kwargs: object) -> tuple[DynamicRuleManager, SecurityConfig, Any]:
     config = SecurityConfig(
         enable_redis=False,
         enable_agent=True,

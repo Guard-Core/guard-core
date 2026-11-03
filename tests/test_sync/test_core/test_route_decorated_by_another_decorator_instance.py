@@ -12,7 +12,7 @@ from tests.test_sync.test_core.conftest import build_route_pipeline, send_reques
 _LOGGER = logging.getLogger("pipeline_harness")
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,

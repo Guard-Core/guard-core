@@ -1,5 +1,4 @@
 from collections.abc import AsyncGenerator, Generator
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -68,7 +67,7 @@ def _check(
     manager.redis_handler = redis
     check.ip_ban_manager = manager
 
-    async def detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def detect(*_args: object, **_kwargs: object) -> DetectionResult:
         return DetectionResult(
             is_threat=True, trigger_info="probe", threat_categories=["xss"]
         )

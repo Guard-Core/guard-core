@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -15,7 +14,7 @@ from tests.conftest import MockGuardRequest, declare_route
 CLIENT = "203.0.113.30"
 
 
-async def _flagged(path: str, template: str | None = None, **state: Any) -> bool:
+async def _flagged(path: str, template: str | None = None, **state: object) -> bool:
     request = MockGuardRequest(path=path)
     if template is not None:
         declare_route(request, template)
@@ -116,7 +115,7 @@ async def test_a_template_that_is_not_text_gives_no_route_knowledge() -> None:
     assert await _flagged("/shop/cart.php", None, guard_route_template=42) is True
 
 
-def _check(template: Any) -> tuple[SuspiciousActivityCheck, MagicMock, MagicMock]:
+def _check(template: object) -> tuple[SuspiciousActivityCheck, MagicMock, MagicMock]:
     config = SecurityConfig(enable_redis=False, enable_penetration_detection=True)
     middleware = MagicMock()
     middleware.config = config
@@ -297,7 +296,7 @@ async def test_a_literal_next_to_a_parameter_still_declares_the_probe_token(
 
 
 def _static_check(
-    served: Any,
+    served: object,
 ) -> tuple[SuspiciousActivityCheck, MagicMock]:
     check, middleware, _ = _check(None)
     lookup = AsyncMock(side_effect=served if callable(served) else None)
@@ -417,7 +416,7 @@ async def test_a_failing_static_lookup_is_logged_and_the_path_stays_flagged(
 
 
 @pytest.mark.parametrize("answer", [None, "yes", 1])
-async def test_only_true_counts_as_an_existing_static_file(answer: Any) -> None:
+async def test_only_true_counts_as_an_existing_static_file(answer: object) -> None:
     check, _ = _static_check(answer)
 
     assert await check.check(_stamped("/hls/seg.ts")) is not None

@@ -9,8 +9,8 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
-from tests.fake_agent import mock_agent
 from tests.test_sync.conftest import suite_redis_prefix
+from tests.test_sync.fake_agent import mock_agent
 from tests.test_sync.ipban_redis_fake import fake_ban_redis
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")

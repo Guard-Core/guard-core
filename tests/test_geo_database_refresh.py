@@ -25,17 +25,17 @@ class _SharedRedis:
     def __init__(self) -> None:
         self.values: dict[tuple[str, str], Any] = {}
 
-    async def get_key(self, namespace: str, key: str) -> Any:
+    async def get_key(self, namespace: str, key: str) -> object:
         return self.values.get((namespace, key))
 
     async def set_key(
-        self, namespace: str, key: str, value: Any, ttl: int | None = None
+        self, namespace: str, key: str, value: object, ttl: int | None = None
     ) -> bool:
         self.values[(namespace, key)] = value
         return True
 
     async def set_key_if_absent(
-        self, namespace: str, key: str, value: Any, ttl: int
+        self, namespace: str, key: str, value: object, ttl: int
     ) -> bool:
         if (namespace, key) in self.values:
             return False
@@ -225,7 +225,7 @@ async def test_the_download_lock_outlives_the_longest_download(tmp_path: Path) -
 
     class _Recording(_SharedRedis):
         async def set_key_if_absent(
-            self, namespace: str, key: str, value: Any, ttl: int
+            self, namespace: str, key: str, value: object, ttl: int
         ) -> bool:
             ttls.append(ttl)
             return await super().set_key_if_absent(namespace, key, value, ttl)

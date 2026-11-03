@@ -17,7 +17,7 @@ OTHER_PREFIXES = [f"2001:db8:0:{index}::1" for index in range(1, 6)]
 DETECT_MODULE = "guard_core.sync.core.checks.implementations.suspicious_activity"
 
 
-def _config(**fields: Any) -> SyncSecurityConfig:
+def _config(**fields: object) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_ip_banning": True,
         "enable_redis": False,
@@ -50,7 +50,7 @@ class _Worker:
         self.check = SuspiciousActivityCheck(middleware)
         self.bans: list[tuple[str, int, str]] = []
 
-        def detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+        def detect(*_args: object, **_kwargs: object) -> DetectionResult:
             return DetectionResult(
                 is_threat=True, trigger_info="probe", threat_categories=["xss"]
             )

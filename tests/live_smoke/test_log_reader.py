@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone, tzinfo
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 from typing_extensions import Self
@@ -38,7 +37,7 @@ class _FakeDockerLogs:
         self.vm_now_ns += after_ns
         self.lines.append((self.vm_now_ns, text))
 
-    def compose(self, *args: str, **_: Any) -> Any:
+    def compose(self, *args: str, **_: object) -> object:
         selected = list(self.lines)
         if "--since" in args:
             cutoff = _parse(args[args.index("--since") + 1])

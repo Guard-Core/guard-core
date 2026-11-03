@@ -43,14 +43,14 @@ def _request_for(route_config: RouteConfig | None) -> Mock:
     return request
 
 
-def _unbanned(ip_security_check: IpSecurityCheck) -> Any:
+def _unbanned(ip_security_check: IpSecurityCheck) -> object:
     mgr = patch.object(ip_security_check, "ip_ban_manager").start()
     mgr.is_ip_banned = AsyncMock(return_value=False)
     return mgr
 
 
 @pytest.fixture(autouse=True)
-def _patches(ip_security_check: IpSecurityCheck) -> Any:
+def _patches(ip_security_check: IpSecurityCheck) -> object:
     _unbanned(ip_security_check)
     patch("guard_core.core.checks.implementations.ip_security.log_activity").start()
     patch(

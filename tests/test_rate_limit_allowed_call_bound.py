@@ -1,6 +1,5 @@
 import sys
 from types import FrameType
-from typing import Any
 
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.models import SecurityConfig
@@ -28,7 +27,7 @@ async def test_an_allowed_in_memory_check_makes_no_more_calls_than_v440() -> Non
         await manager.check_rate_limit(request, "10.1.1.1", _error_response)
     calls = 0
 
-    def count(frame: FrameType, event: str, arg: Any) -> None:
+    def count(frame: FrameType, event: str, arg: object) -> None:
         nonlocal calls
         calls += event == "call" or (
             event == "c_call" and getattr(arg, "__name__", "") not in UNCOUNTED_C_CALLS

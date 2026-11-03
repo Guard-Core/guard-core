@@ -21,7 +21,7 @@ OUTSIDER = "203.0.113.5"
 OPERATOR = "198.51.100.7"
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     fields: dict[str, Any] = {
         "enable_redis": False,
         "emergency_mode": True,

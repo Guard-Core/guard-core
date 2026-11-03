@@ -1,6 +1,5 @@
 import json
 from collections.abc import Callable
-from typing import Any
 
 import pytest
 
@@ -83,7 +82,7 @@ async def _run(request: MockGuardRequest) -> bool:
     return (await detect_penetration_attempt(request, config)).is_threat
 
 
-def _json_request(payload: Any) -> MockGuardRequest:
+def _json_request(payload: object) -> MockGuardRequest:
     body = json.dumps(payload).encode()
     return MockGuardRequest(
         path="/w",

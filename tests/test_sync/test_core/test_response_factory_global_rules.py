@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
@@ -41,7 +40,10 @@ def test_factory_dispatches_global_rules_when_config_has_them() -> None:
     received: list[tuple[str | None, list[BehaviorRule]]] = []
 
     def fake_global(
-        request: Any, response: Any, client_ip: str | None, rules: list[BehaviorRule]
+        request: object,
+        response: object,
+        client_ip: str | None,
+        rules: list[BehaviorRule],
     ) -> None:
         received.append((client_ip, rules))
 
@@ -73,7 +75,7 @@ def test_factory_skips_global_when_no_rules_configured() -> None:
 
     called = False
 
-    def fake_global(*_args: Any, **_kwargs: Any) -> None:
+    def fake_global(*_args: object, **_kwargs: object) -> None:
         nonlocal called
         called = True
 

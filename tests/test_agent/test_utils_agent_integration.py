@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,7 +8,7 @@ from guard_core.utils import send_agent_event
 
 
 @pytest.fixture(autouse=True)
-def patch_security_event() -> Any:
+def patch_security_event() -> object:
     with patch("guard_core.utils.SecurityEvent", create=True) as mock_event:
         from guard_agent.models import SecurityEvent
 

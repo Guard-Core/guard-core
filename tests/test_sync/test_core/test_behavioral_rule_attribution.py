@@ -13,11 +13,11 @@ _IP = "203.0.113.77"
 
 
 class _Agent(MagicMock):
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, **kwargs: object) -> None:
         super().__init__(**kwargs)
         self.events: list[Any] = []
 
-    def send_event(self, event: Any) -> None:
+    def send_event(self, event: object) -> None:
         self.events.append(event)
 
 

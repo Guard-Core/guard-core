@@ -79,7 +79,7 @@ async def test_initialize_agent_with_real_behavior_tracker(
 @pytest.mark.asyncio
 async def test_send_decorator_event_scenarios(
     config: SecurityConfig,
-    mock_guard_agent: Any,
+    mock_guard_agent: object,
     event_type: str,
     action: str,
     reason: str,
@@ -231,7 +231,7 @@ async def test_error_conditions(
     config: SecurityConfig,
     caplog: pytest.LogCaptureFixture,
     error_scenario: str,
-    side_effect: Any,
+    side_effect: object,
     expected_log_message: str,
 ) -> None:
     decorator = BaseSecurityDecorator(config)
@@ -278,7 +278,7 @@ async def test_send_decorator_event_no_agent(config: SecurityConfig) -> None:
 
 @pytest.mark.asyncio
 async def test_multiple_event_sends(
-    config: SecurityConfig, mock_guard_agent: Any
+    config: SecurityConfig, mock_guard_agent: object
 ) -> None:
     decorator = BaseSecurityDecorator(config)
     decorator.agent_handler = AsyncMock()

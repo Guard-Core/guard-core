@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -21,7 +20,7 @@ def _unresolving_geo() -> MagicMock:
 
 
 async def _status(
-    client_host: str, headers: dict[str, str] | None = None, **settings: Any
+    client_host: str, headers: dict[str, str] | None = None, **settings: object
 ) -> int | None:
     geo = _unresolving_geo()
     config = SecurityConfig(

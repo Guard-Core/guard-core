@@ -8,7 +8,7 @@ import pytest
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
-from tests.fake_agent import mock_agent
+from tests.test_sync.fake_agent import mock_agent
 
 DURATION = 600
 

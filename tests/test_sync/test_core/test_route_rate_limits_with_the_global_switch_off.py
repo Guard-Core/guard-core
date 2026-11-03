@@ -17,7 +17,7 @@ from tests.test_sync.test_core.conftest import (
 IP = "198.51.100.30"
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,

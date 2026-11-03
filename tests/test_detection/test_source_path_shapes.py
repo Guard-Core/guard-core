@@ -25,11 +25,11 @@ def _body(content_type: str, body: bytes) -> MockGuardRequest:
     )
 
 
-def _json(payload: Any) -> MockGuardRequest:
+def _json(payload: object) -> MockGuardRequest:
     return _body("application/json", json.dumps(payload).encode())
 
 
-def _text(payload: Any) -> MockGuardRequest:
+def _text(payload: object) -> MockGuardRequest:
     return _body("text/plain", json.dumps(payload).encode())
 
 

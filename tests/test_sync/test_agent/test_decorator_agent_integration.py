@@ -76,7 +76,7 @@ def test_initialize_agent_with_real_behavior_tracker(
 )
 def test_send_decorator_event_scenarios(
     config: SyncSecurityConfig,
-    mock_guard_agent: Any,
+    mock_guard_agent: object,
     event_type: str,
     action: str,
     reason: str,
@@ -226,7 +226,7 @@ def test_error_conditions(
     config: SyncSecurityConfig,
     caplog: pytest.LogCaptureFixture,
     error_scenario: str,
-    side_effect: Any,
+    side_effect: object,
     expected_log_message: str,
 ) -> None:
     decorator = BaseSecurityDecorator(config)
@@ -271,7 +271,7 @@ def test_send_decorator_event_no_agent(config: SyncSecurityConfig) -> None:
 
 
 def test_multiple_event_sends(
-    config: SyncSecurityConfig, mock_guard_agent: Any
+    config: SyncSecurityConfig, mock_guard_agent: object
 ) -> None:
     decorator = BaseSecurityDecorator(config)
     decorator.agent_handler = MagicMock()

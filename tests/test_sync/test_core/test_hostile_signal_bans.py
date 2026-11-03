@@ -22,7 +22,7 @@ BOT_IP = "203.0.113.7"
 CLOUD_IP = "198.51.100.77"
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,

@@ -11,7 +11,7 @@ from guard_core._dynamic_rules import dump_last_known_rules_snapshot
 from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
-from tests.fake_agent import mock_agent
+from tests.test_sync.fake_agent import mock_agent
 
 
 @pytest.fixture(autouse=True)

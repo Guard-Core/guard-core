@@ -11,7 +11,7 @@ from guard_core.handlers._dynamic_rule_validation import (
 from guard_core.models import DynamicRules
 
 
-def _rules(**overrides: Any) -> DynamicRules:
+def _rules(**overrides: object) -> DynamicRules:
     base: dict[str, Any] = {
         "rule_id": "R",
         "version": 1,

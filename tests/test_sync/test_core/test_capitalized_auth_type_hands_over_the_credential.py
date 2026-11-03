@@ -12,7 +12,7 @@ from tests.test_sync.test_core.conftest import build_route_pipeline, send_reques
 BOT_IP = "203.0.113.170"
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -21,14 +21,14 @@ def _config(**settings: Any) -> SyncSecurityConfig:
     return SyncSecurityConfig(**{**defaults, **settings})
 
 
-def _whole_header_verifier(request: Any, credential: str) -> bool:
+def _whole_header_verifier(request: object, credential: str) -> bool:
     return credential.startswith("Bearer ")
 
 
 def _received(scheme: str, authorization: str) -> list[str]:
     received: list[str] = []
 
-    def verifier(request: Any, credential: str) -> bool:
+    def verifier(request: object, credential: str) -> bool:
         received.append(credential)
         return True
 

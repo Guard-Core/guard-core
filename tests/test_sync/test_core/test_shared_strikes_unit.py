@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -17,7 +16,7 @@ from guard_core.sync.core.checks._shared_strikes import (
 LOGGER = "guard_core.sync.core.checks.shared_strikes"
 
 
-def _middleware(redis: Any) -> MagicMock:
+def _middleware(redis: object) -> MagicMock:
     middleware = MagicMock()
     middleware.config = SyncSecurityConfig(
         enable_redis=True, enable_ip_banning=True, redis_url="redis://localhost:1"

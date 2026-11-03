@@ -1,5 +1,3 @@
-from typing import Any
-
 import pytest
 from pydantic import ValidationError
 
@@ -16,7 +14,7 @@ def _error_response(status_code: int, message: str) -> MockGuardResponse:
     return MockGuardResponse(message, status_code)
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(
         enable_redis=False,
         enable_rate_limiting=True,

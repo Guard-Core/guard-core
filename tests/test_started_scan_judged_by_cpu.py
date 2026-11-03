@@ -99,7 +99,7 @@ def test_a_started_custom_job_that_waited_for_the_gil_is_not_a_timeout() -> None
     compiler = compiler_module.PatternCompiler(default_timeout=0.2)
 
     def starved(work: Callable[[], Any]) -> Callable[[], Any]:
-        def run() -> Any:
+        def run() -> object:
             time.sleep(0.5)
             return work()
 
@@ -119,7 +119,7 @@ def _slow_start(monkeypatch: pytest.MonkeyPatch, pause: Callable[[], None]) -> N
     real = _suspatterns_regex._timed_in_worker
 
     def paused(work: Callable[[], Any], cpu_sink: list[float]) -> Callable[[], Any]:
-        def run() -> Any:
+        def run() -> object:
             pause()
             return work()
 

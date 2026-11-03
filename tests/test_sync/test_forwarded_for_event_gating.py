@@ -8,7 +8,7 @@ from tests.test_sync.conftest import SyncMockGuardRequest
 UNTRUSTED_PEER = "198.51.100.9"
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(
         enable_redis=False, trusted_proxies=["10.0.0.5"], **settings
     )

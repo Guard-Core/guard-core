@@ -52,7 +52,7 @@ def _handler_reference_attribute_names(instance: object) -> list[str]:
 
 
 def _working_handler_reference_mock() -> MagicMock:
-    def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
+    def scan_iter(*_args: object, **_kwargs: object) -> object:
         no_keys: list[str] = []
         for key in no_keys:
             yield str(key)

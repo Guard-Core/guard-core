@@ -1,7 +1,6 @@
 import os
 import time
 from collections.abc import Generator
-from typing import Any
 
 import pytest
 
@@ -35,7 +34,7 @@ def live_redis() -> Generator[RedisManager, None]:
     manager.close()
 
 
-def _manager(redis: RedisManager | None = None, **settings: Any) -> IPBanManager:
+def _manager(redis: RedisManager | None = None, **settings: object) -> IPBanManager:
     manager = IPBanManager()
     manager.redis_handler = redis
     manager.config = SyncSecurityConfig(enable_redis=redis is not None, **settings)

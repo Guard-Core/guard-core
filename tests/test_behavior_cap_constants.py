@@ -1,5 +1,3 @@
-from typing import Any
-
 import pytest
 
 from guard_core import _tracking_caps
@@ -37,7 +35,7 @@ from guard_core.models import SecurityConfig
     ],
 )
 def test_the_module_constant_is_the_default_of_its_field(
-    monkeypatch: pytest.MonkeyPatch, module: Any, constant: str, field: str
+    monkeypatch: pytest.MonkeyPatch, module: object, constant: str, field: str
 ) -> None:
     assert getattr(module, constant) == 10_000
     assert getattr(SecurityConfig(), field) == 10_000

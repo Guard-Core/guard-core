@@ -1,11 +1,10 @@
 import warnings
-from typing import Any
 
 from guard_core.core.validation.path_matching import path_is_excluded
 from guard_core.models import SecurityConfig
 
 
-def _build(**settings: Any) -> SecurityConfig:
+def _build(**settings: object) -> SecurityConfig:
     return SecurityConfig(enable_redis=False, **settings)
 
 

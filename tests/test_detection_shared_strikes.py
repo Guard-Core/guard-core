@@ -24,7 +24,7 @@ WORKERS = 4
 DETECT_MODULE = "guard_core.core.checks.implementations.suspicious_activity"
 
 
-def _config(redis: bool = True, **overrides: Any) -> SecurityConfig:
+def _config(redis: bool = True, **overrides: object) -> SecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": redis,
         "redis_url": engine_redis_url(REDIS_URL),
@@ -80,10 +80,10 @@ class _Worker:
         self.result = result
         self.monkeypatch = monkeypatch
 
-    async def detect(self, result: DetectionResult | None = None) -> Any:
+    async def detect(self, result: DetectionResult | None = None) -> object:
         chosen = result or self.result
 
-        async def fake_detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+        async def fake_detect(*_args: object, **_kwargs: object) -> DetectionResult:
             return chosen
 
         self.monkeypatch.setattr(

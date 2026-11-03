@@ -332,16 +332,16 @@ class _RecordingTransport:
     def start(self) -> None:
         return None
 
-    def send_event(self, event: Any) -> None:
+    def send_event(self, event: object) -> None:
         self.events.append(event)
 
     def stop(self) -> None:
         return None
 
-    def send_metric(self, _: Any) -> None:
+    def send_metric(self, _: object) -> None:
         return None
 
-    def initialize_redis(self, _: Any) -> None:
+    def initialize_redis(self, _: object) -> None:
         return None
 
     def flush_buffer(self) -> None:

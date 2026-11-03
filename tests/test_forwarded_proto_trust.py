@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,7 +11,7 @@ from tests.conftest import MockGuardRequest
 from tests.test_core.conftest import LOGGER, build_middleware
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     return SecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,

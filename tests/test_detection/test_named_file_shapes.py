@@ -79,7 +79,7 @@ def _force_enhanced_detection_singleton() -> None:
     sus_patterns_handler.configure(SecurityConfig())
 
 
-def _json(payload: Any) -> MockGuardRequest:
+def _json(payload: object) -> MockGuardRequest:
     body = json.dumps(payload).encode()
     return MockGuardRequest(
         path="/webhooks",
@@ -89,7 +89,7 @@ def _json(payload: Any) -> MockGuardRequest:
     )
 
 
-async def _is_threat(payload: Any) -> bool:
+async def _is_threat(payload: object) -> bool:
     config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
     return (await detect_penetration_attempt(_json(payload), config)).is_threat
 
@@ -179,6 +179,6 @@ async def test_a_traversal_or_a_trick_in_a_frame_absolute_path_is_flagged(
     ],
 )
 async def test_an_absolute_path_outside_a_frame_with_a_line_is_flagged(
-    payload: Any,
+    payload: object,
 ) -> None:
     assert await _is_threat(payload) is True

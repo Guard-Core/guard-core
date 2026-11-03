@@ -20,7 +20,9 @@ def manager() -> Generator[SecurityHeadersManager, None]:
     yield isolated
 
 
-def _load(manager: SecurityHeadersManager, csp: Any = None, hsts: Any = None) -> None:
+def _load(
+    manager: SecurityHeadersManager, csp: object = None, hsts: object = None
+) -> None:
     redis = MagicMock()
     redis.get_key = MagicMock(
         side_effect=[
@@ -54,7 +56,7 @@ BAD_CSP: list[Any] = [
 def test_an_invalid_cached_csp_is_dropped_and_the_own_config_kept(
     manager: SecurityHeadersManager,
     caplog: pytest.LogCaptureFixture,
-    record: Any,
+    record: object,
 ) -> None:
     with caplog.at_level(logging.WARNING):
         _load(manager, csp=record)
@@ -83,7 +85,7 @@ BAD_HSTS: list[Any] = [
 def test_an_invalid_cached_hsts_is_dropped_and_the_own_config_kept(
     manager: SecurityHeadersManager,
     caplog: pytest.LogCaptureFixture,
-    record: Any,
+    record: object,
 ) -> None:
     with caplog.at_level(logging.WARNING):
         _load(manager, hsts=record)

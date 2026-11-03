@@ -19,7 +19,7 @@ BOT_IP = "203.0.113.7"
 SQLI_PATH = "/x?q=1%20UNION%20SELECT%20password%20FROM%20users--"
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,

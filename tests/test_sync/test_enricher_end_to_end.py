@@ -46,10 +46,10 @@ class _Recorder(NullAgent):
         self.events: list[Any] = []
         self.metrics: list[Any] = []
 
-    def send_event(self, event: Any) -> None:
+    def send_event(self, event: object) -> None:
         self.events.append(event)
 
-    def send_metric(self, metric: Any) -> None:
+    def send_metric(self, metric: object) -> None:
         self.metrics.append(metric)
 
 

@@ -1,5 +1,4 @@
 from collections.abc import Generator
-from typing import Any
 
 import pytest
 
@@ -30,7 +29,7 @@ def _reset_suspatterns_singleton() -> Generator[None, None]:
     SusPatternsManager._config = original_config
 
 
-def _config(**kwargs: Any) -> SyncSecurityConfig:
+def _config(**kwargs: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(detection_semantic_threshold=0.3, **kwargs)
 
 

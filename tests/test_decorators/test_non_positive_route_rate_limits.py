@@ -17,7 +17,7 @@ def _decorator(**flag: bool) -> SecurityDecorator:
 
 def _decorate(
     decorator: SecurityDecorator, make: Callable[[SecurityDecorator], Any]
-) -> Any:
+) -> object:
     def route() -> None:
         pass
 

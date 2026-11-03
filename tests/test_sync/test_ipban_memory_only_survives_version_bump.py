@@ -1,6 +1,5 @@
 import time
 from collections.abc import Generator
-from typing import Any
 
 import pytest
 
@@ -38,7 +37,7 @@ def test_a_memory_only_ban_survives_another_workers_version_bump(
     manager, redis = stack
     manager._VERSION_RECHECK_SECONDS = 0.0
 
-    def failing_write(*_args: Any, **_kwargs: Any) -> None:
+    def failing_write(*_args: object, **_kwargs: object) -> None:
         raise ConnectionError("simulated Redis outage during the ban write")
 
     with monkeypatch.context() as outage:

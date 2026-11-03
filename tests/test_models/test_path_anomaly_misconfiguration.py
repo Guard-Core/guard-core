@@ -21,7 +21,7 @@ ANOMALOUS_PATHS = [
 ]
 
 
-def _build(**settings: Any) -> SecurityConfig:
+def _build(**settings: object) -> SecurityConfig:
     return SecurityConfig(enable_redis=False, **settings)
 
 

@@ -23,16 +23,18 @@ class _SharedRedis:
     def __init__(self) -> None:
         self.values: dict[tuple[str, str], Any] = {}
 
-    def get_key(self, namespace: str, key: str) -> Any:
+    def get_key(self, namespace: str, key: str) -> object:
         return self.values.get((namespace, key))
 
     def set_key(
-        self, namespace: str, key: str, value: Any, ttl: int | None = None
+        self, namespace: str, key: str, value: object, ttl: int | None = None
     ) -> bool:
         self.values[(namespace, key)] = value
         return True
 
-    def set_key_if_absent(self, namespace: str, key: str, value: Any, ttl: int) -> bool:
+    def set_key_if_absent(
+        self, namespace: str, key: str, value: object, ttl: int
+    ) -> bool:
         if (namespace, key) in self.values:
             return False
         self.values[(namespace, key)] = value
@@ -223,7 +225,7 @@ def test_the_download_lock_outlives_the_longest_download(tmp_path: Path) -> None
 
     class _Recording(_SharedRedis):
         def set_key_if_absent(
-            self, namespace: str, key: str, value: Any, ttl: int
+            self, namespace: str, key: str, value: object, ttl: int
         ) -> bool:
             ttls.append(ttl)
             return super().set_key_if_absent(namespace, key, value, ttl)

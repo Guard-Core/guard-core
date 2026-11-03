@@ -122,7 +122,7 @@ def test_mute_pydantic_instrumentation_is_idempotent_after_first_success(
     def _count_rebuild(model: type[Any]) -> None:
         original = model.model_rebuild
 
-        def wrapper(*args: object, **kwargs: object) -> Any:
+        def wrapper(*args: object, **kwargs: object) -> object:
             rebuild_calls.append(model.__name__)
             return original(*args, **kwargs)
 

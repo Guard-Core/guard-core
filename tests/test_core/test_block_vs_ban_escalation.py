@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -42,7 +41,7 @@ def _patch_detect_threat(
     trigger_info: str = "xss hit",
     threat_categories: list[str] | None = None,
 ) -> None:
-    async def fake_detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def fake_detect(*_args: object, **_kwargs: object) -> DetectionResult:
         return DetectionResult(
             is_threat=is_threat,
             trigger_info=trigger_info,
@@ -168,7 +167,7 @@ async def test_global_ip_block_passive_mode_no_escalation(
 
     detect_called: list[int] = []
 
-    async def spy_detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def spy_detect(*_args: object, **_kwargs: object) -> DetectionResult:
         detect_called.append(1)
         return DetectionResult(
             is_threat=True, trigger_info="t", threat_categories=["xss"]
@@ -455,7 +454,7 @@ async def test_route_ip_block_passive_mode_no_escalation(
 
     detect_called: list[int] = []
 
-    async def spy_detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def spy_detect(*_args: object, **_kwargs: object) -> DetectionResult:
         detect_called.append(1)
         return DetectionResult(
             is_threat=True, trigger_info="t", threat_categories=["xss"]
@@ -573,7 +572,7 @@ async def test_user_agent_block_passive_mode_no_escalation(
 
     detect_called: list[int] = []
 
-    async def spy_detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def spy_detect(*_args: object, **_kwargs: object) -> DetectionResult:
         detect_called.append(1)
         return DetectionResult(
             is_threat=True, trigger_info="t", threat_categories=["xss"]
@@ -607,7 +606,7 @@ async def test_user_agent_block_no_client_ip_skips_escalation(
 
     detect_called: list[int] = []
 
-    async def spy_detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def spy_detect(*_args: object, **_kwargs: object) -> DetectionResult:
         detect_called.append(1)
         return DetectionResult(
             is_threat=True, trigger_info="t", threat_categories=["xss"]
@@ -640,7 +639,7 @@ async def test_no_double_count_blocked_probe_increments_once(
 
     detect_calls: list[int] = []
 
-    async def counting_detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def counting_detect(*_args: object, **_kwargs: object) -> DetectionResult:
         detect_calls.append(1)
         return DetectionResult(
             is_threat=True, trigger_info="t", threat_categories=["xss"]
@@ -751,7 +750,7 @@ async def test_global_ip_block_survives_ban_and_event_bus_both_failing(
     )
     check.ip_ban_manager = ban
 
-    async def selective_failure(*_a: Any, **kwargs: Any) -> None:
+    async def selective_failure(*_a: object, **kwargs: object) -> None:
         if kwargs.get("event_type") == "ip_ban_failed":
             raise ConnectionError("event bus down too")
 

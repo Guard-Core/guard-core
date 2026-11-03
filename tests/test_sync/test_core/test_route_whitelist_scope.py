@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 from guard_core.models import SyncSecurityConfig
@@ -36,7 +35,7 @@ def _req(rc: RouteConfig, ip: str = "1.2.3.4") -> Mock:
 
 
 @patch("guard_core.sync.core.checks.implementations.ip_security.log_activity")
-def test_route_whitelist_is_not_global_trust(_mock_log: Any) -> None:
+def test_route_whitelist_is_not_global_trust(_mock_log: object) -> None:
     cfg = SyncSecurityConfig()
     cfg.passive_mode = False
     rc = RouteConfig()
@@ -55,7 +54,7 @@ def test_route_whitelist_is_not_global_trust(_mock_log: Any) -> None:
 
 @patch("guard_core.sync.core.checks.implementations.ip_security.log_activity")
 def test_route_whitelist_does_not_lift_the_global_blacklist(
-    _mock_log: Any,
+    _mock_log: object,
 ) -> None:
     cfg = SyncSecurityConfig()
     cfg.passive_mode = False
@@ -94,7 +93,9 @@ def test_route_whitelisted_ip_still_rate_limited() -> None:
 
 
 @patch("guard_core.sync.core.checks.implementations.suspicious_activity.log_activity")
-def test_route_whitelisted_ip_still_scanned_for_attacks(_mock_log: Any) -> None:
+def test_route_whitelisted_ip_still_scanned_for_attacks(
+    _mock_log: object,
+) -> None:
     cfg = SyncSecurityConfig()
     cfg.passive_mode = False
     rc = RouteConfig()
@@ -118,7 +119,7 @@ def test_route_whitelisted_ip_still_scanned_for_attacks(_mock_log: Any) -> None:
 
 @patch("guard_core.sync.core.checks.implementations.ip_security.log_activity")
 def test_global_cloud_block_is_left_to_the_cloud_provider_check(
-    _mock_log: Any,
+    _mock_log: object,
 ) -> None:
     cfg = SyncSecurityConfig()
     cfg.passive_mode = False

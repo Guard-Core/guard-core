@@ -6,7 +6,6 @@ warning hid the other app's.
 """
 
 import logging
-from typing import Any
 
 import pytest
 
@@ -23,7 +22,7 @@ PREFIX_OF_APP_A = "2001:db8:64::/96"
 CLIENT_OF_APP_A = "2001:db8:64::808:808"
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     return SecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,

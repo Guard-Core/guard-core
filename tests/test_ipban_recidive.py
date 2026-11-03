@@ -40,7 +40,7 @@ async def live_redis() -> AsyncGenerator[RedisManager, None]:
     await manager.close()
 
 
-def _manager(**settings: Any) -> IPBanManager:
+def _manager(**settings: object) -> IPBanManager:
     manager = IPBanManager()
     manager.redis_handler = None
     manager.config = SecurityConfig(

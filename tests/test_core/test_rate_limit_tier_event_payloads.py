@@ -50,7 +50,7 @@ def _request(route_config: RouteConfig | None = None) -> MagicMock:
     return request
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_rate_limiting": False,

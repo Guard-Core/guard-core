@@ -1,7 +1,6 @@
 import os
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
 
 import pytest
 from redis.asyncio import Redis
@@ -18,10 +17,10 @@ class NoKeysConnection:
     def __init__(self, conn: Redis) -> None:
         self._conn = conn
 
-    async def keys(self, *args: Any, **kwargs: Any) -> Any:
+    async def keys(self, *args: object, **kwargs: object) -> object:
         raise AssertionError("reset issued KEYS on the shared Redis")
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         return getattr(self._conn, name)
 
 

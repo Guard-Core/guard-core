@@ -24,7 +24,7 @@ def aws_ranges() -> Iterator[None]:
         yield
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     settings: dict[str, Any] = {"enable_redis": False, "block_cloud_providers": {"AWS"}}
     settings.update(overrides)
     return SyncSecurityConfig(**settings)

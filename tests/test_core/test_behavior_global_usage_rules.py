@@ -168,13 +168,13 @@ class _RecordingAgent:
     async def stop(self) -> None:
         return None
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         self.events.append(event)
 
-    async def send_metric(self, _: Any) -> None:
+    async def send_metric(self, _: object) -> None:
         return None
 
-    async def initialize_redis(self, _: Any) -> None:
+    async def initialize_redis(self, _: object) -> None:
         return None
 
     async def flush_buffer(self) -> None:

@@ -21,7 +21,7 @@ async def _clean_dynamic_state() -> AsyncIterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _rules(**overrides: Any) -> DynamicRules:
+def _rules(**overrides: object) -> DynamicRules:
     base: dict[str, Any] = {
         "rule_id": "R",
         "version": 1,
@@ -31,7 +31,7 @@ def _rules(**overrides: Any) -> DynamicRules:
     return DynamicRules(**base)
 
 
-def _manager(**config_kwargs: Any) -> DynamicRuleManager:
+def _manager(**config_kwargs: object) -> DynamicRuleManager:
     config = SecurityConfig(
         enable_redis=False,
         enable_agent=True,

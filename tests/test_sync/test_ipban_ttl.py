@@ -1,11 +1,12 @@
 import logging
 import time
 from collections.abc import Generator
+from unittest.mock import MagicMock
 
 import pytest
 
 from guard_core.sync.handlers.ipban_handler import IPBanManager
-from tests.fake_agent import redis_slot
+from tests.test_sync.fake_agent import redis_slot
 
 
 @pytest.fixture(autouse=True)
@@ -82,8 +83,6 @@ def test_ban_zero_or_negative_duration_raises() -> None:
 
 
 def test_ban_longer_than_cap_succeeds_when_redis_available() -> None:
-    from unittest.mock import MagicMock
-
     manager = IPBanManager()
     manager.redis_handler = MagicMock()
     manager.banned_ips.clear()
@@ -97,16 +96,13 @@ def test_ban_longer_than_cap_succeeds_when_redis_available() -> None:
     assert manager.redis_handler.write_ban_extending_only.call_args.args[3] == duration
 
 
-class _FailingRedisHandler:
-    def set_key(self, *args: object, **kwargs: object) -> None:
-        raise Exception("down")
-
-
 def test_ban_exact_ip_longer_than_cap_keeps_its_duration_when_redis_set_key_fails(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
-    manager.redis_handler = redis_slot(_FailingRedisHandler())
+    manager.redis_handler = redis_slot(
+        MagicMock(spec=["set_key"], set_key=MagicMock(side_effect=Exception("down")))
+    )
     manager.banned_ips.clear()
 
     caplog.set_level(logging.WARNING, logger="guard_core.sync.handlers.ipban")
@@ -133,7 +129,9 @@ def test_ban_exact_ip_at_cap_warns_that_it_is_kept_in_this_process(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
-    manager.redis_handler = redis_slot(_FailingRedisHandler())
+    manager.redis_handler = redis_slot(
+        MagicMock(spec=["set_key"], set_key=MagicMock(side_effect=Exception("down")))
+    )
     manager.banned_ips.clear()
 
     caplog.set_level(logging.WARNING, logger="guard_core.sync.handlers.ipban")

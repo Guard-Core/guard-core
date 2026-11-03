@@ -1,6 +1,5 @@
 import json
 from collections.abc import Callable
-from typing import Any
 
 import pytest
 
@@ -83,7 +82,7 @@ def _run(request: SyncMockGuardRequest) -> bool:
     return (detect_penetration_attempt(request, config)).is_threat
 
 
-def _json_request(payload: Any) -> SyncMockGuardRequest:
+def _json_request(payload: object) -> SyncMockGuardRequest:
     body = json.dumps(payload).encode()
     return SyncMockGuardRequest(
         path="/w",

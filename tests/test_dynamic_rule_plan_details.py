@@ -20,7 +20,7 @@ def reset_singleton() -> Iterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _rules(**overrides: Any) -> DynamicRules:
+def _rules(**overrides: object) -> DynamicRules:
     base: dict[str, Any] = {
         "rule_id": "R",
         "version": 1,
@@ -30,7 +30,7 @@ def _rules(**overrides: Any) -> DynamicRules:
     return DynamicRules(**base)
 
 
-def _manager(geo: bool = True, **config_kwargs: Any) -> DynamicRuleManager:
+def _manager(geo: bool = True, **config_kwargs: object) -> DynamicRuleManager:
     settings: dict[str, Any] = {"enable_redis": False}
     if geo:
         settings["geo_ip_handler"] = MagicMock(spec=GeoIPHandler)

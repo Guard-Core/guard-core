@@ -23,7 +23,7 @@ def _raising_geo(error: Exception) -> MagicMock:
 
 
 async def _run(
-    error: Exception | None = None, **settings: Any
+    error: Exception | None = None, **settings: object
 ) -> tuple[int | None, list[dict[str, Any]]]:
     geo = _raising_geo(error or RuntimeError("lookup exploded"))
     config = SecurityConfig(

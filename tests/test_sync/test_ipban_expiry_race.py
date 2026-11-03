@@ -1,16 +1,19 @@
 import sys
 import time
-from collections.abc import Generator, Sequence
+from collections.abc import Generator, Iterator, Sequence
+from contextlib import contextmanager
 from types import ModuleType
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 from cachetools import TTLCache
 from pydantic import BaseModel, ConfigDict
+from redis import Redis
 
+from guard_core.models import SyncSecurityConfig
+from guard_core.sync.handlers import _redis_handler_support as redis_types
 from guard_core.sync.handlers.ipban_handler import IPBanManager
-from tests.fake_agent import redis_slot
+from guard_core.sync.handlers.redis_handler import RedisHandlerBase
 from tests.test_sync.ipban_redis_fake import fake_ban_redis
 
 
@@ -45,8 +48,9 @@ class _BoundaryTimer:
         return reading
 
 
-class _RecordingRedisHandler:
+class _RecordingRedisHandler(RedisHandlerBase):
     def __init__(self) -> None:
+        super().__init__(SyncSecurityConfig())
         self.get_key_calls: list[tuple[str, str]] = []
         self.delete_calls: list[tuple[str, str]] = []
         self.expiries: dict[str, str] = {}
@@ -61,12 +65,10 @@ class _RecordingRedisHandler:
             self.get_key_calls.append((namespace, key))
         return [*(self.expiries.get(key) for _, key in ban_pairs), None]
 
-    def get_connection(self) -> Any:
-        return fake_ban_redis().get_connection()
-
-    @property
-    def config(self) -> Any:
-        return MagicMock(redis_prefix="guard:")
+    @contextmanager
+    def get_connection(self) -> Iterator[Redis]:
+        with fake_ban_redis().get_connection() as connection:
+            yield connection
 
     def delete(self, namespace: str, key: str) -> None:
         self.delete_calls.append((namespace, key))
@@ -74,9 +76,9 @@ class _RecordingRedisHandler:
     def write_atomically(
         self,
         *,
-        sets: Any = (),
-        deletes: Any = (),
-        increment: Any = None,
+        sets: Sequence[tuple[str, str, redis_types.RedisValue, int | None]] = (),
+        deletes: Sequence[tuple[str, str]] = (),
+        increment: tuple[str, str] | None = None,
     ) -> None:
         self.delete_calls.extend(deletes)
 
@@ -89,7 +91,7 @@ def test_is_ip_banned_live_entry_decided_with_one_cache_clock_read() -> None:
     timer = _BoundaryTimer([0.0, 0.0, 300.0])
     manager.banned_ips = TTLCache(maxsize=10, ttl=300, timer=timer)
     redis = _RecordingRedisHandler()
-    manager.redis_handler = redis_slot(redis)
+    manager.redis_handler = redis
 
     manager.banned_ips["172.16.10.1"] = time.time() + 60
     manager._ban_version_checked_at = time.time()
@@ -105,7 +107,7 @@ def test_is_ip_banned_expired_at_read_returns_false_without_raising() -> None:
         maxsize=10, ttl=300, timer=_BoundaryTimer([0.0, 300.0])
     )
     redis = _RecordingRedisHandler()
-    manager.redis_handler = redis_slot(redis)
+    manager.redis_handler = redis
 
     manager.banned_ips["172.16.10.2"] = time.time() + 300
     manager._ban_version_checked_at = time.time()
@@ -129,7 +131,7 @@ def test_unban_survives_expiry_between_membership_check_and_delete() -> None:
     timer = _BoundaryTimer([0.0, 0.0, 300.0])
     manager.banned_ips = TTLCache(maxsize=10, ttl=300, timer=timer)
     redis = _RecordingRedisHandler()
-    manager.redis_handler = redis_slot(redis)
+    manager.redis_handler = redis
     agent = MagicMock()
     manager.agent_handler = agent
 
@@ -153,7 +155,7 @@ def test_unban_expired_entry_is_noop_and_side_effects_still_run() -> None:
         maxsize=10, ttl=300, timer=_BoundaryTimer([0.0, 300.0])
     )
     redis = _RecordingRedisHandler()
-    manager.redis_handler = redis_slot(redis)
+    manager.redis_handler = redis
     agent = MagicMock()
     manager.agent_handler = agent
 

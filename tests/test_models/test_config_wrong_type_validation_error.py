@@ -29,7 +29,7 @@ def _loc_of_only_error(error: ValidationError) -> tuple[int | str, ...]:
 @pytest.mark.parametrize("field", _NAME_SET_FIELDS)
 @pytest.mark.parametrize("value", [*_NOT_A_COLLECTION, *_UNHASHABLE_ITEM])
 def test_name_set_field_wrong_type_is_validation_error_at_field(
-    field: str, value: Any
+    field: str, value: object
 ) -> None:
     with pytest.raises(ValidationError) as caught:
         SecurityConfig(**{field: value})
@@ -46,7 +46,7 @@ def test_name_set_field_mixed_types_are_validation_error_at_field(field: str) ->
 @pytest.mark.parametrize("field", _IP_LIST_FIELDS)
 @pytest.mark.parametrize("value", [*_NOT_A_COLLECTION, [object()], [None], [1]])
 def test_ip_list_field_wrong_type_is_validation_error_at_field(
-    field: str, value: Any
+    field: str, value: object
 ) -> None:
     with pytest.raises(ValidationError) as caught:
         SecurityConfig(**{field: value})
@@ -68,7 +68,7 @@ def test_ip_list_field_wrong_type_is_validation_error_at_field(
     ],
 )
 def test_threat_ban_config_wrong_type_is_validation_error_at_field(
-    value: Any,
+    value: object,
 ) -> None:
     with pytest.raises(ValidationError) as caught:
         SecurityConfig(threat_ban_config=value)

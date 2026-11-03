@@ -7,7 +7,7 @@ from tests.conftest import MockGuardRequest
 from tests.test_core.conftest import build_middleware, fixed_country_geo_ip
 
 
-async def _events(**rules: Any) -> list[dict[str, Any]]:
+async def _events(**rules: object) -> list[dict[str, Any]]:
     geo = fixed_country_geo_ip("CN")
     config = SecurityConfig(
         enable_redis=False,

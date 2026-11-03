@@ -80,7 +80,7 @@ def fixed_country_geo_ip(country: str) -> MagicMock:
 def build_middleware(
     config: SecurityConfig,
     decorator: SecurityDecorator,
-    geo_ip_handler: Any = None,
+    geo_ip_handler: object = None,
 ) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
@@ -110,7 +110,7 @@ def build_middleware(
 def build_route_pipeline(
     config: SecurityConfig,
     *decorator_factories: Callable[[SecurityDecorator], Any],
-    geo_ip_handler: Any = None,
+    geo_ip_handler: object = None,
 ) -> tuple[SecurityCheckPipeline, MagicMock, str]:
     decorator = SecurityDecorator(config)
 

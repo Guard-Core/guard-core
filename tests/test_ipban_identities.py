@@ -2,7 +2,6 @@ import ipaddress
 import os
 import time
 from collections.abc import AsyncGenerator, Generator
-from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -47,7 +46,7 @@ async def live_redis() -> AsyncGenerator[RedisManager, None]:
     unwatch_engine_commands(config.redis_url)
 
 
-def _manager(**settings: Any) -> IPBanManager:
+def _manager(**settings: object) -> IPBanManager:
     manager = IPBanManager()
     manager.redis_handler = None
     manager.config = SecurityConfig(enable_redis=False, **settings)

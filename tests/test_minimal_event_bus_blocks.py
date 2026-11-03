@@ -14,18 +14,20 @@ CLIENT = "203.0.113.5"
 
 
 class _BusWithOnlySendMiddlewareEvent:
-    async def send_middleware_event(self, **kwargs: Any) -> None:
+    async def send_middleware_event(self, **kwargs: object) -> None:
         return None
 
-    async def send_cloud_detection_events(self, *args: Any, **kwargs: Any) -> None:
+    async def send_cloud_detection_events(
+        self, *args: object, **kwargs: object
+    ) -> None:
         return None
 
 
 class _RateLimitHandlerWithoutAgentHandler:
-    def __init__(self, real: Any) -> None:
+    def __init__(self, real: object) -> None:
         self._real = real
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         if name == "agent_handler":
             raise AttributeError(name)
         return getattr(self._real, name)
@@ -40,7 +42,7 @@ async def _status(
     query_params: dict[str, str] | None = None,
     country: str | None = None,
     banned: bool = False,
-    **settings: Any,
+    **settings: object,
 ) -> int | None:
     settings.setdefault("enable_penetration_detection", False)
     settings.setdefault("enable_rate_limiting", False)

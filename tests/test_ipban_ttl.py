@@ -1,6 +1,7 @@
 import logging
 import time
 from collections.abc import Generator
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -102,17 +103,14 @@ async def test_ban_longer_than_cap_succeeds_when_redis_available() -> None:
     assert manager.redis_handler.write_ban_extending_only.call_args.args[3] == duration
 
 
-class _FailingRedisHandler:
-    async def set_key(self, *args: object, **kwargs: object) -> None:
-        raise Exception("down")
-
-
 @pytest.mark.asyncio
 async def test_ban_exact_ip_longer_than_cap_keeps_its_duration_when_redis_set_key_fails(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
-    manager.redis_handler = redis_slot(_FailingRedisHandler())
+    manager.redis_handler = redis_slot(
+        AsyncMock(spec=["set_key"], set_key=AsyncMock(side_effect=Exception("down")))
+    )
     manager.banned_ips.clear()
 
     caplog.set_level(logging.WARNING, logger="guard_core.handlers.ipban")
@@ -140,7 +138,9 @@ async def test_ban_exact_ip_at_cap_warns_that_it_is_kept_in_this_process(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
-    manager.redis_handler = redis_slot(_FailingRedisHandler())
+    manager.redis_handler = redis_slot(
+        AsyncMock(spec=["set_key"], set_key=AsyncMock(side_effect=Exception("down")))
+    )
     manager.banned_ips.clear()
 
     caplog.set_level(logging.WARNING, logger="guard_core.handlers.ipban")

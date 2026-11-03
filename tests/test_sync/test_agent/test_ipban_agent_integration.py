@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from guard_core.sync.handlers.ipban_handler import IPBanManager
-from tests.fake_agent import mock_redis
+from tests.test_sync.fake_agent import mock_redis
 from tests.test_sync.ipban_redis_fake import fake_ban_redis
 
 

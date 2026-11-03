@@ -8,7 +8,7 @@ import pytest
 
 from guard_core.sync.handlers._ipban_cache import _BanStore
 from guard_core.sync.handlers.ipban_handler import IPBanManager
-from tests.fake_agent import mock_agent
+from tests.test_sync.fake_agent import mock_agent
 
 
 @pytest.fixture(autouse=True)

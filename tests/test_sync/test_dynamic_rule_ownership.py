@@ -9,7 +9,7 @@ from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
-from tests.fake_agent import mock_agent
+from tests.test_sync.fake_agent import mock_agent
 
 PATTERN = r"wp11ownedpattern\d{2,4}"
 OTHER_PATTERN = r"wp11otherpattern[a-z]{2,4}"

@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 import pytest
 
@@ -22,7 +21,7 @@ CONNECTION_FIELDS = {
 }
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(rate_limit=100, **settings)
 
 
@@ -35,7 +34,7 @@ def test_the_field_stays_unset_and_resolves_off_without_a_connection_field() -> 
 
 @pytest.mark.parametrize(("field", "value"), CONNECTION_FIELDS.items())
 def test_an_explicit_connection_field_turns_redis_on_and_names_itself(
-    field: str, value: Any
+    field: str, value: object
 ) -> None:
     config = _config(**{field: value})
 
@@ -51,7 +50,7 @@ def test_an_explicit_flag_always_wins(flag: bool) -> None:
 
 @pytest.mark.parametrize(("field", "value"), CONNECTION_FIELDS.items())
 def test_a_field_assigned_after_construction_joins_the_rule(
-    field: str, value: Any
+    field: str, value: object
 ) -> None:
     config = _config()
     before = config.enable_redis

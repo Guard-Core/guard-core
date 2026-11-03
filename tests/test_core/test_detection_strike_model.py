@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -26,7 +25,7 @@ class _Harness:
         self.bans: list[tuple[str, int, str]] = []
         self.categories: list[str] = []
 
-        async def detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+        async def detect(*_args: object, **_kwargs: object) -> DetectionResult:
             return DetectionResult(
                 is_threat=True,
                 trigger_info="probe",
@@ -56,7 +55,7 @@ class _Harness:
         await self.check.check(request)
 
 
-def _config(**fields: Any) -> SecurityConfig:
+def _config(**fields: object) -> SecurityConfig:
     return SecurityConfig(
         enable_ip_banning=True, enable_redis=False, rate_limit=1000, **fields
     )

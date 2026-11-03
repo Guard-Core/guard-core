@@ -1,13 +1,12 @@
 import logging
 import warnings
-from typing import Any
 
 import pytest
 
 from guard_core.models import SecurityConfig
 
 
-def _build(**settings: Any) -> SecurityConfig:
+def _build(**settings: object) -> SecurityConfig:
     return SecurityConfig(enable_redis=False, **settings)
 
 

@@ -25,7 +25,7 @@ async def _fresh_ban_store() -> AsyncGenerator[None, None]:
     ip_ban_manager.banned_ips.clear()
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,

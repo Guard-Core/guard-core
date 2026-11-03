@@ -50,7 +50,7 @@ def _force_enhanced_detection_singleton() -> None:
     sus_patterns_handler.configure(SyncSecurityConfig())
 
 
-def _is_threat(payload: Any) -> bool:
+def _is_threat(payload: object) -> bool:
     body = json.dumps(payload).encode()
     request = SyncMockGuardRequest(
         path="/webhooks",

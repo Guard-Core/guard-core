@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
@@ -22,7 +21,7 @@ from tests.test_sync.test_core.conftest import (
 )
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,

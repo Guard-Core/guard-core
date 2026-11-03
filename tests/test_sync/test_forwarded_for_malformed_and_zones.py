@@ -25,7 +25,7 @@ def _fresh_ban_store() -> Generator[None, None]:
     ip_ban_manager.banned_ips.clear()
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,

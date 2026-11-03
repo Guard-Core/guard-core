@@ -27,7 +27,7 @@ ROOT = next(p for p in WORKER.parents if (p / "guard_core").is_dir())
 
 
 @pytest.fixture(autouse=True)
-def _reset_singleton() -> Any:
+def _reset_singleton() -> object:
     IPInfoManager._instance = None
     yield
     IPInfoManager._instance = None
@@ -166,7 +166,7 @@ def test_an_os_error_while_installing_an_adopted_copy_is_a_failed_attempt_only(
         "ipinfo", "database", padded_database_bytes(b"\x00", 50000).decode("latin-1")
     )
 
-    def failing_replace(source: Any, target: Any) -> None:
+    def failing_replace(source: object, target: object) -> None:
         raise PermissionError("the data dir is read only")
 
     monkeypatch.setattr(os, "replace", failing_replace)
@@ -197,7 +197,7 @@ def test_an_os_error_while_installing_a_whole_value_copy_keeps_the_key(
     manager = IPInfoManager(token="tok", db_path=tmp_path / "geo.mmdb")
     manager.redis_handler = cast(Any, stub)
 
-    def failing_replace(source: Any, target: Any) -> None:
+    def failing_replace(source: object, target: object) -> None:
         raise PermissionError("the data dir is read only")
 
     monkeypatch.setattr(os, "replace", failing_replace)

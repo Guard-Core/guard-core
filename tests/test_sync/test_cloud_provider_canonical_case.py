@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Any
 
 import pytest
 
@@ -11,7 +10,7 @@ from guard_core.sync.decorators import SecurityDecorator, get_route_id
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
 
-def _apply(manager: DynamicRuleManager, **fields: Any) -> None:
+def _apply(manager: DynamicRuleManager, **fields: object) -> None:
     rules = DynamicRules(
         rule_id="plan", version=1, timestamp=datetime.now(timezone.utc), **fields
     )

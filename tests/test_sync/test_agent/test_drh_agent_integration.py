@@ -19,7 +19,7 @@ def _frozen_datetime(moment: datetime) -> MagicMock:
 
 
 def _apply_plan(
-    manager: DynamicRuleManager, rules: DynamicRules | None = None, **fields: Any
+    manager: DynamicRuleManager, rules: DynamicRules | None = None, **fields: object
 ) -> None:
     if rules is None:
         rules = DynamicRules(

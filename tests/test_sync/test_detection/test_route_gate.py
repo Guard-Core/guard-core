@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,7 +14,7 @@ from tests.test_sync.conftest import SyncMockGuardRequest, declare_route
 CLIENT = "203.0.113.30"
 
 
-def _flagged(path: str, template: str | None = None, **state: Any) -> bool:
+def _flagged(path: str, template: str | None = None, **state: object) -> bool:
     request = SyncMockGuardRequest(path=path)
     if template is not None:
         declare_route(request, template)
@@ -112,7 +111,7 @@ def test_a_template_that_is_not_text_gives_no_route_knowledge() -> None:
     assert _flagged("/shop/cart.php", None, guard_route_template=42) is True
 
 
-def _check(template: Any) -> tuple[SuspiciousActivityCheck, MagicMock, MagicMock]:
+def _check(template: object) -> tuple[SuspiciousActivityCheck, MagicMock, MagicMock]:
     config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=True)
     middleware = MagicMock()
     middleware.config = config
@@ -293,7 +292,7 @@ def test_a_literal_next_to_a_parameter_still_declares_the_probe_token(
 
 
 def _static_check(
-    served: Any,
+    served: object,
 ) -> tuple[SuspiciousActivityCheck, MagicMock]:
     check, middleware, _ = _check(None)
     lookup = MagicMock(side_effect=served if callable(served) else None)
@@ -413,7 +412,7 @@ def test_a_failing_static_lookup_is_logged_and_the_path_stays_flagged(
 
 
 @pytest.mark.parametrize("answer", [None, "yes", 1])
-def test_only_true_counts_as_an_existing_static_file(answer: Any) -> None:
+def test_only_true_counts_as_an_existing_static_file(answer: object) -> None:
     check, _ = _static_check(answer)
 
     assert check.check(_stamped("/hls/seg.ts")) is not None

@@ -7,7 +7,7 @@ from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 
 
 @pytest.fixture(autouse=True)
-def _reset_ipinfo_singleton() -> Any:
+def _reset_ipinfo_singleton() -> object:
     IPInfoManager._instance = None
     yield
     IPInfoManager._instance = None

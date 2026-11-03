@@ -10,7 +10,7 @@ import pytest
 from guard_core._dynamic_rules import content_fingerprint
 from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
-from tests.fake_agent import mock_agent
+from tests.test_sync.fake_agent import mock_agent
 
 
 @pytest.fixture(autouse=True)

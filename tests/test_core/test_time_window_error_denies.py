@@ -35,7 +35,7 @@ def _both(logger: Mock) -> tuple[RequestValidator, TimeWindowCheck]:
     return validator, check
 
 
-def _clock(monkeypatch: pytest.MonkeyPatch, now: Any) -> None:
+def _clock(monkeypatch: pytest.MonkeyPatch, now: object) -> None:
     clock = Mock()
     clock.now = now
     for module in (check_module, validator_module):
@@ -58,7 +58,7 @@ async def test_an_evaluation_error_denies_in_check_and_legacy_validator(
 async def test_a_raising_clock_denies_in_check_and_legacy_validator(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def broken(tz: Any) -> datetime:
+    def broken(tz: object) -> datetime:
         raise RuntimeError("clock failure")
 
     _clock(monkeypatch, broken)

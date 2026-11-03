@@ -296,7 +296,7 @@ def _client_ip(peer: str, config: SyncSecurityConfig) -> str:
     return extract_client_ip(cast(Any, request), config)
 
 
-def _observed(peer: str, **settings: Any) -> dict[str, Any]:
+def _observed(peer: str, **settings: object) -> dict[str, Any]:
     config = SyncSecurityConfig(enable_redis=False, trusted_proxies=[], **settings)
     client_ip = _client_ip(peer, config)
     response = MagicMock(status_code=404)
@@ -386,7 +386,7 @@ def test_the_redis_recent_count_reads_the_identity_index() -> None:
     assert read == written[0]
 
 
-def _throttle_marker_keys(client_ip: str, **settings: Any) -> list[str]:
+def _throttle_marker_keys(client_ip: str, **settings: object) -> list[str]:
     tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False, **settings))
     rule = BehaviorRule(rule_type="usage", threshold=1, window=60, action="throttle")
     check = ThrottleCheck(rule, "ep", True, 1)

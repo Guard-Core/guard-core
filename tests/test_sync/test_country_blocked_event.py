@@ -7,7 +7,7 @@ from tests.test_sync.conftest import SyncMockGuardRequest
 from tests.test_sync.test_core.conftest import build_middleware, fixed_country_geo_ip
 
 
-def _events(**rules: Any) -> list[dict[str, Any]]:
+def _events(**rules: object) -> list[dict[str, Any]]:
     geo = fixed_country_geo_ip("CN")
     config = SyncSecurityConfig(
         enable_redis=False,

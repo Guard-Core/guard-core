@@ -55,7 +55,7 @@ def test_require_auth_never_runs_the_verifier_for_an_empty_token(
 ) -> None:
     calls: list[Any] = []
 
-    def verifier(request: Any, credential: str) -> bool:
+    def verifier(request: object, credential: str) -> bool:
         calls.append(credential)
         return True
 
@@ -88,7 +88,7 @@ def test_presence_only_route_rejects_an_empty_bearer_token() -> None:
 def test_lowercase_bearer_scheme_reaches_the_verifier() -> None:
     seen: list[str] = []
 
-    def verifier(request: Any, credential: str) -> bool:
+    def verifier(request: object, credential: str) -> bool:
         seen.append(credential)
         return True
 

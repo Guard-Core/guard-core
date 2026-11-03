@@ -2,7 +2,6 @@ import asyncio
 import time
 from collections.abc import Awaitable, Iterator
 from datetime import datetime, timezone
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -15,7 +14,7 @@ _UNSAFE = r"(a|aa)+$"
 _PATTERNS = ["curl", r"bad[a-z]{2,6}bot", r"python-requests/\d+", _UNSAFE, r"sqlmap\S*"]
 
 
-async def _apply(manager: DynamicRuleManager, **fields: Any) -> None:
+async def _apply(manager: DynamicRuleManager, **fields: object) -> None:
     rules = DynamicRules(
         rule_id="plan", version=1, timestamp=datetime.now(timezone.utc), **fields
     )

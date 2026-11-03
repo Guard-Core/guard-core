@@ -21,7 +21,7 @@ async def manager() -> AsyncGenerator[SecurityHeadersManager, None]:
 
 
 async def _load(
-    manager: SecurityHeadersManager, csp: Any = None, hsts: Any = None
+    manager: SecurityHeadersManager, csp: object = None, hsts: object = None
 ) -> None:
     redis = AsyncMock()
     redis.get_key = AsyncMock(
@@ -56,7 +56,7 @@ BAD_CSP: list[Any] = [
 async def test_an_invalid_cached_csp_is_dropped_and_the_own_config_kept(
     manager: SecurityHeadersManager,
     caplog: pytest.LogCaptureFixture,
-    record: Any,
+    record: object,
 ) -> None:
     with caplog.at_level(logging.WARNING):
         await _load(manager, csp=record)
@@ -85,7 +85,7 @@ BAD_HSTS: list[Any] = [
 async def test_an_invalid_cached_hsts_is_dropped_and_the_own_config_kept(
     manager: SecurityHeadersManager,
     caplog: pytest.LogCaptureFixture,
-    record: Any,
+    record: object,
 ) -> None:
     with caplog.at_level(logging.WARNING):
         await _load(manager, hsts=record)

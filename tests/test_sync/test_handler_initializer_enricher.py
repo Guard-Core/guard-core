@@ -16,13 +16,13 @@ class _FakeAgent:
     def stop(self) -> None:
         type(self).stopped += 1
 
-    def send_event(self, _: Any) -> None:
+    def send_event(self, _: object) -> None:
         return None
 
-    def send_metric(self, _: Any) -> None:
+    def send_metric(self, _: object) -> None:
         return None
 
-    def initialize_redis(self, _: Any) -> None:
+    def initialize_redis(self, _: object) -> None:
         return None
 
     def flush_buffer(self) -> None:

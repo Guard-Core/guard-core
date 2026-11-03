@@ -19,7 +19,7 @@ def reset_singleton() -> Iterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _rules(**overrides: Any) -> DynamicRules:
+def _rules(**overrides: object) -> DynamicRules:
     base: dict[str, Any] = {
         "rule_id": "R",
         "version": 1,

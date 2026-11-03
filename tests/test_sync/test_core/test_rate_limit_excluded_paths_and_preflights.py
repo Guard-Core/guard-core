@@ -17,7 +17,7 @@ PREFLIGHT_HEADERS = {
 }
 
 
-def _pipeline(**settings: Any) -> SecurityCheckPipeline:
+def _pipeline(**settings: object) -> SecurityCheckPipeline:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,

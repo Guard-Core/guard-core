@@ -10,7 +10,7 @@ from tests.test_sync.test_core.conftest import build_middleware
 
 
 def _outcome(
-    headers: dict[str, str], **settings: Any
+    headers: dict[str, str], **settings: object
 ) -> tuple[int | None, list[dict[str, Any]]]:
     config = SyncSecurityConfig(
         enable_redis=False,

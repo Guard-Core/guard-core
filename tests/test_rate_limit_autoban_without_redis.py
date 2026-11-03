@@ -20,7 +20,7 @@ async def test_a_ban_with_shared_counts_but_no_redis_handler_forgets_nothing(
     check = RateLimitCheck(middleware)
     forgotten: list[Any] = []
 
-    async def forget(handler: Any, identity: str) -> None:
+    async def forget(handler: object, identity: str) -> None:
         forgotten.append(handler)
 
     monkeypatch.setattr(check, "_shared_violation_counts", AsyncMock(return_value={}))

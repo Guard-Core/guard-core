@@ -2,7 +2,6 @@ import ipaddress
 import logging
 from collections.abc import Generator
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
@@ -166,7 +165,7 @@ async def _status(config: SecurityConfig, client_host: str) -> int | None:
     return None if response is None else response.status_code
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     return SecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,

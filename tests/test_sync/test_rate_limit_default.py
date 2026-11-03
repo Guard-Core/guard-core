@@ -11,7 +11,7 @@ from tests.test_sync.test_core.conftest import build_middleware
 CLIENT = "203.0.113.30"
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,

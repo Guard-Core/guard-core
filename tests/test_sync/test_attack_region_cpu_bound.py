@@ -26,7 +26,7 @@ class _Burner:
         return re.finditer("x", text)
 
 
-def _with_indicators(*indicators: Any) -> ContentPreprocessor:
+def _with_indicators(*indicators: object) -> ContentPreprocessor:
     preprocessor = ContentPreprocessor()
     cast(Any, preprocessor).compiled_indicators = list(indicators)
     return preprocessor

@@ -1,6 +1,5 @@
 import time
 from collections.abc import Generator
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -23,7 +22,7 @@ def _reset_singleton() -> Generator[None, None, None]:
     IPBanManager._instance = None
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     return SecurityConfig(
         enable_redis=False,
         enable_ip_banning=True,
@@ -121,7 +120,7 @@ async def test_the_banning_request_event_and_log_carry_the_applied_duration(
     manager = _manager(config)
     check.ip_ban_manager = manager
 
-    async def detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def detect(*_args: object, **_kwargs: object) -> DetectionResult:
         return DetectionResult(
             is_threat=True, trigger_info="probe", threat_categories=["xss"]
         )

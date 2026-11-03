@@ -9,7 +9,7 @@ from guard_core.sync.core.initialization.handler_initializer import HandlerIniti
 from guard_core.sync.decorators import SecurityDecorator
 
 
-def _build(**settings: Any) -> SyncSecurityConfig:
+def _build(**settings: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(enable_redis=False, **settings)
 
 

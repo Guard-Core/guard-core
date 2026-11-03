@@ -25,7 +25,7 @@ def reset_singleton() -> Iterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _rules(**overrides: Any) -> DynamicRules:
+def _rules(**overrides: object) -> DynamicRules:
     fields: dict[str, Any] = {
         "rule_id": "R",
         "version": 1,
@@ -35,11 +35,11 @@ def _rules(**overrides: Any) -> DynamicRules:
     return DynamicRules(**fields)
 
 
-def _check(**config: Any) -> EmergencyModeCheck:
+def _check(**config: object) -> EmergencyModeCheck:
     return _check_for(_config(**config))
 
 
-def _config(**config: Any) -> SyncSecurityConfig:
+def _config(**config: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(
         enable_redis=False,
         emergency_mode=True,

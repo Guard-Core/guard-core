@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,7 +13,7 @@ CLIENT_IP = "203.0.113.20"
 
 
 def _build(
-    monkeypatch: pytest.MonkeyPatch, **fields: Any
+    monkeypatch: pytest.MonkeyPatch, **fields: object
 ) -> tuple[SuspiciousActivityCheck, AsyncMock]:
     config = SecurityConfig(
         enable_ip_banning=True,
@@ -35,7 +34,7 @@ def _build(
     middleware.route_resolver.should_bypass_check = lambda *_: False
     check = SuspiciousActivityCheck(middleware)
 
-    async def detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def detect(*_args: object, **_kwargs: object) -> DetectionResult:
         return DetectionResult(
             is_threat=True, trigger_info="probe", threat_categories=["xss"]
         )

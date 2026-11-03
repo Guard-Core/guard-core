@@ -1,5 +1,5 @@
 import logging
-from typing import Any, cast
+from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -75,8 +75,8 @@ def _build_check(config: SyncSecurityConfig) -> SuspiciousActivityCheck:
     return SuspiciousActivityCheck(middleware)
 
 
-def _make_detect_fn(result: DetectionResult) -> Any:
-    def fake_detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+def _make_detect_fn(result: DetectionResult) -> object:
+    def fake_detect(*_args: object, **_kwargs: object) -> DetectionResult:
         return result
 
     return fake_detect

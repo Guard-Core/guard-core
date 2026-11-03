@@ -57,7 +57,7 @@ def clean_rate_limit_process_state() -> None:
     forget_category_strikes("rate_limit")
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": engine_redis_url(REDIS_URL),
@@ -107,7 +107,7 @@ class _Worker:
             threat_scores={"xss": 1.0},
         )
 
-        async def fake(*_args: Any, **_kwargs: Any) -> DetectionResult:
+        async def fake(*_args: object, **_kwargs: object) -> DetectionResult:
             return result
 
         monkeypatch.setattr(f"{DETECT}.get_cached_detection_result", fake)
@@ -355,7 +355,7 @@ async def test_an_equal_config_resets_every_equal_guarded_app(
 
 
 async def test_equality_survives_a_dynamic_rule_update_and_callables() -> None:
-    def modifier(response: Any) -> Any:
+    def modifier(response: object) -> object:
         return response
 
     app_config = SecurityConfig(

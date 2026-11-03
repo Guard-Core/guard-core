@@ -22,8 +22,8 @@ from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
-from tests.fake_agent import mock_agent
 from tests.test_sync.conftest import SyncMockGuardRequest
+from tests.test_sync.fake_agent import mock_agent
 from tests.test_sync.test_core.conftest import (
     build_middleware,
     build_route_pipeline,

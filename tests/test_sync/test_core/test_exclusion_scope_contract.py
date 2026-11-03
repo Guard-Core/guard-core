@@ -26,7 +26,7 @@ from tests.test_sync.conftest import MockGuardResponse, SyncMockGuardRequest
 _LOGGER = logging.getLogger("test_exclusion_scope_contract")
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     fields: dict[str, Any] = {"enable_redis": False, "exclude_paths": ["/healthz"]}
     fields.update(overrides)
     return SyncSecurityConfig(**fields)

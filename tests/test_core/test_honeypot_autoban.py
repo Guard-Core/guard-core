@@ -1,6 +1,5 @@
 import json
 from collections.abc import Generator
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -30,7 +29,7 @@ def fresh_ban_manager() -> Generator[IPBanManager, None, None]:
     IPBanManager._instance = None
 
 
-def _middleware(**overrides: Any) -> MagicMock:
+def _middleware(**overrides: object) -> MagicMock:
     mw = MagicMock()
     mw.config = SecurityConfig(enable_redis=False, **overrides)
     mw.logger = MagicMock()

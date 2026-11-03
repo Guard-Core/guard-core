@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -9,7 +8,7 @@ from guard_core.models import SecurityConfig
 
 
 @pytest.fixture(autouse=True)
-def patch_security_event() -> Any:
+def patch_security_event() -> object:
     with patch(
         "guard_core.handlers.behavior_handler.SecurityEvent", create=True
     ) as mock_event:

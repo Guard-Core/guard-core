@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Any
 
 import pytest
 
@@ -20,7 +19,7 @@ def _nested_json_body(depth: int, leaf: str) -> bytes:
     return (prefix + leaf_json + suffix).encode()
 
 
-def _nested_json_value(depth: int, leaf: Any) -> Any:
+def _nested_json_value(depth: int, leaf: object) -> object:
     value = leaf
     for _ in range(depth):
         value = {"a": value}

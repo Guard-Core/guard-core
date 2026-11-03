@@ -83,10 +83,10 @@ def agent() -> _RecordingAgent:
 
 
 @pytest.fixture
-async def wire(agent: _RecordingAgent) -> Any:
+async def wire(agent: _RecordingAgent) -> object:
     wirings: list[_Wiring] = []
 
-    async def build(**config: Any) -> SecurityCheckPipeline:
+    async def build(**config: object) -> SecurityCheckPipeline:
         wiring = _Wiring(
             agent,
             SecurityConfig(

@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from guard_core.core.responses.context import ResponseContext
@@ -37,7 +36,10 @@ async def test_factory_dispatches_global_rules_when_config_has_them() -> None:
     received: list[tuple[str | None, list[BehaviorRule]]] = []
 
     async def fake_global(
-        request: Any, response: Any, client_ip: str | None, rules: list[BehaviorRule]
+        request: object,
+        response: object,
+        client_ip: str | None,
+        rules: list[BehaviorRule],
     ) -> None:
         received.append((client_ip, rules))
 
@@ -70,7 +72,7 @@ async def test_factory_skips_global_when_no_rules_configured() -> None:
 
     called = False
 
-    async def fake_global(*_args: Any, **_kwargs: Any) -> None:
+    async def fake_global(*_args: object, **_kwargs: object) -> None:
         nonlocal called
         called = True
 

@@ -1,6 +1,5 @@
 import logging
 from collections.abc import Iterator
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -42,7 +41,7 @@ def remainder_clock() -> Iterator[_ClockThatRunsOutInTheRemainder]:
     clock = _ClockThatRunsOutInTheRemainder()
     real_groups = scan_remainder._SurfaceRemainder.groups
 
-    def groups(self: scan_remainder._SurfaceRemainder) -> Any:
+    def groups(self: scan_remainder._SurfaceRemainder) -> object:
         clock.armed = True
         return real_groups(self)
 

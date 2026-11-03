@@ -25,11 +25,11 @@ class _KeyValueRedis:
     def __init__(self) -> None:
         self.values: dict[tuple[str, str], Any] = {}
 
-    async def get_key(self, namespace: str, key: str) -> Any:
+    async def get_key(self, namespace: str, key: str) -> object:
         return self.values.get((namespace, key))
 
     async def set_key(
-        self, namespace: str, key: str, value: Any, ttl: int | None = None
+        self, namespace: str, key: str, value: object, ttl: int | None = None
     ) -> bool:
         self.values[(namespace, key)] = value
         return True

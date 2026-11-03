@@ -729,6 +729,10 @@ TEST_SUBS: list[tuple[str, str]] = [
         "from tests.test_sync.test_event_attribution import",
     ),
     (
+        r"from tests\.fake_agent import",
+        "from tests.test_sync.fake_agent import",
+    ),
+    (
         r"from tests\.ipban_redis_fake import",
         "from tests.test_sync.ipban_redis_fake import",
     ),

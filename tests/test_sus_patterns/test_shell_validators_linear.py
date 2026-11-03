@@ -1,7 +1,6 @@
 import re
 from collections.abc import AsyncGenerator
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -41,13 +40,13 @@ class _ExaminedCounter:
         self._regex = regex
         self.examined = 0
 
-    def search(self, string: str, pos: int = 0, endpos: int | None = None) -> Any:
+    def search(self, string: str, pos: int = 0, endpos: int | None = None) -> object:
         stop = len(string) if endpos is None else min(endpos, len(string))
         found = self._regex.search(string, pos, stop)
         self.examined += (stop if found is None else found.end()) - max(pos, 0)
         return found
 
-    def match(self, string: str, pos: int = 0, endpos: int | None = None) -> Any:
+    def match(self, string: str, pos: int = 0, endpos: int | None = None) -> object:
         stop = len(string) if endpos is None else min(endpos, len(string))
         found = self._regex.match(string, pos, stop)
         self.examined += 1 if found is None else found.end() - pos

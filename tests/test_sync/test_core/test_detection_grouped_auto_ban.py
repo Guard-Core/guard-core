@@ -1,5 +1,4 @@
 from collections.abc import Generator
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -68,7 +67,7 @@ def _check(
     manager.redis_handler = redis
     check.ip_ban_manager = manager
 
-    def detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    def detect(*_args: object, **_kwargs: object) -> DetectionResult:
         return DetectionResult(
             is_threat=True, trigger_info="probe", threat_categories=["xss"]
         )

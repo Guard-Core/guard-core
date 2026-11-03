@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 import pytest
 
@@ -24,7 +23,7 @@ GLOBAL_LIMIT_1 = {
 
 
 @pytest.fixture(autouse=True)
-def _fresh_ban_store(monkeypatch: pytest.MonkeyPatch) -> Any:
+def _fresh_ban_store(monkeypatch: pytest.MonkeyPatch) -> object:
     monkeypatch.setattr(
         rate_limit_module, "_non_ip_ban_refusal_logged", False, raising=False
     )
@@ -55,7 +54,7 @@ async def test_a_peerless_client_is_rate_limited_and_never_turned_into_a_500(
 ) -> None:
     banned: list[str] = []
 
-    async def record_ban(ip: str, *args: Any, **kwargs: Any) -> bool:
+    async def record_ban(ip: str, *args: object, **kwargs: object) -> bool:
         banned.append(ip)
         return True
 
@@ -86,7 +85,7 @@ async def test_the_refused_non_ip_ban_is_logged_once(
 async def test_an_exception_from_ban_ip_keeps_the_429(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    async def explode(*args: Any, **kwargs: Any) -> bool:
+    async def explode(*args: object, **kwargs: object) -> bool:
         raise RuntimeError("ban store down")
 
     monkeypatch.setattr(ip_ban_manager, "_ban_ip_escalating", explode)

@@ -20,7 +20,7 @@ def anyhit(row: dict[str, Any]) -> bool:
 
 
 class _St:
-    def __getattr__(self, _key: str) -> Any:
+    def __getattr__(self, _key: str) -> object:
         return None
 
 
@@ -45,7 +45,7 @@ class _Req:
         return self._h
 
     @property
-    def state(self) -> Any:
+    def state(self) -> object:
         return _St()
 
     def url_replace_scheme(self, _scheme: str) -> str:

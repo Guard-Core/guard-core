@@ -1,9 +1,11 @@
-from typing import Any
+from collections.abc import AsyncIterator, Callable
 from unittest.mock import AsyncMock, MagicMock
 
 
-def fake_ban_redis(ban_value: str | None = None, version: str | None = None) -> Any:
-    async def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
+def fake_ban_redis(
+    ban_value: str | None = None, version: str | None = None
+) -> AsyncMock:
+    async def scan_iter(*_args: object, **_kwargs: object) -> AsyncIterator[str]:
         keys: list[str] = []
         if keys:
             yield keys[0]
@@ -26,8 +28,8 @@ def fake_ban_redis(ban_value: str | None = None, version: str | None = None) -> 
     return redis
 
 
-def scanning(*keys: str) -> Any:
-    async def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
+def scanning(*keys: str) -> Callable[..., AsyncIterator[str]]:
+    async def scan_iter(*_args: object, **_kwargs: object) -> AsyncIterator[str]:
         position = 0
         while position < len(keys):
             yield keys[position]
@@ -36,7 +38,7 @@ def scanning(*keys: str) -> Any:
     return scan_iter
 
 
-def pipeline_of(pipe: Any) -> Any:
+def pipeline_of(pipe: object) -> MagicMock:
     return MagicMock(
         return_value=AsyncMock(
             __aenter__=AsyncMock(return_value=pipe),
@@ -45,7 +47,7 @@ def pipeline_of(pipe: Any) -> Any:
     )
 
 
-def redis_with_connection(connection: Any) -> Any:
+def redis_with_connection(connection: object) -> AsyncMock:
     redis = AsyncMock()
     redis.config = MagicMock(redis_prefix="guard:")
     redis.get_connection = MagicMock(

@@ -10,7 +10,7 @@ PREFLIGHT = {
 }
 
 
-def _handler(**overrides: Any) -> CorsHandler:
+def _handler(**overrides: object) -> CorsHandler:
     fields: dict[str, Any] = {
         "enable_redis": False,
         "enable_cors": True,

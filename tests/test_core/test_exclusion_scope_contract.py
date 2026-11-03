@@ -26,7 +26,7 @@ from tests.conftest import MockGuardRequest, MockGuardResponse
 _LOGGER = logging.getLogger("test_exclusion_scope_contract")
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     fields: dict[str, Any] = {"enable_redis": False, "exclude_paths": ["/healthz"]}
     fields.update(overrides)
     return SecurityConfig(**fields)

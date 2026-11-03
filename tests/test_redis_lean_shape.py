@@ -1,5 +1,3 @@
-from typing import Any
-
 from redis import __version__ as REDIS_PY_VERSION
 from redis.asyncio.connection import Connection
 
@@ -14,7 +12,7 @@ WHAT = (
 )
 
 
-def _has(owner: Any, name: str, description: str) -> None:
+def _has(owner: object, name: str, description: str) -> None:
     assert hasattr(owner, name), (
         f"redis-py {REDIS_PY_VERSION} has no {description} ({name}): {WHAT}"
     )

@@ -82,7 +82,7 @@ def test_end_to_end_span_emission_with_otel(
         raising=False,
     )
 
-    def fake_extract(*_a: Any, **_kw: Any) -> str:
+    def fake_extract(*_a: object, **_kw: object) -> str:
         return "1.2.3.4"
 
     monkeypatch.setattr(
@@ -126,7 +126,7 @@ def test_end_to_end_mute_suppresses_span(monkeypatch: pytest.MonkeyPatch) -> Non
         raising=False,
     )
 
-    def fake_extract(*_a: Any, **_kw: Any) -> str:
+    def fake_extract(*_a: object, **_kw: object) -> str:
         return "1.2.3.4"
 
     monkeypatch.setattr(
@@ -156,7 +156,7 @@ def test_end_to_end_traceparent_passes_through_event_bus(
 ) -> None:
     captured: dict[str, Any] = {}
 
-    def capture_send(event: Any) -> None:
+    def capture_send(event: object) -> None:
         captured["event"] = event
 
     composite = MagicMock()
@@ -172,7 +172,7 @@ def test_end_to_end_traceparent_passes_through_event_bus(
         raising=False,
     )
 
-    def fake_extract(*_a: Any, **_kw: Any) -> str:
+    def fake_extract(*_a: object, **_kw: object) -> str:
         return "1.2.3.4"
 
     monkeypatch.setattr(
@@ -227,7 +227,7 @@ def test_full_pipeline_through_handler_initializer(
         raising=False,
     )
 
-    def fake_extract(*_a: Any, **_kw: Any) -> str:
+    def fake_extract(*_a: object, **_kw: object) -> str:
         return "1.2.3.4"
 
     monkeypatch.setattr(
@@ -278,7 +278,7 @@ def test_full_pipeline_mute_through_handler_initializer(
         raising=False,
     )
 
-    def fake_extract(*_a: Any, **_kw: Any) -> str:
+    def fake_extract(*_a: object, **_kw: object) -> str:
         return "1.2.3.4"
 
     monkeypatch.setattr(

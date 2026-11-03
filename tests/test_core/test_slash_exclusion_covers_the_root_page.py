@@ -18,7 +18,7 @@ def _validator(config: SecurityConfig) -> RequestValidator:
     )
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     return SecurityConfig(enable_redis=False, **settings)
 
 

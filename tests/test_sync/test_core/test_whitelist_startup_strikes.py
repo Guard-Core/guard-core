@@ -33,7 +33,7 @@ OUTSIDE = "203.0.113.10"
 LOGGER = "guard_core.sync.core.initialization.whitelist_strikes"
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": engine_redis_url(REDIS_URL),
@@ -90,7 +90,7 @@ def _strike(
         threat_scores={"xss": 1.0},
     )
 
-    def fake(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    def fake(*_args: object, **_kwargs: object) -> DetectionResult:
         return result
 
     monkeypatch.setattr(f"{DETECT}.get_cached_detection_result", fake)
@@ -211,7 +211,7 @@ def test_a_scan_that_raises_leaves_the_old_fingerprint_and_is_retried(
     _strike(redis, monkeypatch, INSIDE)
     real = ban_manager.forget_strikes_inside
 
-    def boom(entries: Any, strict: bool = False) -> None:
+    def boom(entries: object, strict: bool = False) -> None:
         raise RuntimeError("scan died")
 
     monkeypatch.setattr(ban_manager, "forget_strikes_inside", boom)

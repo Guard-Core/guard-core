@@ -1,5 +1,4 @@
 import warnings
-from typing import Any
 
 import pytest
 
@@ -14,10 +13,10 @@ class _StubGeoIPHandler:
     def initialize(self) -> None:
         return
 
-    def initialize_redis(self, redis_handler: Any) -> None:
+    def initialize_redis(self, redis_handler: object) -> None:
         return
 
-    def initialize_agent(self, agent_handler: Any) -> None:
+    def initialize_agent(self, agent_handler: object) -> None:
         return
 
     def get_country(self, ip: str) -> str | None:

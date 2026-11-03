@@ -3,7 +3,6 @@ import logging
 import warnings
 from collections.abc import Generator
 from types import ModuleType
-from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -43,7 +42,7 @@ def _fresh_module() -> ModuleType:
     return module
 
 
-def _build(**settings: Any) -> list[warnings.WarningMessage]:
+def _build(**settings: object) -> list[warnings.WarningMessage]:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         SyncSecurityConfig(**settings)

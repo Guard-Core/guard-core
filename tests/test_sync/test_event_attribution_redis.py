@@ -38,7 +38,7 @@ def redis() -> Generator[RedisManager, None]:
     manager.close()
 
 
-def _redis_config(redis: RedisManager, **overrides: Any) -> SyncSecurityConfig:
+def _redis_config(redis: RedisManager, **overrides: object) -> SyncSecurityConfig:
     return _config(
         enable_redis=True,
         redis_url=REDIS_URL,
@@ -190,7 +190,7 @@ def _count_ownership_reads(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     assert handler is not None
     original = handler.owned_ban_state
 
-    def counting(namespace: str, key: str) -> Any:
+    def counting(namespace: str, key: str) -> object:
         reads.append(f"{namespace}:{key}")
         return original(namespace, key)
 

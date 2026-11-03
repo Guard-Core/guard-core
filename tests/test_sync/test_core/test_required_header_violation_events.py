@@ -11,7 +11,7 @@ class _RecordingAgent:
     def __init__(self) -> None:
         self.events: list[Any] = []
 
-    def send_event(self, event: Any) -> None:
+    def send_event(self, event: object) -> None:
         self.events.append(event)
 
 

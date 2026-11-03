@@ -17,7 +17,7 @@ from tests.test_core.conftest import (
 IP = "198.51.100.30"
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,

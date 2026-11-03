@@ -7,7 +7,7 @@ from guard_core.models import SecurityConfig
 
 
 @pytest.fixture(autouse=True)
-def _reset_ipinfo_singleton() -> Any:
+def _reset_ipinfo_singleton() -> object:
     IPInfoManager._instance = None
     yield
     IPInfoManager._instance = None

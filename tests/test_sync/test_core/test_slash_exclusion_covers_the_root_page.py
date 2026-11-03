@@ -18,7 +18,7 @@ def _validator(config: SyncSecurityConfig) -> RequestValidator:
     )
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(enable_redis=False, **settings)
 
 
