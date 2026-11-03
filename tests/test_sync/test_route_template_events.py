@@ -88,7 +88,7 @@ def test_a_nested_capture_counts_in_the_index_but_is_not_top_level() -> None:
 
 def test_an_unbalanced_template_reports_no_group() -> None:
     assert capture_groups("/(a") == ()
-    assert normalized_route_template("/(a") is None
+    assert [group.name for group in capture_groups("/a)/(b)")] == [None]
 
 
 @pytest.mark.parametrize(

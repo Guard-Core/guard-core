@@ -678,8 +678,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "patterns:custom splits into and that patterns:custom is used; no stored "
         "pattern and no request value is interpolated"
     ),
-    "core/checks/implementations/suspicious_activity.py:"
-    "SuspiciousActivityCheck._record_route_template": (
+    "_utils/route_gate.py:record_route_template": (
         "logs the fixed text 'route_template failed; the path is judged without "
         "it' when an adapter's route_template raises; no request value is "
         "interpolated"
