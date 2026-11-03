@@ -209,6 +209,31 @@ def test_the_gate_hands_back_the_declared_length_it_read() -> None:
     assert malformed[0] is not None and malformed[1] is None
 
 
+@pytest.mark.parametrize(
+    "content_type",
+    [
+        "text/event-stream",
+        "TEXT/Event-Stream; charset=x",
+        "  text/event-stream",
+        " \t\u00a0text/event-stream",
+        "\u2003Text/Event-Stream",
+        "\x1ctext/event-stream",
+        "text/event-streamX",
+        "xtext/event-stream",
+        "text/event-\u017ftream",
+        "text/html",
+    ],
+)
+def test_the_event_stream_check_matches_lstrip_lower_startswith(
+    content_type: str,
+) -> None:
+    headers = {"content-type": content_type, "content-length": "5"}
+    refusal, _declared = body_gate(_guard(_Response(headers)), "GET", 1024)
+
+    expected = content_type.lower().lstrip().startswith("text/event-stream")
+    assert (refusal == "text/event-stream has no end") is expected
+
+
 def test_a_response_with_no_content_length_declares_none() -> None:
     assert declared_content_length(_guard(_Response({}))) is None
 

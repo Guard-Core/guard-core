@@ -26,6 +26,12 @@ _BODY_NOT_YET_AVAILABLE = "the first call of a modifier that is replayed with th
 _BODYLESS_STATUSES = frozenset({204, 304})
 # not str.isdigit(), which is also true for superscripts and digits int() rejects
 _ASCII_DIGITS = re.compile(r"[0-9]+")
+# lstrip().lower().startswith("text/event-stream") in one call: \s is str.isspace,
+# and only the ASCII capitals of these letters lower to them
+_EVENT_STREAM = re.compile(
+    r"\s*"
+    + "".join(f"[{c}{c.upper()}]" if c.isalpha() else c for c in "text/event-stream")
+)
 _REFUSAL_REPORT_SECONDS = 60
 _REFUSAL_REPORT_MAX_REASONS = 64
 _reported_refusals: PerApp[RefusalReports] = PerApp("refusals", RefusalReports)
@@ -315,7 +321,7 @@ def body_gate(
         content_type, declared = _plain_dict_gate_headers(
             headers, content_type, declared
         )
-    if content_type and content_type.lower().lstrip().startswith("text/event-stream"):
+    if content_type and _EVENT_STREAM.match(content_type):
         return "text/event-stream has no end", None
     if declared is None or _ASCII_DIGITS.fullmatch(declared) is None:
         return "the response declares no Content-Length", None
