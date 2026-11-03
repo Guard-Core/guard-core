@@ -27,7 +27,9 @@ class RouteConfigCheck(SecurityCheck):
 
     def __init__(self, middleware: "SyncGuardMiddlewareProtocol") -> None:
         super().__init__(middleware)
-        self._exclude_paths_examined = False
+        # the instance slot `check` is filled now so the first request only swaps
+        # its value: the instance dict keeps one layout for every request
+        object.__setattr__(self, "check", self.check)
 
     @property
     def check_name(self) -> str:
@@ -95,9 +97,33 @@ class RouteConfigCheck(SecurityCheck):
         return self.config.enable_cors and is_preflight(request.method, request.headers)
 
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
-        if not self._exclude_paths_examined:
-            self._exclude_paths_examined = True
-            warn_unmatched_exclude_paths(self.middleware, self.config)
+        warn_unmatched_exclude_paths(self.middleware, self.config)
+        steady = (
+            self._check_and_record_template
+            if callable(getattr(self.middleware, "route_template", None))
+            else self._check_route_config
+        )
+        object.__setattr__(self, "check", steady)
+        return steady(request)
+
+    def _check_route_config(self, request: SyncGuardRequest) -> GuardResponse | None:
+        route_config = self.middleware.route_resolver.get_route_config(request)
+        state = request.state
+        state.route_config = route_config
+        state.client_ip = extract_client_ip(
+            request, self.config, self.middleware.agent_handler
+        )
+        if (
+            self.config.route_resolution_strict
+            and getattr(state, "guard_route_unresolved", False)
+            and not self._is_cors_preflight(request)
+        ):
+            return self._handle_unresolved_route(request)
+        return None
+
+    def _check_and_record_template(
+        self, request: SyncGuardRequest
+    ) -> GuardResponse | None:
         route_config = self.middleware.route_resolver.get_route_config(request)
         state = request.state
         state.route_config = route_config

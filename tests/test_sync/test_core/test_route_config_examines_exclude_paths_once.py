@@ -73,3 +73,49 @@ def test_a_second_configuration_warns_for_itself(
         _serve(second, 3)
 
     assert _warnings(caplog) == [_TYPO_WARNING, _TYPO_WARNING]
+
+
+class _CountingState:
+    """A request state that counts every read of an attribute it does not hold."""
+
+    def __init__(self) -> None:
+        self.template_reads = 0
+
+    def __getattr__(self, name: str) -> object:
+        if name == "guard_route_template":
+            self.template_reads += 1
+        raise AttributeError(name)
+
+
+def _counting_request(state: _CountingState) -> Mock:
+    request = Mock()
+    request.state = state
+    request.headers = {}
+    request.client_host = "1.2.3.4"
+    return request
+
+
+def test_a_middleware_without_a_template_lookup_never_reads_the_template() -> None:
+    middleware = _middleware(["/admin/"])
+    middleware.route_template = None
+    check = RouteConfigCheck(middleware)
+    state = _CountingState()
+    with patch(f"{_ROUTE_CONFIG}.extract_client_ip", MagicMock(return_value="1.2.3.4")):
+        for _ in range(5):
+            check.check(_counting_request(state))
+
+    assert state.template_reads == 0
+
+
+def test_a_middleware_with_a_template_lookup_records_it_each_request() -> None:
+    middleware = _middleware(["/admin/"])
+    middleware.route_template = Mock(return_value="/orders/{id}")
+    check = RouteConfigCheck(middleware)
+    states = [_CountingState() for _ in range(3)]
+    with patch(f"{_ROUTE_CONFIG}.extract_client_ip", MagicMock(return_value="1.2.3.4")):
+        for state in states:
+            check.check(_counting_request(state))
+
+    assert [vars(state).get("guard_route_template") for state in states] == [
+        "/orders/{id}"
+    ] * 3
