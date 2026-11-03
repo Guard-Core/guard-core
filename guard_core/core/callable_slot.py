@@ -3,8 +3,6 @@ from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import Generic, TypeVar
 
-from guard_core._callable_shape import is_async_form
-
 _Argument = TypeVar("_Argument")
 _Result = TypeVar("_Result")
 
@@ -39,6 +37,8 @@ class CallableSlot(Generic[_Argument, _Result]):
         configured: Callable[[_Argument], Awaitable[_Result]]
         | Callable[[_Argument], _Result],
     ) -> None:
+        from guard_core._callable_shape import is_async_form
+
         if is_async_form(configured):
             self.invoke = configured
             self.source = configured

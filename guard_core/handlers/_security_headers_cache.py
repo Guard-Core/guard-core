@@ -13,12 +13,7 @@ from guard_core._security_headers_override import (
     config_fingerprint,
     override_fingerprint,
 )
-from guard_core._security_headers_record_validation import (
-    validate_cached_csp,
-    validate_cached_hsts,
-)
 from guard_core._utils.logging_utils import _sanitize_for_log
-from guard_core.handlers._redis_scan_unlink import scan_unlink
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
@@ -139,6 +134,11 @@ class SecurityHeadersCacheMixin:
         hsts: str | bytes | None,
         custom: str | bytes | None,
     ) -> None:
+        from guard_core._security_headers_record_validation import (
+            validate_cached_csp,
+            validate_cached_hsts,
+        )
+
         if csp:
             loaded = self._decode_own_state(csp)
             if loaded:
@@ -236,6 +236,8 @@ class SecurityHeadersCacheMixin:
         self._reset_override()
 
         if self.redis_handler:
+            from guard_core.handlers._redis_scan_unlink import scan_unlink
+
             try:
                 async with self.redis_handler.get_connection() as conn:
                     await scan_unlink(

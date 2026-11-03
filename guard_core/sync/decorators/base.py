@@ -8,7 +8,6 @@ from typing import (
     runtime_checkable,
 )
 
-from guard_core._geo_source import geo_source_problem
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.route_config import (
@@ -25,7 +24,6 @@ from guard_core.sync.decorators.route_config import (
     _TrackedList,
     _TrackedSet,
 )
-from guard_core.sync.handlers._downloader import TREE_DOWNLOADER
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
@@ -120,6 +118,9 @@ class BaseSecurityDecorator:
     def _require_geo_source(self, rule: str) -> None:
         if not self.config.fail_on_misconfiguration:
             return
+        from guard_core._geo_source import geo_source_problem
+        from guard_core.sync.handlers._downloader import TREE_DOWNLOADER
+
         problem = geo_source_problem(
             rule,
             self.config.geo_ip_handler,

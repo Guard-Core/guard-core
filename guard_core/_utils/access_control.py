@@ -5,7 +5,6 @@ from ipaddress import IPv4Address, IPv6Address, ip_address
 from typing import TYPE_CHECKING, Protocol
 
 from guard_core._utils.detection_scan import _user_agent_matches_blocked_pattern
-from guard_core._utils.geo_member_call import settle_geo_member_call
 from guard_core._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
     UNKNOWN_CLIENT_IDENTITY,
@@ -109,6 +108,8 @@ def _evaluate_country_access(
 
 
 async def _load_geo_database(geo_ip_handler: "GeoIPHandlerOfThisTree") -> None:
+    from guard_core._utils.geo_member_call import settle_geo_member_call
+
     ensure_database_loaded = getattr(geo_ip_handler, "ensure_database_loaded", None)
     if ensure_database_loaded is None:
         await settle_geo_member_call(geo_ip_handler, "initialize")

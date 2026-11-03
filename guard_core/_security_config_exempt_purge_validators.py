@@ -3,11 +3,12 @@ from typing import Annotated
 from pydantic import AfterValidator, BeforeValidator
 
 from guard_core._config_field_revalidators import _validate_str_list_field_value
-from guard_core.handlers._dynamic_rule_persistence import parse_purge_target
 
 
 def _validate_purge_target(value: str | None) -> str | None:
     if value is not None:
+        from guard_core.handlers._dynamic_rule_persistence import parse_purge_target
+
         parse_purge_target(value)
     return value
 

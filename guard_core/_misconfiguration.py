@@ -1,7 +1,6 @@
 import logging
 from typing import TYPE_CHECKING
 
-from guard_core._emergency_exemptions import warn_unexempted_probe_paths
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core._security_headers_defaults import unknown_security_headers_keys
 from guard_core.core.validation.path_matching import (
@@ -157,4 +156,6 @@ def report_config_misconfigurations(
             config, problem, logger=config_logger, stacklevel=stacklevel + 1
         )
     if config.emergency_mode:
+        from guard_core._emergency_exemptions import warn_unexempted_probe_paths
+
         warn_unexempted_probe_paths(config, config_logger)

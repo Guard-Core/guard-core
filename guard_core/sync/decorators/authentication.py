@@ -1,10 +1,6 @@
 import logging
 from collections.abc import Callable
 
-from guard_core.sync.decorators._route_arguments import (
-    canonical_auth_scheme,
-    capitalized_scheme_note,
-)
 from guard_core.sync.decorators.base import (
     AuthVerifier,
     BaseSecurityMixin,
@@ -40,6 +36,11 @@ class AuthenticationMixin(BaseSecurityMixin):
         def decorator(
             func: Callable[GuardedParams, GuardedReturn],
         ) -> Callable[GuardedParams, GuardedReturn]:
+            from guard_core.sync.decorators._route_arguments import (
+                canonical_auth_scheme,
+                capitalized_scheme_note,
+            )
+
             route_config = self._ensure_route_config(func)
             if route_config.authorization_header_required is not None:
                 raise ValueError(
@@ -94,6 +95,10 @@ class AuthenticationMixin(BaseSecurityMixin):
         def decorator(
             func: Callable[GuardedParams, GuardedReturn],
         ) -> Callable[GuardedParams, GuardedReturn]:
+            from guard_core.sync.decorators._route_arguments import (
+                canonical_auth_scheme,
+            )
+
             route_config = self._ensure_route_config(func)
             if route_config.auth_required is not None or route_config.api_key_required:
                 raise ValueError(
