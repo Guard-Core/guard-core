@@ -170,12 +170,15 @@ class ErrorResponseFactory:
     ) -> GuardResponse:
         if not enabled:
             return response
-        security_headers = await self.security_headers_manager.get_headers(
-            request_path,
-            config=self.context.config,
-            override=override,
-            checked=True,
-        )
+        manager = self.security_headers_manager
+        security_headers = manager.hot_headers(self.context.config, override)
+        if security_headers is None:
+            security_headers = await manager.get_headers(
+                request_path,
+                config=self.context.config,
+                override=override,
+                checked=True,
+            )
         plan = getattr(security_headers, "plan", None)
         if plan is None:
             forced: frozenset[str] = getattr(security_headers, "forced", frozenset())
@@ -298,31 +301,26 @@ class ErrorResponseFactory:
         if self.context.config.behavior_scan_response_body:
             prefetch = self._share_prefetch(response)
 
-        client_ip = await self._resolve_client_ip_for_behavioral_rules(
-            request,
-            route_config,
-            process_behavioral_rules,
-            process_global_behavioral_rules,
-        )
-
+        client_ip: str | None = None
         if (
-            client_ip is not None
-            and route_config is not None
+            route_config is not None
             and route_config.behavior_rules
             and process_behavioral_rules is not None
-        ):
-            await process_behavioral_rules(request, response, client_ip, route_config)
-
-        if (
-            client_ip is not None
-            and self.context.config.global_behavior_rules
+        ) or (
+            bool(self.context.config.global_behavior_rules)
             and process_global_behavioral_rules is not None
         ):
-            global_rules = [
-                config_to_rule(cfg) for cfg in self.context.config.global_behavior_rules
-            ]
-            await process_global_behavioral_rules(
-                request, response, client_ip, global_rules
+            client_ip = await extract_client_ip(
+                request, self.context.config, self.context.agent_handler
+            )
+        if client_ip is not None:
+            await self._process_behavioral_rules(
+                request,
+                response,
+                client_ip,
+                route_config,
+                process_behavioral_rules,
+                process_global_behavioral_rules,
             )
 
         await self.context.metrics_collector.collect_request_metrics(
@@ -338,9 +336,11 @@ class ErrorResponseFactory:
         SHARED_PREFETCH.set(prefetch)
         return prefetch
 
-    async def _resolve_client_ip_for_behavioral_rules(
+    async def _process_behavioral_rules(
         self,
         request: GuardRequest,
+        response: GuardResponse,
+        client_ip: str,
         route_config: RouteConfig | None,
         process_behavioral_rules: Callable[
             [GuardRequest, GuardResponse, str, RouteConfig], Awaitable[None]
@@ -350,17 +350,21 @@ class ErrorResponseFactory:
             [GuardRequest, GuardResponse, str, list[BehaviorRule]], Awaitable[None]
         ]
         | None,
-    ) -> str | None:
-        needs_client_ip = (
+    ) -> None:
+        if (
             route_config is not None
             and route_config.behavior_rules
             and process_behavioral_rules is not None
-        ) or (
-            bool(self.context.config.global_behavior_rules)
+        ):
+            await process_behavioral_rules(request, response, client_ip, route_config)
+
+        if (
+            self.context.config.global_behavior_rules
             and process_global_behavioral_rules is not None
-        )
-        if not needs_client_ip:
-            return None
-        return await extract_client_ip(
-            request, self.context.config, self.context.agent_handler
-        )
+        ):
+            global_rules = [
+                config_to_rule(cfg) for cfg in self.context.config.global_behavior_rules
+            ]
+            await process_global_behavioral_rules(
+                request, response, client_ip, global_rules
+            )

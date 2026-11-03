@@ -6,7 +6,10 @@ from cachetools import TTLCache
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import OverrideRecord
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.handlers._security_headers_cache import SecurityHeadersCacheMixin
+from guard_core.sync.handlers._security_headers_cache import (
+    HotHeadersCache,
+    SecurityHeadersCacheMixin,
+)
 from guard_core.sync.handlers._security_headers_config import SecurityHeadersConfigMixin
 from guard_core.sync.handlers._security_headers_cors import SecurityHeadersCorsMixin
 from guard_core.sync.handlers._security_headers_events import SecurityHeadersEventsMixin
@@ -77,7 +80,7 @@ class SecurityHeadersManager(
         return instance
 
     def _initialize_state(self) -> None:
-        self.headers_cache = TTLCache(maxsize=1000, ttl=300)
+        self.headers_cache = HotHeadersCache(maxsize=1000, ttl=300)
         self.redis_handler = None
         self.agent_handler = None
         self.logger = logging.getLogger("guard_core.sync.handlers.security_headers")
@@ -205,11 +208,49 @@ class SecurityHeadersManager(
 
         cache_key = self._generate_cache_key(request_path, config, override)
         cached = self._cached_headers(cache_key)
-        if cached is not None:
-            return cached
-        return self._build_headers_and_announce(
-            request_path, config, cache_key, override
+        if cached is None:
+            cached = self._build_headers_and_announce(
+                request_path, config, cache_key, override
+            )
+        self._remember_hot_headers(override, cache_key, cached)
+        return cached
+
+    def _remember_hot_headers(
+        self,
+        override: OverrideRecord,
+        cache_key: str,
+        headers: dict[str, str],
+    ) -> None:
+        memo = self._headers_json_memo
+        cache = self.headers_cache
+        if (
+            memo is not None
+            and not override.keys
+            and isinstance(cache, HotHeadersCache)
+        ):
+            cache.remember_hot(cache_key, memo[0], headers)
+
+    def hot_headers(
+        self, config: SyncSecurityConfig, override: OverrideRecord
+    ) -> dict[str, str] | None:
+        """The headers the last quiet response resolved, or None when anything that
+        could change them may have happened: the cache changed or expired, the
+        config's security headers changed, an override, an event or Redis is in
+        play."""
+        hot: tuple[object, dict[str, str], float] | None = getattr(
+            self.headers_cache, "hot", None
         )
+        if (
+            hot is None
+            or override.keys
+            or override.event is not None
+            or self.redis_handler is not None
+            or config.enable_redis
+            or hot[0] != config.security_headers
+            or self.headers_cache.timer() >= hot[2]
+        ):
+            return None
+        return hot[1]
 
     def _cached_headers(self, cache_key: str) -> dict[str, str] | None:
         try:

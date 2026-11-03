@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import logging
+import time
 from abc import abstractmethod
 from collections.abc import Callable
 from typing import TypeVar
@@ -24,6 +25,51 @@ from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 _Validated = TypeVar("_Validated")
+
+
+class HotHeadersCache(TTLCache):
+    """A TTLCache that keeps the last resolved headers of the quiet response path.
+
+    ``hot`` is ``(config snapshot, headers, deadline)`` and lives inside the cache,
+    so every way the cache changes (set, delete, pop, clear, eviction, replacing
+    the cache object) drops it with the entries it was read from. The deadline is
+    the entry's own expiry, read from this cache's timer.
+    """
+
+    def __init__(
+        self,
+        maxsize: float,
+        ttl: float,
+        timer: Callable[[], float] = time.monotonic,
+    ) -> None:
+        super().__init__(maxsize=maxsize, ttl=ttl, timer=timer)
+        self.hot: tuple[object, dict[str, str], float] | None = None
+        self.expiry: dict[object, float] = {}
+
+    def __setitem__(self, key: object, value: object) -> None:
+        self.hot = None
+        super().__setitem__(key, value)
+        self.expiry[key] = self.timer() + self.ttl
+
+    def __delitem__(self, key: object) -> None:
+        self.hot = None
+        super().__delitem__(key)
+
+    def popitem(self) -> tuple[object, object]:
+        self.hot = None
+        return super().popitem()
+
+    def clear(self) -> None:
+        self.hot = None
+        self.expiry.clear()
+        super().clear()
+
+    def remember_hot(
+        self, key: object, snapshot: object, headers: dict[str, str]
+    ) -> None:
+        deadline = self.expiry.get(key)
+        if deadline is not None:
+            self.hot = (snapshot, headers, deadline)
 
 
 class SecurityHeadersCacheMixin:

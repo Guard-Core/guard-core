@@ -341,7 +341,10 @@ async def report_body_refused(
 ) -> None:
     now = time.monotonic()
     reported = _reported_refusals.for_app(config)
-    last = reported.get(reason)
+    try:
+        last: float | None = reported[reason]
+    except KeyError:
+        last = None
     if last is not None and now - last < _REFUSAL_REPORT_SECONDS:
         return
     if len(reported) >= _REFUSAL_REPORT_MAX_REASONS:
