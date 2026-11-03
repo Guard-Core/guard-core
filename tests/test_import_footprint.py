@@ -111,3 +111,76 @@ def test_scan_unlink_is_still_the_name_the_redis_handlers_export() -> None:
     )
 
     assert _fresh(code) == "True True 500 500 500"
+
+
+@pytest.mark.parametrize(
+    ("tree", "package"),
+    [
+        ("async", "guard_core.core.responses"),
+        ("sync", "guard_core.sync.core.responses"),
+    ],
+)
+def test_the_response_modifier_modules_load_on_first_use_not_at_import(
+    tree: str, package: str
+) -> None:
+    code = (
+        "import sys\n"
+        + _CONFIG_CHAIN[tree]
+        + f"import {package} as responses\n"
+        + f"view = '{package}.modifier_view'\n"
+        + f"body = '{package}.modifier_body'\n"
+        + "before = [view in sys.modules, body in sys.modules]\n"
+        + "reads = responses.reads_response_body\n"
+        + f"import {package}.modifier_view as modifier_view\n"
+        + "same = reads is modifier_view.reads_response_body\n"
+        + "print(before, view in sys.modules, same,\n"
+        + "      'reads_response_body' in dir(responses))\n"
+    )
+
+    assert _fresh(code) == "[False, False] True True True"
+
+
+@pytest.mark.parametrize(
+    ("package", "names"),
+    [
+        ("guard_core.protocols", ("GuardRequest", "GuardResponse", "GeoIPHandler")),
+        (
+            "guard_core.sync.protocols",
+            ("SyncGuardRequest", "GuardResponse", "SyncGeoIPHandler"),
+        ),
+    ],
+)
+def test_the_protocol_packages_load_a_module_when_one_of_its_names_is_read(
+    package: str, names: tuple[str, ...]
+) -> None:
+    code = (
+        "import importlib, sys\n"
+        f"package = importlib.import_module('{package}')\n"
+        f"loaded = [m for m in sys.modules if m.startswith('{package}.')]\n"
+        f"names = {names!r}\n"
+        "values = [getattr(package, n) for n in names]\n"
+        "print(len(loaded) <= 1, all(n in dir(package) for n in package.__all__),\n"
+        "      all(getattr(package, n) is v for n, v in zip(names, values)))\n"
+        "try:\n"
+        "    package.NotAProtocol\n"
+        "except AttributeError:\n"
+        "    print('missing')\n"
+    )
+
+    assert _fresh(code) == "True True True\nmissing"
+
+
+def test_a_config_build_loads_only_the_sync_protocols_its_geo_field_needs() -> None:
+    code = (
+        "import sys\n"
+        + _CONFIG_CHAIN["async"]
+        + "SecurityConfig(enable_redis=False)\n"
+        + "print(sorted(m for m in sys.modules\n"
+        + "             if m.startswith('guard_core.sync.protocols.')))\n"
+    )
+
+    assert _fresh(code) == (
+        "['guard_core.sync.protocols.agent_protocol', "
+        "'guard_core.sync.protocols.geo_ip_protocol', "
+        "'guard_core.sync.protocols.redis_protocol']"
+    )

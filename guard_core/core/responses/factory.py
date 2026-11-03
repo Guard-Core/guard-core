@@ -10,7 +10,6 @@ from guard_core._security_headers_override import (
 from guard_core._utils.response_prefetch import SHARED_PREFETCH, ResponseBodyPrefetch
 from guard_core.core.callable_slot import CallableSlot
 from guard_core.core.responses.context import ResponseContext
-from guard_core.core.responses.modifier_body import apply_modifier_with_bounded_body
 from guard_core.decorators.base import RouteConfig
 from guard_core.exceptions import CallableShapeError, GuardCoreError
 from guard_core.handlers.behavior_handler import BehaviorRule, config_to_rule
@@ -227,6 +226,10 @@ class ErrorResponseFactory:
         if request is not None:
             materialized = getattr(response, "body_is_materialized", False) is True
         if request is not None and not materialized:
+            from guard_core.core.responses.modifier_body import (
+                apply_modifier_with_bounded_body,
+            )
+
             return await apply_modifier_with_bounded_body(
                 modifier,
                 response,
