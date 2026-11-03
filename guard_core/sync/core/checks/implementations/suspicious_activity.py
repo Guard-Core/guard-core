@@ -12,6 +12,7 @@ from guard_core.sync._utils.route_gate import (
     might_be_a_gated_probe,
     might_be_a_static_file,
     path_params_without_a_literal_segment_before,
+    record_route_template,
 )
 from guard_core.sync._utils.rule_attribution import pattern_attribution
 from guard_core.sync._utils.sampling import PerApp, SampledKeys, observe_sampled_key
@@ -305,22 +306,8 @@ class SuspiciousActivityCheck(SecurityCheck):
         )
 
     def _record_route_template(self, request: SyncGuardRequest) -> None:
-        state = request.state
-        if getattr(state, ROUTE_TEMPLATE_STATE_ATTR, None) is not None:
-            return
-        if getattr(state, "guard_route_unresolved", False) is True:
-            return
-        lookup = getattr(self.middleware, "route_template", None)
-        path = str(request.url_path)
-        if not callable(lookup) or not might_be_a_gated_probe(path):
-            return
-        try:
-            template = lookup(path)
-        except Exception:
-            self.logger.error("route_template failed; the path is judged without it")
-            return
-        if isinstance(template, str):
-            setattr(state, ROUTE_TEMPLATE_STATE_ATTR, template)
+        if might_be_a_gated_probe(str(request.url_path)):
+            record_route_template(request, self.middleware, self.logger)
 
     def _report_root_capture_path_params(
         self, request: SyncGuardRequest, route_config: RouteConfig

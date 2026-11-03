@@ -1,6 +1,7 @@
-from datetime import datetime
 from ipaddress import ip_network
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from guard_core._utils.time_window import minutes_of_day
 
 BUILT_IN_AUTH_SCHEMES = ("bearer", "basic")
 
@@ -34,7 +35,7 @@ def invalid_ip_entries(entries: list[str] | None) -> list[str]:
 
 def invalid_time_of_day(value: str) -> bool:
     try:
-        datetime.strptime(value, "%H:%M")
+        minutes_of_day(value)
     except ValueError:
         return True
     return False

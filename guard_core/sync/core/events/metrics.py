@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
-from guard_core.sync._utils.route_gate import ROUTE_TEMPLATE_STATE_ATTR
+from guard_core.sync._utils.route_gate import metric_route_template
 from guard_core.sync.core.events.event_types import (
     METRIC_ERROR_RATE,
     METRIC_REQUEST_COUNT,
@@ -34,8 +34,8 @@ class MetricsCollector:
         """The route template when the request matched a route (bounded by the
         routes), else the redacted path, which a scanner controls: past
         ``MAX_UNMATCHED_METRIC_ENDPOINTS`` distinct ones the rest share one series."""
-        template = getattr(request.state, ROUTE_TEMPLATE_STATE_ATTR, None)
-        if isinstance(template, str):
+        template = metric_route_template(request.state)
+        if template is not None:
             return template
         endpoint = redact_endpoint_for_display(
             str(request.url_path),

@@ -1130,9 +1130,13 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         event, built only when an agent consumes it."""
         from guard_core.sync._utils.detection_scan import _scanned_request_endpoint
         from guard_core.sync._utils.rule_attribution import pattern_attribution
+        from guard_core.sync._utils.scan_route_template import (
+            scanned_request_route_template_fields,
+        )
 
         return {
             "endpoint": _scanned_request_endpoint(),
+            **scanned_request_route_template_fields(),
             **pattern_attribution(
                 self._scan_config(),
                 matched_patterns[0] if matched_patterns else None,

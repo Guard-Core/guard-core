@@ -135,9 +135,12 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
             SecurityEvent = get_telemetry_model("SecurityEvent")
 
             event_endpoint: object = endpoint
+            route_fields: dict[str, object] = {}
             if consumer_fields is not None:
                 built = consumer_fields()
                 event_endpoint = built.pop("endpoint", endpoint)
+                if "route_template" in built:
+                    route_fields["route_template"] = built.pop("route_template")
                 kwargs.update(built)
 
             event = SecurityEvent(
@@ -150,6 +153,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
                 endpoint=event_endpoint,
                 handler_name=_SUS_PATTERNS_HANDLER_NAME,
                 metadata=kwargs,
+                **route_fields,
             )
             await agent_handler.send_event(event)
         except Exception as e:

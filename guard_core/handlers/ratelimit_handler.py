@@ -18,6 +18,7 @@ from guard_core._utils.ip_extraction import _client_identity
 from guard_core._utils.lru_store import DEFAULT_MAX_TRACKED_KEYS, _lru_pop_or_create
 from guard_core._utils.nat64 import Nat64Table, nat64_table_of
 from guard_core._utils.request_logging import redact_endpoint_for_display
+from guard_core._utils.route_gate import route_template_event_fields
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers import _by_ip_state
 from guard_core.handlers._by_ip_state import (
@@ -894,6 +895,7 @@ class RateLimitManager:
                     "window": window,
                     **(attribution or {}),
                 },
+                **route_template_event_fields(request.state),
             )
             await agent_handler.send_event(event)
         except Exception as e:

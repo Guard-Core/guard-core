@@ -1,4 +1,5 @@
 import contextvars
+import logging
 import re
 from collections.abc import Collection, Iterator, Mapping
 from contextlib import contextmanager
@@ -6,8 +7,15 @@ from functools import lru_cache
 from types import MappingProxyType
 
 from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
+from guard_core._utils.route_template import (
+    CONVERTER_PARAMETER_SOURCE,
+    capture_groups,
+    normalized_route_template,
+)
+from guard_core.protocols.request_protocol import GuardRequest
 
 ROUTE_TEMPLATE_STATE_ATTR = "guard_route_template"
+ROUTE_TEMPLATE_EVENT_FIELD = "route_template"
 STATIC_FILE_STATE_ATTR = "guard_static_file_served"
 STATIC_FILE_EXTENSIONS = frozenset({"ts", "map"})
 
@@ -216,23 +224,33 @@ _PATTERNS = LazyPatterns(
     {
         "_UNESCAPED_DOT_RE": (r"\\\.|\[\.\]", 0),
         "_PARAMETER_RE": (r"\{[^}]*\}|<[^>]*>", 0),
-        "_STARLETTE_OR_ANGLE_PARAMETER_RE": (
-            r"\{(\w+)(?::(\w+))?\}|<(?:(\w+)(?:\([^)]*\))?:)?(\w+)>",
-            0,
-        ),
-        "_REGEX_GROUP_RE": (r"\(\?P<\w+>[^)]*\)", 0),
+        "_STARLETTE_OR_ANGLE_PARAMETER_RE": (CONVERTER_PARAMETER_SOURCE, 0),
     }
 )
 __getattr__ = module_attribute_lookup(_PATTERNS)
 
 
+def _text_before_without_captures(template: str, end: int) -> str:
+    kept: list[str] = []
+    position = 0
+    for group in capture_groups(template):
+        if group.top_level and group.end <= end:
+            kept.append(template[position : group.start])
+            position = group.end
+    kept.append(template[position:end])
+    return "".join(kept)
+
+
 def path_params_without_a_literal_segment_before(
     template: str, declared: Collection[str]
 ) -> list[str]:
+    groups = capture_groups(template)
     rootless = []
     for name in declared:
-        start = template.find(f"(?P<{name}>")
-        if start == -1:
+        group = next((found for found in groups if found.name == name), None)
+        if group is not None:
+            start = group.start
+        else:
             found = next(
                 (
                     candidate
@@ -247,8 +265,48 @@ def path_params_without_a_literal_segment_before(
                 continue
             start = found.start()
         prefix = _PATTERNS["_STARLETTE_OR_ANGLE_PARAMETER_RE"].sub(
-            "", _PATTERNS["_REGEX_GROUP_RE"].sub("", template[:start])
+            "", _text_before_without_captures(template, start)
         )
         if not re.search(r"[^/^]", prefix):
             rootless.append(name)
     return rootless
+
+
+def route_template_event_fields(state: object) -> dict[str, str]:
+    """``{"route_template": ...}`` for a request-bound event when the request has
+    one the consumer can use (see ``normalized_route_template``), else ``{}``."""
+    raw = route_state_template(state)
+    template = normalized_route_template(raw) if raw is not None else None
+    return {} if template is None else {ROUTE_TEMPLATE_EVENT_FIELD: template}
+
+
+def metric_route_template(state: object) -> str | None:
+    """The endpoint tag for a metric: the normalised template, the raw one when
+    regex syntax is left in it, None when the request matched no route."""
+    raw = route_state_template(state)
+    if raw is None:
+        return None
+    return normalized_route_template(raw) or raw
+
+
+def record_route_template(
+    request: GuardRequest, middleware: object, logger: logging.Logger
+) -> None:
+    """Ask the middleware for the request's template once and keep the raw
+    answer on the state; a request an adapter stamped, or one that matched no
+    route, is left alone."""
+    state = request.state
+    if getattr(state, ROUTE_TEMPLATE_STATE_ATTR, None) is not None:
+        return
+    if getattr(state, "guard_route_unresolved", False) is True:
+        return
+    lookup = getattr(middleware, "route_template", None)
+    if not callable(lookup):
+        return
+    try:
+        template = lookup(str(request.url_path))
+    except Exception:
+        logger.error("route_template failed; the path is judged without it")
+        return
+    if isinstance(template, str):
+        setattr(state, ROUTE_TEMPLATE_STATE_ATTR, template)
