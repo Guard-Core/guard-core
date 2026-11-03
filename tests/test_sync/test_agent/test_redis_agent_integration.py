@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,7 +10,7 @@ _REAL_REDIS_MANAGER_INITIALIZE = RedisManager.initialize
 
 
 @pytest.fixture(autouse=True)
-def patch_security_event() -> Any:
+def patch_security_event() -> object:
     with patch(
         "guard_core.sync.handlers.redis_handler.SecurityEvent", create=True
     ) as mock_event:
@@ -56,6 +55,17 @@ def test_redact_redis_url_unix_socket_drops_credential_params() -> None:
     )
     assert _redact_redis_url("unix:///tmp/redis.sock?password=pw") == (
         "unix:///tmp/redis.sock"
+    )
+
+
+def test_redact_redis_url_drops_credential_params_redis_py_decodes() -> None:
+    assert (
+        _redact_redis_url("unix:///tmp/redis.sock?pass%77ord=pw&db=0")
+        == "unix:///tmp/redis.sock?db=0"
+    )
+    assert (
+        _redact_redis_url("redis://h:6379/0?user%6Eame=u&pass%77ord=pw")
+        == "redis://h:6379/0"
     )
 
 
@@ -268,7 +278,7 @@ def test_safe_operation_failure_with_agent() -> None:
     mock_agent = MagicMock()
     manager.agent_handler = mock_agent
 
-    def failing_func(conn: Any) -> None:
+    def failing_func(conn: object) -> None:
         raise Exception("Operation failed")
 
     failing_func.__name__ = "failing_func"
@@ -291,7 +301,7 @@ def test_safe_operation_error_inside_context() -> None:
     mock_redis = MagicMock()
     manager._redis = mock_redis
 
-    def failing_operation(conn: Any) -> None:
+    def failing_operation(conn: object) -> None:
         raise ValueError("Operation error inside context")
 
     failing_operation.__name__ = "failing_operation"

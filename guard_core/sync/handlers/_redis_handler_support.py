@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Concatenate, ParamSpec, Protocol, TypeAlias, TypeVar
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import unquote_plus, urlsplit, urlunsplit
 
 if TYPE_CHECKING:
     from redis import Redis
@@ -43,7 +43,7 @@ def _without_credential_params(query: str) -> str:
     kept = [
         part
         for part in query.split("&")
-        if part.partition("=")[0].lower() not in _CREDENTIAL_QUERY_KEYS
+        if unquote_plus(part.partition("=")[0]).lower() not in _CREDENTIAL_QUERY_KEYS
     ]
     return "&".join(kept)
 

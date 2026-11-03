@@ -58,6 +58,17 @@ def test_redact_redis_url_unix_socket_drops_credential_params() -> None:
     )
 
 
+def test_redact_redis_url_drops_credential_params_redis_py_decodes() -> None:
+    assert (
+        _redact_redis_url("unix:///tmp/redis.sock?pass%77ord=pw&db=0")
+        == "unix:///tmp/redis.sock?db=0"
+    )
+    assert (
+        _redact_redis_url("redis://h:6379/0?user%6Eame=u&pass%77ord=pw")
+        == "redis://h:6379/0"
+    )
+
+
 def test_redact_redis_url_keeps_scheme_host_port_db_query_drops_userinfo() -> None:
     assert (
         _redact_redis_url("rediss://user:pw@host:6380/1?ssl=true")
