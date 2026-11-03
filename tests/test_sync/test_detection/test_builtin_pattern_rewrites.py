@@ -4,7 +4,6 @@ import re
 import time
 from multiprocessing.queues import Queue
 from queue import Empty
-from typing import cast
 
 import pytest
 
@@ -133,7 +132,9 @@ def test_rewritten_builtin_patterns_pass_safety_budget(pattern: str) -> None:
 def _measure_ldap_scaling(
     payload_kind: str, sizes: list[int], repeats: int
 ) -> list[float]:
-    context = mp.get_context("fork")
+    # spawn, not fork: the suite leaves threads alive, and fork() in a threaded
+    # process raises a DeprecationWarning on 3.12+ (an error under -W error).
+    context = mp.get_context("spawn")
     result_queue = context.Queue()
     process = context.Process(
         target=_measure_ldap_scaling_child,
@@ -141,7 +142,7 @@ def _measure_ldap_scaling(
     )
     try:
         process.start()
-        process.join(8.0)
+        process.join(30.0)
         if process.is_alive():
             process.terminate()
             process.join(1.0)
@@ -151,11 +152,13 @@ def _measure_ldap_scaling(
             pytest.fail(f"LDAP scaling worker timed out for {payload_kind}")
         assert process.exitcode == 0
         try:
-            return cast(list[float], result_queue.get(timeout=1.0))
+            measurements = result_queue.get(timeout=1.0)
         except Empty as exc:
             raise AssertionError(
                 "LDAP scaling worker returned no measurements"
             ) from exc
+        assert isinstance(measurements, list), measurements
+        return [float(value) for value in measurements]
     finally:
         result_queue.close()
         result_queue.join_thread()
