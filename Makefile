@@ -38,12 +38,14 @@ install-dev:
 .PHONY: lock
 lock:
 	@uv lock
+	@uv lock --directory tools/semgrep
 	@$(CLEAN_CACHES)
 
 
 .PHONY: upgrade
 upgrade:
 	@uv lock --upgrade
+	@uv lock --directory tools/semgrep --upgrade
 	@uv sync --all-extras
 	@$(CLEAN_CACHES)
 
@@ -156,7 +158,7 @@ deptry:
 semgrep:
 	@echo "Running Semgrep static analysis..."
 	@echo ''
-	@uv run semgrep --config=auto guard_core
+	@uv run --project tools/semgrep --locked semgrep --config=auto guard_core
 	@$(CLEAN_CACHES)
 
 
