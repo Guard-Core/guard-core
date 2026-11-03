@@ -21,6 +21,7 @@ from guard_core.sync._utils.lru_store import (
     _lru_pop_or_create,
 )
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
+from guard_core.sync._utils.route_gate import route_template_event_fields
 from guard_core.sync.handlers import _by_ip_state
 from guard_core.sync.handlers._by_ip_state import (
     by_ip_autoban_counts as _by_ip_autoban_counts,
@@ -911,6 +912,7 @@ class RateLimitManager:
                     "window": window,
                     **(attribution or {}),
                 },
+                **route_template_event_fields(request.state),
             )
             agent_handler.send_event(event)
         except Exception as e:

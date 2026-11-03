@@ -1,4 +1,8 @@
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.route_gate import (
+    ROUTE_TEMPLATE_STATE_ATTR,
+    record_route_template,
+)
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.route_prefixes import warn_unmatched_exclude_paths
 from guard_core.sync.core.events.event_types import EVENT_ROUTE_UNRESOLVED
@@ -84,6 +88,8 @@ class RouteConfigCheck(SecurityCheck):
         route_config = self.middleware.route_resolver.get_route_config(request)
         state = request.state
         state.route_config = route_config
+        if getattr(state, ROUTE_TEMPLATE_STATE_ATTR, None) is None:
+            record_route_template(request, self.middleware, self.logger)
         state.client_ip = extract_client_ip(
             request, self.config, self.middleware.agent_handler
         )

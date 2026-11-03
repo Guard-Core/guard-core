@@ -4,6 +4,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Protocol
 
+from guard_core.sync._utils.route_gate import route_template_event_fields
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
@@ -76,6 +77,8 @@ def send_agent_event(
 
         SecurityEvent = get_telemetry_model("SecurityEvent")
 
+        if request:
+            kwargs = {**route_template_event_fields(request.state), **kwargs}
         decorator_type = kwargs.pop("decorator_type", None)
         rule_type = kwargs.pop("rule_type", None)
         metadata = {} if metadata is None else metadata

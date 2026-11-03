@@ -6,6 +6,7 @@ from guard_core._utils.request_logging import (
     redact_endpoint_for_display,
     redact_header_value_for_display,
 )
+from guard_core._utils.route_gate import route_template_event_fields
 from guard_core.core.events.event_types import (
     EVENT_DECORATOR_VIOLATION,
     EVENT_HTTPS_ENFORCED,
@@ -114,6 +115,7 @@ class SecurityEventBus:
             rule_type=metadata.get("rule_type"),
             handler_name=_MIDDLEWARE_HANDLER_NAME,
             metadata=metadata,
+            **route_template_event_fields(request.state),
         )
 
     async def send_middleware_event(
