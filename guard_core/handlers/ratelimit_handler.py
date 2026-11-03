@@ -200,7 +200,11 @@ def _sliding_window(
     current_time: float,
     max_tracked_keys: int,
 ) -> deque[float]:
-    timestamps = _lru_pop_or_create(request_timestamps, key, max_tracked_keys, deque)
+    timestamps = request_timestamps.pop(key, None)
+    if timestamps is None:
+        timestamps = _lru_pop_or_create(
+            request_timestamps, key, max_tracked_keys, deque
+        )
     window_start = current_time - window
     while timestamps and timestamps[0] <= window_start:
         timestamps.popleft()
@@ -817,7 +821,7 @@ class RateLimitManager:
             now = time.time()
             timestamps = _sliding_window(
                 self.request_timestamps,
-                _tier_key(identity, kind, endpoint_path),
+                _tier_key(identity, kind, endpoint_path) if endpoint_path else identity,
                 window,
                 now,
                 display_config.rate_limit_max_tracked_keys,
