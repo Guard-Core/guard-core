@@ -24,7 +24,7 @@ OTHER_IP = "203.0.113.9"
 _IMPL = "guard_core.core.checks.implementations"
 
 
-def _config(**fields: Any) -> SecurityConfig:
+def _config(**fields: object) -> SecurityConfig:
     config = SecurityConfig(**fields)
     config.passive_mode = False
     return config
@@ -50,7 +50,7 @@ def _request(
     ip: str,
     route_config: RouteConfig | None = None,
     user_agent: str = "curl/8.0",
-    **state: Any,
+    **state: object,
 ) -> Mock:
     request = Mock()
     request.state = SimpleNamespace(client_ip=ip, route_config=route_config, **state)
@@ -58,7 +58,9 @@ def _request(
     return request
 
 
-async def _ip_check(config: SecurityConfig, request: Mock, banned: bool = False) -> Any:
+async def _ip_check(
+    config: SecurityConfig, request: Mock, banned: bool = False
+) -> object:
     check = IpSecurityCheck(_middleware(config))
     with (
         patch.object(check, "ip_ban_manager") as ban_manager,
@@ -158,12 +160,28 @@ async def test_global_cloud_block_is_left_to_the_cloud_provider_check(
     is_cloud.assert_not_called()
 
 
-async def _run_twice(check: SecurityCheck, **request_fields: Any) -> tuple[Any, Any]:
+async def _run_twice(
+    check: SecurityCheck,
+    route_config: RouteConfig | None = None,
+    user_agent: str = "curl/8.0",
+) -> tuple[Any, Any]:
     exempt = await check.check(
-        _request(EXEMPT_IP, is_whitelisted=False, is_exempt=True, **request_fields)
+        _request(
+            EXEMPT_IP,
+            route_config,
+            user_agent,
+            is_whitelisted=False,
+            is_exempt=True,
+        )
     )
     not_exempt = await check.check(
-        _request(EXEMPT_IP, is_whitelisted=False, is_exempt=False, **request_fields)
+        _request(
+            EXEMPT_IP,
+            route_config,
+            user_agent,
+            is_whitelisted=False,
+            is_exempt=False,
+        )
     )
     return exempt, not_exempt
 

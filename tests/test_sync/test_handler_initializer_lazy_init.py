@@ -1,6 +1,6 @@
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 from guard_core.models import SyncSecurityConfig
@@ -37,7 +37,7 @@ def _make_initializer(
 
 
 @contextmanager
-def _patch_handlers() -> Any:
+def _patch_handlers() -> Iterator[dict[str, MagicMock]]:
     with (
         patch("guard_core.sync.handlers.cloud_handler.cloud_handler") as cloud,
         patch("guard_core.sync.handlers.ipban_handler.ip_ban_manager") as ipban,
@@ -76,7 +76,7 @@ def test_lazy_init_returns_quickly_with_blocking_background_init() -> None:
 
     finished: list[str] = []
 
-    def blocking_cloud_init(*args: Any, **kwargs: Any) -> None:
+    def blocking_cloud_init(*args: object, **kwargs: object) -> None:
         time.sleep(_BACKGROUND_BLOCK_SECONDS)
         finished.append("cloud")
 

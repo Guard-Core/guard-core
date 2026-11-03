@@ -1,6 +1,7 @@
 import logging
-from collections.abc import Iterator
-from typing import Any
+from collections.abc import Callable, Iterator
+from operator import attrgetter
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import ValidationError
@@ -8,6 +9,7 @@ from pydantic import ValidationError
 from guard_core._security_config_batch import prepare_config_batch
 from guard_core.decorators.base import BaseSecurityDecorator
 from guard_core.decorators.content_filtering import ContentFilteringMixin
+from guard_core.detection_engine.monitor import PerformanceMonitor
 from guard_core.detection_engine.monitor_types import PatternStats
 from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 from guard_core.models import BehaviorRuleConfig, SecurityConfig
@@ -21,6 +23,9 @@ PLAIN_PATTERN = r"{name}=[a-z]{{8}}"
 
 class _Decorator(BaseSecurityDecorator, ContentFilteringMixin):
     pass
+
+
+_BLOCKED_USER_AGENTS_FIELD = "blocked_user_agents"
 
 
 def _app(**settings: object) -> SecurityConfig:
@@ -46,7 +51,7 @@ def app_b() -> Iterator[SecurityConfig]:
     yield _bound_app_b(default_app)
 
 
-def _monitor_of(config: SecurityConfig) -> Any:
+def _monitor_of(config: SecurityConfig) -> PerformanceMonitor:
     monitor = sus_patterns_manager_for(config)._performance_monitor
     assert monitor is not None
     return monitor
@@ -107,27 +112,21 @@ def test_the_monitor_anomaly_data_redacts_the_names_of_its_app(
     assert safe["pattern"] == "[REDACTED]"
 
 
-class _CapturingAgent:
-    def __init__(self) -> None:
-        self.events: list[Any] = []
-
-    async def send_event(self, event: Any) -> None:
-        self.events.append(event)
-
-
 @pytest.mark.parametrize("name", [APP_B_NAME, DEFAULT_NAME])
 async def test_the_monitor_anomaly_event_redacts_the_names_of_its_app(
     name: str, app_b: SecurityConfig
 ) -> None:
     monitor = _monitor_of(app_b)
     pattern = PLAIN_PATTERN.format(name=name)
-    agent = _CapturingAgent()
+    events: list[object] = []
+    agent = AsyncMock()
+    agent.send_event.side_effect = events.append
 
     await monitor._send_anomaly_event(
         {"type": "timeout", "pattern": pattern}, agent, None
     )
 
-    assert agent.events[0].metadata["pattern"] == "[REDACTED]"
+    assert attrgetter("metadata")(events[0])["pattern"] == "[REDACTED]"
 
 
 @pytest.mark.parametrize("name", [APP_B_NAME, DEFAULT_NAME])
@@ -197,7 +196,7 @@ def _assert_the_error_shows_no_hunter2(error: BaseException) -> None:
     ],
 )
 def test_the_blocked_user_agents_type_error_shows_no_sensitive_pattern_text(
-    name: str, bad_value: Any
+    name: str, bad_value: Callable[[str], object]
 ) -> None:
     value = bad_value(VALIDATOR_PATTERN.format(name=name))
     settings = {"log_sensitive_params": frozenset({name})}
@@ -218,7 +217,7 @@ def test_the_blocked_user_agents_type_error_shows_no_sensitive_pattern_text(
         config.model_copy(update={"blocked_user_agents": value})
     _assert_the_error_shows_no_hunter2(plain.value)
     with pytest.raises(ValueError, match="must be a list of str") as plain:
-        config.blocked_user_agents = value
+        setattr(config, _BLOCKED_USER_AGENTS_FIELD, value)
     _assert_the_error_shows_no_hunter2(plain.value)
 
 

@@ -1,9 +1,13 @@
+from collections.abc import Callable
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync.decorators import SecurityDecorator
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from tests.test_sync.conftest import MockGuardResponse
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
@@ -18,11 +22,11 @@ class _Hook:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
 
-    def __call__(self, request: Any, payload: dict[str, Any]) -> None:
+    def __call__(self, request: SyncGuardRequest, payload: dict[str, Any]) -> None:
         self.calls.append(payload)
 
 
-def _config(hook: _Hook, **overrides: Any) -> SyncSecurityConfig:
+def _config(hook: _Hook, **overrides: object) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -33,7 +37,9 @@ def _config(hook: _Hook, **overrides: Any) -> SyncSecurityConfig:
     return SyncSecurityConfig(**settings)
 
 
-def _trap_hit(config: SyncSecurityConfig, *decorators: Any) -> tuple[Any, Any]:
+def _trap_hit(
+    config: SyncSecurityConfig, *decorators: Callable[[SecurityDecorator], object]
+) -> tuple[Any, Any]:
     pipeline, middleware, route_id = build_route_pipeline(
         config, lambda d: d.honeypot_detection(["hp"]), *decorators
     )
@@ -120,7 +126,7 @@ def test_other_custom_validators_still_skip_the_block_hook() -> None:
     hook = _Hook()
     config = _config(hook)
 
-    def reject(request: Any) -> Any:
+    def reject(request: SyncGuardRequest) -> GuardResponse | None:
         return MockGuardResponse("app says no", 418)
 
     pipeline, _, route_id = build_route_pipeline(
@@ -140,7 +146,7 @@ def _trap_hit_before_a_later_validator(
 ) -> tuple[Any, list[int]]:
     later_calls: list[int] = []
 
-    def later_validator(request: Any) -> Any:
+    def later_validator(request: SyncGuardRequest) -> GuardResponse | None:
         later_calls.append(1)
         return MockGuardResponse("later says no", 418)
 

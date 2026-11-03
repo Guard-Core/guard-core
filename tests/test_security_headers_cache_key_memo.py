@@ -1,5 +1,6 @@
 import json
-from typing import Any
+from collections.abc import Callable
+from typing import Any, NoReturn
 
 import pytest
 
@@ -22,9 +23,9 @@ def test_an_unchanged_config_serializes_its_security_headers_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dumps_calls: list[Any] = []
-    real_dumps = json.dumps
+    real_dumps: Callable[..., str] = json.dumps
 
-    def counting_dumps(value: Any, **kwargs: Any) -> str:
+    def counting_dumps(value: object, **kwargs: object) -> str:
         dumps_calls.append(value)
         return real_dumps(value, **kwargs)
 
@@ -60,7 +61,7 @@ def test_a_changed_config_gets_a_new_key_and_the_old_one_comes_back() -> None:
 def test_a_config_that_cannot_be_copied_is_serialized_without_a_memo(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def refusing_deepcopy(value: Any) -> Any:
+    def refusing_deepcopy(value: object) -> NoReturn:
         raise TypeError("not copyable")
 
     monkeypatch.setattr(_security_headers_cache.copy, "deepcopy", refusing_deepcopy)

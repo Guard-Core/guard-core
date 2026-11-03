@@ -1,5 +1,4 @@
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -11,6 +10,9 @@ from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
+from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
+from guard_core.protocols.request_protocol import GuardRequest
+from tests.conftest import MockGuardRequest
 
 
 class _LeavesPending(SecurityCheck):
@@ -20,14 +22,16 @@ class _LeavesPending(SecurityCheck):
     def check_name(self) -> str:
         return "leaves_pending"
 
-    async def check(self, request: Any) -> None:
+    async def check(self, request: GuardRequest) -> None:
         flow = BanFlow()
         flow.pending = PendingBan(MagicMock(), "198.51.100.9", MagicMock())
         request.state.guard_ban_flow = flow
 
 
 class _Records(SecurityCheck):
-    def __init__(self, middleware: Any, name: str, ran: list[str]) -> None:
+    def __init__(
+        self, middleware: GuardMiddlewareProtocol, name: str, ran: list[str]
+    ) -> None:
         super().__init__(middleware)
         self.name = name
         self.ran = ran
@@ -36,11 +40,11 @@ class _Records(SecurityCheck):
     def check_name(self) -> str:
         return self.name
 
-    async def check(self, request: Any) -> None:
+    async def check(self, request: GuardRequest) -> None:
         self.ran.append(self.name)
 
 
-def _rig(**config: Any) -> tuple[SecurityCheckPipeline, list[str]]:
+def _rig(**config: object) -> tuple[SecurityCheckPipeline, list[str]]:
     middleware = MagicMock()
     middleware.config = SecurityConfig(**config)
     middleware.logger = MagicMock()
@@ -56,10 +60,8 @@ def _rig(**config: Any) -> tuple[SecurityCheckPipeline, list[str]]:
     return SecurityCheckPipeline(checks), ran
 
 
-def _request() -> Any:
-    return SimpleNamespace(
-        state=SimpleNamespace(), url_path="/x", method="GET", headers={}
-    )
+def _request() -> MockGuardRequest:
+    return MockGuardRequest(path="/x", method="GET")
 
 
 async def test_a_failed_pending_ban_resolve_never_skips_a_later_check(

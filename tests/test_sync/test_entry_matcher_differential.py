@@ -6,8 +6,8 @@ a verdict or the ValueError an invalid entry raises, must be equal.
 """
 
 import random
-from collections.abc import Sequence
-from ipaddress import IPv6Network, ip_address, ip_network
+from collections.abc import Callable, Sequence
+from ipaddress import IPv4Address, IPv6Address, IPv6Network, ip_address, ip_network
 from typing import Any
 
 import pytest
@@ -77,7 +77,7 @@ POOL = EXACT + CIDRS + INVALID
 
 
 def old_ip_in_list(
-    ip_addr: Any,
+    ip_addr: IPv4Address | IPv6Address,
     ip: str,
     entries: Sequence[str] | None,
     nat64: Nat64Table = DEFAULT_NAT64_TABLE,
@@ -85,7 +85,7 @@ def old_ip_in_list(
     if not entries:
         return False
     canonical_ip = _canonicalize_ip(ip, nat64)
-    if getattr(ip_addr, "ipv4_mapped", None) is not None:
+    if isinstance(ip_addr, IPv6Address) and ip_addr.ipv4_mapped is not None:
         # a mapped client address is read as the IPv4 address it carries (6.348)
         ip_addr = ip_addr.ipv4_mapped
     for entry in entries:
@@ -97,7 +97,9 @@ def old_ip_in_list(
     return False
 
 
-def old_proxy_matches(peer_address: Any, proxy: str, nat64: Nat64Table) -> bool:
+def old_proxy_matches(
+    peer_address: IPv4Address | IPv6Address, proxy: str, nat64: Nat64Table
+) -> bool:
     if "/" in proxy:
         return bool(
             peer_address in unwrap_ipv4_mapped_network(ip_network(proxy, strict=False))
@@ -121,14 +123,14 @@ def old_is_trusted_proxy(
         return False
 
 
-def outcome(call: Any, *args: Any) -> tuple[str, Any]:
+def outcome(call: Callable[..., object], *args: object) -> tuple[str, Any]:
     try:
         return "verdict", call(*args)
     except ValueError as error:
         return "error", (type(error), str(error))
 
 
-def address_of(client: str) -> Any:
+def address_of(client: str) -> IPv4Address | IPv6Address:
     return ip_address(client.strip("[]").partition("%")[0])
 
 
@@ -254,7 +256,7 @@ def test_the_trusted_proxy_networks_of_a_ban_are_parsed_once_per_list(
     parsed: list[str] = []
     original = whitelist_match.ip_network
 
-    def counting(value: str, strict: bool = True) -> Any:
+    def counting(value: str, strict: bool = True) -> object:
         parsed.append(value)
         return original(value, strict=strict)
 

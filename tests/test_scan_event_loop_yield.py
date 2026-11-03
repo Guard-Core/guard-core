@@ -2,9 +2,9 @@ import asyncio
 import concurrent.futures
 import threading
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from types import SimpleNamespace
-from typing import Any
+from typing import NoReturn
 from unittest.mock import patch
 
 import pytest
@@ -66,7 +66,7 @@ async def test_a_windowed_row_runs_inline_and_never_submits_to_the_pool(
 ) -> None:
     from guard_core.handlers import _suspatterns_regex
 
-    def no_pool(*args: Any, **kwargs: Any) -> Any:
+    def no_pool(*_args: object, **_kwargs: object) -> NoReturn:
         raise AssertionError("a windowed row must not use the regex pool")
 
     monkeypatch.setattr(_suspatterns_regex, "submit_to_regex_executor", no_pool)
@@ -102,9 +102,11 @@ async def test_pattern_loop_yields_to_other_tasks_once_a_slice_elapses() -> None
     ticks = iter(x * 0.01 for x in range(1_000_000))
     ran_at: list[int] = []
     progress = {"patterns": 0}
-    real = manager._check_regex_pattern
+    real: Callable[..., Awaitable[tuple[dict | None, bool]]] = (
+        manager._check_regex_pattern
+    )
 
-    async def counting(*args: Any, **kwargs: Any) -> Any:
+    async def counting(*args: object, **kwargs: object) -> tuple[dict | None, bool]:
         progress["patterns"] += 1
         return await real(*args, **kwargs)
 
@@ -126,7 +128,7 @@ async def test_pattern_loop_yields_to_other_tasks_once_a_slice_elapses() -> None
     assert ran_at[0] <= 2
 
 
-def _fake_time(now: list[float]) -> Any:
+def _fake_time(now: list[float]) -> SimpleNamespace:
     return SimpleNamespace(monotonic=lambda: now[0], thread_time=time.thread_time)
 
 
@@ -136,10 +138,14 @@ async def test_slice_clock_spans_values_within_a_request() -> None:
     now = [0.0]
     checks = {"count": 0}
     yields = {"count": 0}
-    real_check = manager._check_regex_pattern
+    real_check: Callable[..., Awaitable[tuple[dict | None, bool]]] = (
+        manager._check_regex_pattern
+    )
     real_yield = regex_module._yield_to_event_loop
 
-    async def counting_check(*args: Any, **kwargs: Any) -> Any:
+    async def counting_check(
+        *args: object, **kwargs: object
+    ) -> tuple[dict | None, bool]:
         checks["count"] += 1
         now[0] += step[0]
         return await real_check(*args, **kwargs)

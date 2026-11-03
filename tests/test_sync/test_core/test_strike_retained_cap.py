@@ -1,5 +1,4 @@
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -41,21 +40,24 @@ def _pinned_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _middleware(config: SyncSecurityConfig) -> Any:
+def _middleware(config: SyncSecurityConfig) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.suspicious_request_counts = {}
     return middleware
 
 
-def _config(**fields: Any) -> SyncSecurityConfig:
+def _config(**fields: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(
         enable_redis=False, enable_ip_banning=True, enable_rate_limiting=False, **fields
     )
 
 
 def _banned_after(
-    middleware: Any, config: SyncSecurityConfig, strikes: int, category: str = "xss"
+    middleware: MagicMock,
+    config: SyncSecurityConfig,
+    strikes: int,
+    category: str = "xss",
 ) -> list[tuple[str, int, str]]:
     bans = _RecordingBans()
     for _ in range(strikes):

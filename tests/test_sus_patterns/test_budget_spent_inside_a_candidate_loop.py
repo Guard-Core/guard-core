@@ -1,8 +1,7 @@
 import re
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -15,6 +14,7 @@ from guard_core.handlers._suspatterns_shell_sources import (
 )
 from guard_core.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 
 _DOLLAR_ROW = re.compile(_GLUED_DOLLAR_SUBSTITUTION_CANDIDATE_RE)
 _CANDIDATES = 30
@@ -43,9 +43,11 @@ async def test_a_budget_spent_inside_one_rows_candidates_ends_the_whole_pass() -
     manager = SusPatternsManager()
     manager.configure(SecurityConfig(enable_redis=False))
     judged = {"count": 0}
-    real_build = regex_module._build_regex_threat
+    real_build: Callable[..., dict[str, JsonValue] | None] = (
+        regex_module._build_regex_threat
+    )
 
-    def counting_build(*args: Any, **kwargs: Any) -> Any:
+    def counting_build(*args: object, **kwargs: object) -> dict[str, JsonValue] | None:
         judged["count"] += 1
         cpu_clock[0] += _CPU_SECONDS_PER_JUDGED_CANDIDATE
         return real_build(*args, **kwargs)

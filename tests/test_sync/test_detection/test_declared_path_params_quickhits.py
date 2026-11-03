@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-from typing import Any
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import RouteConfig
@@ -16,7 +15,9 @@ BASELINE = json.loads(
 NAME_ONLY_FAMILIES = {"recon", "cms_probing"}
 
 
-def _verdict(name: str, path_params: Any) -> tuple[bool, set[str]]:
+def _verdict(
+    name: str, path_params: set[str] | dict[str, set[str]] | None
+) -> tuple[bool, set[str]]:
     request = SyncMockGuardRequest(path=f"/files/{name}")
     declare_route(request, "/files/{name:path}")
     route_config = None

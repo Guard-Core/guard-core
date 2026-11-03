@@ -1,10 +1,10 @@
 import json
 import logging
-from typing import Any
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync._utils.detection_scan import LazyPreview
 from guard_core.sync.handlers.suspatterns_handler import (
     DetectionResult,
     SusPatternsManager,
@@ -155,12 +155,27 @@ def test_json_embedded_scan_calls_detect_no_more_than_the_cap(
     original_detect = SusPatternsManager.detect
 
     def counting_detect(
-        self: SusPatternsManager, *args: Any, **kwargs: Any
+        self: SusPatternsManager,
+        content: str,
+        ip_address: str,
+        context: str = "unknown",
+        correlation_id: str | None = None,
+        enabled_categories: set[str] | None = None,
+        *,
+        content_preview: str | LazyPreview | None = None,
     ) -> DetectionResult:
         nonlocal call_count
-        if kwargs["context"].startswith("query_param"):
+        if context.startswith("query_param"):
             call_count += 1
-        return original_detect(self, *args, **kwargs)
+        return original_detect(
+            self,
+            content,
+            ip_address,
+            context,
+            correlation_id,
+            enabled_categories,
+            content_preview=content_preview,
+        )
 
     monkeypatch.setattr(SusPatternsManager, "detect", counting_detect)
 

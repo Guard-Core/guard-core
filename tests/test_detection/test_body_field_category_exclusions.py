@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from collections.abc import Callable
 from urllib.parse import urlencode
 
 import pytest
@@ -16,6 +16,9 @@ SCRIPT = "<script>alert(1)</script>"
 MULTIPART_TYPE = "multipart/form-data; boundary=B0"
 
 
+_BodyFields = set[str] | dict[str, set[str]]
+
+
 class _FakeDecorator(BaseSecurityDecorator, ContentFilteringMixin):
     pass
 
@@ -25,7 +28,7 @@ def _force_enhanced_detection_singleton() -> None:
     sus_patterns_handler.configure(SecurityConfig())
 
 
-def _route_config(body_fields: Any) -> RouteConfig:
+def _route_config(body_fields: _BodyFields) -> RouteConfig:
     decorator = _FakeDecorator(SecurityConfig())
 
     def target() -> None:
@@ -46,7 +49,7 @@ def _request(content_type: str, body: bytes) -> MockGuardRequest:
     )
 
 
-def _json(payload: Any) -> MockGuardRequest:
+def _json(payload: object) -> MockGuardRequest:
     return _request("application/json", json.dumps(payload).encode())
 
 
@@ -62,7 +65,7 @@ def _multipart(name: str, value: str) -> MockGuardRequest:
     return _request(MULTIPART_TYPE, body)
 
 
-async def _is_threat(request: MockGuardRequest, body_fields: Any) -> bool:
+async def _is_threat(request: MockGuardRequest, body_fields: _BodyFields) -> bool:
     config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
     route_config = _route_config(body_fields)
     return (await detect_penetration_attempt(request, config, route_config)).is_threat
@@ -84,16 +87,19 @@ def test_the_map_form_is_stored_as_a_map() -> None:
     "bad",
     [{"note": set()}, {"note": {"not_a_category"}}, {1: {"xss"}}, {"note": "xss"}],
 )
-def test_the_map_form_is_validated_like_params(bad: Any) -> None:
+def test_the_map_form_is_validated_like_params(bad: dict[object, object]) -> None:
     errors: list[str] = []
     for keyword in ("params", "body_fields"):
         decorator = _FakeDecorator(SecurityConfig())
+        exclude: Callable[..., Callable[[Callable[[], None]], Callable[[], None]]] = (
+            decorator.detection_exclusion
+        )
 
         def target() -> None:
             pass
 
         with pytest.raises(ValueError) as caught:
-            decorator.detection_exclusion(**{keyword: bad})(target)
+            exclude(**{keyword: bad})(target)
         errors.append(str(caught.value))
     assert errors[0].replace("excluded_detection_params", "<option>") == errors[
         1

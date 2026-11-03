@@ -4,7 +4,6 @@ import sys
 import time
 from collections.abc import Generator
 from types import ModuleType
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,8 +13,8 @@ from guard_core.handlers.ipban_handler import IPBanManager, reset_global_state
 from tests.ipban_redis_fake import fake_ban_redis
 
 
-def _scan_iter_of(keys: list[str]) -> Any:
-    async def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
+def _scan_iter_of(keys: list[str]) -> object:
+    async def scan_iter(*_args: object, **_kwargs: object) -> object:
         for key in keys:
             yield str(key)
 

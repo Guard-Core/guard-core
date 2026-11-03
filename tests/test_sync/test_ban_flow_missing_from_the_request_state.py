@@ -33,7 +33,7 @@ CLIENT = "198.51.100.77"
 class _Rig:
     """The IP and rate-limit checks over a real Redis, wired as the pipeline does."""
 
-    def __init__(self, **overrides: Any) -> None:
+    def __init__(self, **overrides: object) -> None:
         fields: dict[str, Any] = dict(
             enable_redis=True,
             redis_url=REDIS_URL,
@@ -67,10 +67,10 @@ class _Rig:
         middleware.route_resolver.should_bypass_check = lambda *_: False
         middleware.event_bus.agent_handler = None
 
-        def create_error_response(status_code: int, default_message: str) -> Any:
+        def create_error_response(status_code: int, default_message: str) -> object:
             return SimpleNamespace(status_code=status_code, headers={})
 
-        def record(**kwargs: Any) -> None:
+        def record(**kwargs: object) -> None:
             return None
 
         middleware.create_error_response = create_error_response
@@ -94,7 +94,7 @@ class _Rig:
 
 
 @contextmanager
-def _rig(**overrides: Any) -> Iterator[_Rig]:
+def _rig(**overrides: object) -> Iterator[_Rig]:
     rig = _Rig(**overrides)
     rig.start()
     try:
@@ -103,7 +103,7 @@ def _rig(**overrides: Any) -> Iterator[_Rig]:
         rig.stop()
 
 
-def _request(ip: str) -> Any:
+def _request(ip: str) -> MagicMock:
     request = MagicMock()
     request.state.client_ip = ip
     request.state.route_config = None
@@ -124,7 +124,7 @@ def _request(ip: str) -> Any:
     return request
 
 
-def _pending_ban_and_rate(rig: _Rig, ip: str) -> tuple[Any, PendingBan]:
+def _pending_ban_and_rate(rig: _Rig, ip: str) -> tuple[MagicMock, PendingBan]:
     """Run the IP and rate-limit checks by hand: the ban read and the rate-limit
     count are left pending together, for one script to settle."""
     request = _request(ip)

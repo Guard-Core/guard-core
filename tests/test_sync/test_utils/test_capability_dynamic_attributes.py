@@ -7,6 +7,7 @@ import pytest
 from cachetools import TTLCache
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils import body_reader
 from guard_core.sync._utils.body_reader import (
     _body_reader_kind,
@@ -45,7 +46,7 @@ class _Delegating(SyncMockGuardRequest):
         super().__init__(method="POST", path="/x", headers=POST)
         self._inner = inner
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         return getattr(self._inner, name)
 
 
@@ -72,7 +73,7 @@ def test_dynamic_classes_are_told_apart_from_static_ones() -> None:
     assert not serves_attributes_dynamically(_PlainIdle)
 
     class _Getattribute:
-        def __getattribute__(self, name: str) -> Any:
+        def __getattribute__(self, name: str) -> object:
             return object.__getattribute__(self, name)
 
     assert serves_attributes_dynamically(_Getattribute)
@@ -183,7 +184,7 @@ class _DelegatingResponse:
     def __init__(self, inner: object) -> None:
         self._inner = inner
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         return getattr(self._inner, name)
 
 
@@ -203,7 +204,7 @@ class _PlainResponse:
     ],
 )
 def test_the_response_prefetch_reads_through_a_delegating_response(
-    response: Any, expected: bytes | None
+    response: GuardResponse, expected: bytes | None
 ) -> None:
     assert ResponseBodyPrefetch(response).read(16, 1.0) == expected
 
@@ -224,7 +225,7 @@ class _Mixin(BehaviorResponsePatternMixin):
     ],
 )
 def test_the_response_pattern_scan_reads_a_delegating_response(
-    response: Any, expected: bytes | None
+    response: GuardResponse, expected: bytes | None
 ) -> None:
     assert _Mixin()._read_response_body_prefix(response, "x") == expected
 
@@ -244,7 +245,7 @@ class _DelegatingCallableStore:
     def __init__(self) -> None:
         self._inner = _Store()
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         return getattr(self._inner, name)
 
     def __call__(self, redis_handler: object) -> str:

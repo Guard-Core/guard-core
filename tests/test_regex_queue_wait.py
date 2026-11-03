@@ -16,7 +16,10 @@ from guard_core.core.checks.implementations.suspicious_activity import (
 )
 from guard_core.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
 from guard_core.detection_engine import compiler as compiler_module
+from guard_core.detection_engine.binary_prefix import BinaryPrefix
 from guard_core.exceptions import BodyReadFailedError
+from guard_core.handlers._suspatterns_lazy_rows import PatternSource
+from guard_core.handlers._suspatterns_state import _DetectionState
 from guard_core.handlers.suspatterns_handler import (
     _CTX_ALL,
     SusPatternsManager,
@@ -32,7 +35,7 @@ _CATASTROPHIC_CUSTOM_ROW = r"(a+)+$"
 _COMPILER_TIMEOUT = 0.3
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     settings: dict[str, Any] = {"fail_secure": True, **overrides}
     return SecurityConfig(
         detection_compiler_timeout=_COMPILER_TIMEOUT, enable_redis=False, **settings
@@ -261,7 +264,7 @@ def _wait_without_bound(
     started: object,
     timeout: float,
     backstop: float | None = None,
-) -> Any:
+) -> object:
     return future.result()
 
 
@@ -272,7 +275,7 @@ def _finditer_outcome_of_a_run_that(
     compiler = compiler_module.PatternCompiler(default_timeout=0.2)
 
     def paused(work: Callable[[], Any]) -> Callable[[], Any]:
-        def run() -> Any:
+        def run() -> object:
             pause()
             return work()
 
@@ -441,10 +444,31 @@ async def _scanned_pattern_count(
     scanned = 0
     original = SusPatternsManager._check_regex_pattern
 
-    async def counting(self: SusPatternsManager, *args: Any, **kwargs: Any) -> Any:
+    async def counting(
+        self: SusPatternsManager,
+        pattern: PatternSource,
+        content: str,
+        ip_address: str,
+        pattern_start: float,
+        category: str,
+        *,
+        state: _DetectionState | None = None,
+        context: str = "unknown",
+        binary_prefix: BinaryPrefix | None = None,
+    ) -> tuple[dict[str, object] | None, bool]:
         nonlocal scanned
         scanned += 1
-        return await original(self, *args, **kwargs)
+        return await original(
+            self,
+            pattern,
+            content,
+            ip_address,
+            pattern_start,
+            category,
+            state=state,
+            context=context,
+            binary_prefix=binary_prefix,
+        )
 
     monkeypatch.setattr(SusPatternsManager, "_check_regex_pattern", counting)
     result = await detect_penetration_attempt(_request("hello"), config)

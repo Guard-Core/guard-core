@@ -5,13 +5,17 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
+from guard_core.decorators.base import BaseSecurityDecorator
 from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from guard_core.protocols.response_protocol import GuardResponse
 
 CAP = 610
 
 
-async def _initialize(**overrides: Any) -> None:
+async def _initialize(**overrides: object) -> None:
     config = SecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
@@ -23,7 +27,7 @@ async def _initialize(**overrides: Any) -> None:
 
 
 async def _startup_warnings(
-    caplog: pytest.LogCaptureFixture, **overrides: Any
+    caplog: pytest.LogCaptureFixture, **overrides: object
 ) -> list[str]:
     overrides.setdefault("fail_on_misconfiguration", False)
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -127,8 +131,14 @@ class _Messages(logging.Handler):
         self.messages.append(record.getMessage())
 
 
-def _problems(config: SecurityConfig, **parts: Any) -> list[str]:
-    initializer = HandlerInitializer(config, **parts)
+def _problems(
+    config: SecurityConfig,
+    redis_handler: RedisHandlerProtocol | None = None,
+    guard_decorator: BaseSecurityDecorator | None = None,
+) -> list[str]:
+    initializer = HandlerInitializer(
+        config, redis_handler=redis_handler, guard_decorator=guard_decorator
+    )
     capture = _Messages()
     package_logger = logging.getLogger("guard_core")
     package_logger.addHandler(capture)
@@ -141,7 +151,7 @@ def _problems(config: SecurityConfig, **parts: Any) -> list[str]:
     return _unreachable(capture.messages)
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -311,7 +321,7 @@ def test_fail_secure_off_makes_the_bound_unknown_with_redis() -> None:
     assert _problems(config, redis_handler=MagicMock()) == []
 
 
-async def _stopped_redis_pipeline(**fields: Any) -> tuple[Any, Any, str]:
+async def _stopped_redis_pipeline(**fields: object) -> tuple[Any, Any, str]:
     from guard_core.handlers.redis_handler import RedisManager
     from tests.test_core.conftest import build_route_pipeline
 
@@ -332,7 +342,9 @@ async def _stopped_redis_pipeline(**fields: Any) -> tuple[Any, Any, str]:
     return pipeline, middleware, route_id
 
 
-async def _attack(pipeline: Any, route_id: str) -> Any:
+async def _attack(
+    pipeline: SecurityCheckPipeline, route_id: str
+) -> GuardResponse | None:
     from tests.conftest import MockGuardRequest
 
     request = MockGuardRequest(

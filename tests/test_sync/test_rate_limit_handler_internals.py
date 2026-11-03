@@ -40,14 +40,16 @@ def _request() -> SyncMockGuardRequest:
     return SyncMockGuardRequest(path="/x", client_host=IP)
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(**{"enable_redis": False, **settings})
 
 
 class _RedisHandler(RedisHandlerBase):
-    def __init__(self, conn: Any = None, connect_error: Exception | None = None):
+    def __init__(
+        self, conn: MagicMock | None = None, connect_error: Exception | None = None
+    ):
         super().__init__(SyncSecurityConfig(enable_redis=True, redis_prefix="p:"))
-        self.conn = conn
+        self.conn = conn if conn is not None else MagicMock()
         self.connect_error = connect_error
 
     @contextmanager
@@ -62,22 +64,22 @@ class _Pipeline:
         self.calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
         self.results = results
 
-    def zremrangebyscore(self, *args: Any, **kwargs: Any) -> None:
+    def zremrangebyscore(self, *args: object, **kwargs: object) -> None:
         self.calls.append(("zremrangebyscore", args, kwargs))
 
-    def zcard(self, *args: Any, **kwargs: Any) -> None:
+    def zcard(self, *args: object, **kwargs: object) -> None:
         self.calls.append(("zcard", args, kwargs))
 
-    def zrange(self, *args: Any, **kwargs: Any) -> None:
+    def zrange(self, *args: object, **kwargs: object) -> None:
         self.calls.append(("zrange", args, kwargs))
 
-    def zadd(self, *args: Any, **kwargs: Any) -> None:
+    def zadd(self, *args: object, **kwargs: object) -> None:
         self.calls.append(("zadd", args, kwargs))
 
-    def expire(self, *args: Any, **kwargs: Any) -> None:
+    def expire(self, *args: object, **kwargs: object) -> None:
         self.calls.append(("expire", args, kwargs))
 
-    def zrem(self, *args: Any, **kwargs: Any) -> None:
+    def zrem(self, *args: object, **kwargs: object) -> None:
         self.calls.append(("zrem", args, kwargs))
 
     def execute(self) -> list[Any]:

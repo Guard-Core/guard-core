@@ -54,11 +54,13 @@ class _StampEnricher:
         self.events_seen: list[object] = []
         self.metrics_seen: list[object] = []
 
-    def enrich_event(self, event: Any) -> None:
+    def enrich_event(self, event: object) -> None:
+        assert isinstance(event, SimpleNamespace)
         self.events_seen.append(event)
         event.metadata["enriched"] = True
 
-    def enrich_metric(self, metric: Any) -> None:
+    def enrich_metric(self, metric: object) -> None:
+        assert isinstance(metric, SimpleNamespace)
         self.metrics_seen.append(metric)
         metric.tags["enriched"] = "true"
 

@@ -1,4 +1,5 @@
 import tracemalloc
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +35,7 @@ PIECE_PEAK_BOUND = 12 * MIB
 
 
 @pytest.fixture(autouse=True)
-def _reset_singleton() -> Any:
+def _reset_singleton() -> Iterator[None]:
     IPInfoManager._instance = None
     yield
     IPInfoManager._instance = None
@@ -65,7 +66,7 @@ async def _all_database_keys(
         return sorted(await conn.keys(f"{config.redis_prefix}ipinfo:*"))
 
 
-def _sync_client() -> Any:
+def _sync_client() -> plain_redis.Redis:
     return plain_redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
 
@@ -214,7 +215,7 @@ async def test_a_rename_during_a_chunked_read_retries_and_adopts_the_new_databas
     swapped = {"done": False, "reads": 0}
     real_command = Pipeline.execute_command
 
-    def swapping_command(self: Pipeline, *args: Any, **kwargs: Any) -> Any:
+    def swapping_command(self: Pipeline, *args: object, **kwargs: object) -> object:
         if args[0] == "GETRANGE":
             swapped["reads"] += 1
             if not swapped["done"] and swapped["reads"] == 2:
@@ -246,7 +247,7 @@ async def test_a_database_that_keeps_changing_is_not_adopted_and_the_key_survive
     reader = _manager(tmp_path, handler, "reader")
     real_command = Pipeline.execute_command
 
-    def always_changing(self: Pipeline, *args: Any, **kwargs: Any) -> Any:
+    def always_changing(self: Pipeline, *args: object, **kwargs: object) -> object:
         if args[0] == "GETRANGE":
             client.set(key, padded_database_bytes(b"\xff", 200000).decode("latin-1"))
         return real_command(self, *args, **kwargs)
@@ -323,7 +324,7 @@ async def test_a_redis_failure_while_reading_is_a_warning_not_a_drop(
     await handler.set_key("ipinfo", "database", "kept")
     reader = _manager(tmp_path, handler, "reader")
 
-    async def broken(*args: Any, **kwargs: Any) -> bool:
+    async def broken(*args: object, **kwargs: object) -> bool:
         raise ConnectionError("down")
 
     monkeypatch.setattr(copy_module, "read_pieces_into_file", broken)

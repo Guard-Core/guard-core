@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from typing import Any
+from typing import Any, Protocol
 
 import pytest
 from pydantic import ValidationError
@@ -20,7 +20,7 @@ def _error_response(status_code: int, message: str) -> MockGuardResponse:
     return MockGuardResponse(message, status_code)
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
@@ -42,11 +42,15 @@ def _stack(
     return manager, redis
 
 
+class _StackFactory(Protocol):
+    def __call__(self, **settings: object) -> tuple[RateLimitManager, RedisManager]: ...
+
+
 @pytest.fixture
-def stack_factory() -> Generator[Any, None]:
+def stack_factory() -> Generator[_StackFactory, None]:
     opened: list[RedisManager] = []
 
-    def make(**settings: Any) -> tuple[RateLimitManager, RedisManager]:
+    def make(**settings: object) -> tuple[RateLimitManager, RedisManager]:
         manager, redis = _stack(_config(**settings))
         opened.append(redis)
         return manager, redis

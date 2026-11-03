@@ -1,8 +1,12 @@
+from collections.abc import Callable
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
+from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.models import SecurityConfig
+from guard_core.protocols.request_protocol import GuardRequest
 from tests.test_core.conftest import build_route_pipeline, send_request
 
 CLIENT = "203.0.113.20"
@@ -11,13 +15,13 @@ GOOD = {"authorization": "Bearer good-token", "X-API-Key": "good-key"}
 
 class _RecordingAgent:
     def __init__(self) -> None:
-        self.events: list[Any] = []
+        self.events: list[object] = []
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         self.events.append(event)
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -27,23 +31,27 @@ def _config(**overrides: Any) -> SecurityConfig:
     return SecurityConfig(**settings)
 
 
-def _bearer_verifier(calls: list[str]) -> Any:
-    def verify(request: Any, credential: str) -> Any:
+def _bearer_verifier(calls: list[str]) -> Callable[[GuardRequest, str], object]:
+    def verify(request: GuardRequest, credential: str) -> object:
         calls.append(f"bearer:{credential}")
         return "bearer-principal" if credential == "good-token" else None
 
     return verify
 
 
-def _key_verifier(calls: list[str], header: str = "X-API-Key") -> Any:
-    def verify(request: Any, credential: str) -> Any:
+def _key_verifier(
+    calls: list[str], header: str = "X-API-Key"
+) -> Callable[[GuardRequest, str], object]:
+    def verify(request: GuardRequest, credential: str) -> object:
         calls.append(f"key:{credential}")
         return "key-principal" if credential == "good-key" else None
 
     return verify
 
 
-def _stacked(calls: list[str], **config: Any) -> Any:
+def _stacked(
+    calls: list[str], **config: object
+) -> tuple[SecurityCheckPipeline, MagicMock, str]:
     return build_route_pipeline(
         _config(**config),
         lambda d: d.require_auth("bearer", verifier=_bearer_verifier(calls)),
@@ -107,8 +115,8 @@ async def test_a_custom_api_key_header_failure_is_an_authentication_event() -> N
         pipeline, route_id, ip=CLIENT, headers={"X-Custom-Key": "anything"}
     )
 
-    assert [e.event_type for e in agent.events] == ["authentication_failed"]
-    assert agent.events[0].decorator_type == "authentication"
+    assert [vars(e)["event_type"] for e in agent.events] == ["authentication_failed"]
+    assert vars(agent.events[0])["decorator_type"] == "authentication"
 
 
 @pytest.mark.parametrize(

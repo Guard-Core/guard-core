@@ -28,7 +28,7 @@ from tests.engine_redis_commands import server_loses_the_script_of_the_next_eval
 SCRIPT = "return {KEYS[1], ARGV[1], false, 7, {KEYS[2], 'x'}}"
 
 
-async def _client(max_connections: int = 20, **kwargs: Any) -> Redis:
+async def _client(max_connections: int = 20, **kwargs: object) -> Redis:
     return _build_redis_client(REDIS_URL, max_connections, 1.0, **kwargs)
 
 
@@ -39,7 +39,7 @@ async def client() -> AsyncGenerator[Redis, None]:
     await close_redis_client(redis)
 
 
-def _name(packed: Any) -> str:
+def _name(packed: bytes | list[bytes]) -> str:
     chunk = packed[0] if isinstance(packed, list) else packed
     return str(chunk.split(b"\r\n")[2].decode())
 
@@ -237,15 +237,17 @@ async def test_a_drop_between_send_and_read_counts_one_request_not_two(
         3600,
         100,
     )
-    real = Connection.read_response
-    real_send = Connection.send_packed_command
+    real: Callable[..., Awaitable[object]] = Connection.read_response
+    real_send: Callable[..., Awaitable[None]] = Connection.send_packed_command
     state = {"dropped": False, "sent": ""}
 
-    async def note_send(connection: Connection, command: Any, *a: Any, **k: Any) -> Any:
+    async def note_send(
+        connection: Connection, command: bytes | list[bytes], *a: object, **k: object
+    ) -> None:
         state["sent"] = _name(command)
         return await real_send(connection, command, *a, **k)
 
-    async def drop_once(connection: Connection, *a: Any, **k: Any) -> Any:
+    async def drop_once(connection: Connection, *a: object, **k: object) -> object:
         reply = await real(connection, *a, **k)
         if state["sent"] == "EVALSHA" and not state["dropped"]:
             state["dropped"] = True
@@ -273,10 +275,12 @@ async def test_a_send_that_fails_is_resent_with_the_same_bytes(
 ) -> None:
     client = await _client(retry=Retry(NoBackoff(), 1))
     sent: list[Any] = []
-    real = Connection.send_packed_command
+    real: Callable[..., Awaitable[None]] = Connection.send_packed_command
     failures = {"left": 1}
 
-    async def flaky(connection: Connection, command: Any, *a: Any, **k: Any) -> Any:
+    async def flaky(
+        connection: Connection, command: bytes | list[bytes], *a: object, **k: object
+    ) -> None:
         if _name(command) == "GET":
             sent.append(command)
             if failures["left"]:
@@ -342,12 +346,12 @@ class _Observability:
         self._observability_instance = self._instance(enabled)
 
     @staticmethod
-    def _instance(enabled: bool) -> Any:
+    def _instance(enabled: bool) -> object:
         from types import SimpleNamespace
 
         return SimpleNamespace(_provider_manager=object() if enabled else None)
 
-    def get_observability_instance(self) -> Any:
+    def get_observability_instance(self) -> object:
         return self._observability_instance
 
     def switch(self, enabled: bool) -> None:
@@ -445,7 +449,7 @@ def test_a_redis_py_without_the_connection_count_recorder_loads_no_recorder(
 ) -> None:
     from guard_core.handlers import _redis_fast_pool
 
-    def refuse(name: str) -> Any:
+    def refuse(name: str) -> object:
         raise ImportError(name)
 
     monkeypatch.setattr(_redis_fast_pool.importlib, "import_module", refuse)
@@ -480,11 +484,11 @@ class _Listener:
     def __init__(self) -> None:
         self.events: list[Any] = []
 
-    async def listen(self, event: Any) -> None:
+    async def listen(self, event: object) -> None:
         self.events.append(event)
 
 
-def _release_event_type() -> Any:
+def _release_event_type() -> object:
     from redis.event import AsyncAfterConnectionReleasedEvent
 
     return AsyncAfterConnectionReleasedEvent
@@ -562,7 +566,7 @@ async def test_no_release_event_is_dispatched_with_only_the_default_listener(
         dispatcher = client.connection_pool._event_dispatcher
         dispatched: list[Any] = []
 
-        async def spy(event: Any) -> None:
+        async def spy(event: object) -> None:
             dispatched.append(event)
 
         monkeypatch.setattr(dispatcher, "dispatch_async", spy)
@@ -658,7 +662,7 @@ def test_a_redis_py_without_the_release_event_loads_none(
 ) -> None:
     from guard_core.handlers import _redis_fast_pool
 
-    def refuse(name: str) -> Any:
+    def refuse(name: str) -> object:
         raise ImportError(name)
 
     monkeypatch.setattr(_redis_fast_pool.importlib, "import_module", refuse)
@@ -692,16 +696,16 @@ class _DispatcherWithoutMapping:
     def __init__(self) -> None:
         self.events: list[Any] = []
 
-    async def dispatch_async(self, event: Any) -> None:
+    async def dispatch_async(self, event: object) -> None:
         self.events.append(event)
 
-    def dispatch(self, event: Any) -> None:
+    def dispatch(self, event: object) -> None:
         self.events.append(event)
 
-    def register_listeners(self, _mappings: Any) -> None:
+    def register_listeners(self, _mappings: object) -> None:
         return None
 
-    def unregister_listeners(self, _mappings: Any) -> None:
+    def unregister_listeners(self, _mappings: object) -> None:
         return None
 
 
@@ -765,7 +769,7 @@ async def test_a_connection_without_a_re_authentication_token_takes_the_plain_pa
         return
     original_init = Connection.__init__
 
-    def init_without_token(self: Connection, *args: Any, **kwargs: Any) -> None:
+    def init_without_token(self: Connection, *args: object, **kwargs: object) -> None:
         original_init(self, *args, **kwargs)
         del self._re_auth_token
 
@@ -780,7 +784,7 @@ async def test_a_connection_without_a_re_authentication_token_takes_the_plain_pa
         dispatcher = client.connection_pool._event_dispatcher
         original = dispatcher.dispatch_async
 
-        async def spy(event: Any) -> None:
+        async def spy(event: object) -> None:
             events.append(event)
             await original(event)
 
@@ -832,7 +836,7 @@ async def test_an_observability_module_without_its_singleton_takes_the_plain_pat
         dispatcher = client.connection_pool._event_dispatcher
         original = dispatcher.dispatch_async
 
-        async def spy(event: Any) -> None:
+        async def spy(event: object) -> None:
             events.append(event)
             await original(event)
 
@@ -857,7 +861,7 @@ async def test_an_instance_without_a_provider_manager_takes_the_plain_path(
         dispatcher = client.connection_pool._event_dispatcher
         original = dispatcher.dispatch_async
 
-        async def spy(event: Any) -> None:
+        async def spy(event: object) -> None:
             events.append(event)
             await original(event)
 

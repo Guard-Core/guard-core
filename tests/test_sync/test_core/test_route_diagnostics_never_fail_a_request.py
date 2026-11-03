@@ -1,34 +1,30 @@
 import logging
-from typing import Any
+from collections.abc import Callable, Iterable, Sequence
 from unittest.mock import MagicMock, Mock
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.protocols.route_identity import RouteIdentity
+from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.core.checks.implementations.route_config import RouteConfigCheck
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
+from guard_core.sync.handlers.ratelimit_handler import RateLimitTier, RateLimitVerdict
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from tests.test_sync.conftest import MockGuardResponse
 
-BLOCKED = object()
+BLOCKED = MockGuardResponse("blocked", 403)
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(
         enable_redis=False,
         ban_on_hostile_signals=False,
         whitelist_access_only=False,
         **settings,
     )
-
-
-class _Handler:
-    def __init__(self) -> None:
-        self.tier_buckets: list[list[str]] = []
-
-    def check_rate_limit_tiers(self, *args: Any, **kwargs: Any) -> None:
-        self.tier_buckets.append(
-            [tier.bucket for tier in args[3] if tier.kind == "endpoint"]
-        )
 
 
 class Slotted:
@@ -41,13 +37,22 @@ class Slotted:
         "prefixes",
         "resolver",
         "rate_limit_handler",
+        "last_cloud_ip_refresh",
+        "suspicious_request_counts",
+        "guard_decorator",
+        "response_factory",
+        "geo_ip_handler",
+        "guard_response_factory",
     )
 
     def __init__(
-        self, config: SyncSecurityConfig, prefixes: Any, resolver: Any
+        self,
+        config: SyncSecurityConfig,
+        prefixes: Iterable[str] | Exception,
+        resolver: Exception | None,
     ) -> None:
         self.config = config
-        self.logger = Mock()
+        self.logger: logging.Logger = Mock()
         self.route_resolver = Mock()
         self.route_resolver.get_route_config.return_value = None
         self.agent_handler = None
@@ -55,27 +60,60 @@ class Slotted:
         self.event_bus.send_middleware_event = MagicMock()
         self.prefixes = prefixes
         self.resolver = resolver
-        self.rate_limit_handler = _Handler()
+        self.rate_limit_handler = Mock()
+        self.rate_limit_handler.tier_buckets = []
+        self.rate_limit_handler.check_rate_limit_tiers = MagicMock(
+            side_effect=self._record_endpoint_buckets
+        )
+        self.last_cloud_ip_refresh = 0
+        self.suspicious_request_counts: dict[str, dict[str, int]] = {}
+        self.guard_decorator = None
+        self.response_factory = None
+        self.geo_ip_handler = None
+        self.guard_response_factory = None
+
+    def _record_endpoint_buckets(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        create_error_response: Callable[[int, str], GuardResponse],
+        tiers: Sequence[RateLimitTier],
+        config: SyncSecurityConfig | None = None,
+        window_identity: str | None = None,
+        verdict: RateLimitVerdict | None = None,
+    ) -> None:
+        self.rate_limit_handler.tier_buckets.append(
+            [tier.bucket for tier in tiers if tier.kind == "endpoint"]
+        )
 
     def static_route_prefixes(self) -> tuple[str, ...]:
         if isinstance(self.prefixes, Exception):
             raise self.prefixes
         return tuple(self.prefixes)
 
-    def resolve_route(self, path: str) -> tuple[Any, ...]:
+    def resolve_route(self, path: str) -> tuple[RouteIdentity, ...]:
         if isinstance(self.resolver, Exception):
             raise self.resolver
         return ()
 
-    def create_error_response(self, *args: Any, **kwargs: Any) -> Any:
+    def create_error_response(
+        self, status_code: int, default_message: str
+    ) -> GuardResponse:
         return BLOCKED
 
+    def refresh_cloud_ip_ranges(self) -> None:
+        return None
 
-def _slotted(config: SyncSecurityConfig, prefixes: Any, resolver: Any) -> Any:
+
+def _slotted(
+    config: SyncSecurityConfig,
+    prefixes: Iterable[str] | Exception,
+    resolver: Exception | None,
+) -> Slotted:
     return Slotted(config, prefixes, resolver)
 
 
-def _request() -> Any:
+def _request() -> Mock:
     request = Mock()
     request.state = Mock(spec=["client_ip", "guard_route_unresolved"])
     request.state.guard_route_unresolved = False
@@ -93,7 +131,9 @@ def _client_ip(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _through_pipeline(middleware: Any, check: Any) -> Any:
+def _through_pipeline(
+    middleware: Slotted, check: SecurityCheck
+) -> GuardResponse | None:
     pipeline = SecurityCheckPipeline([check], config=middleware.config)
     return pipeline.execute(_request())
 

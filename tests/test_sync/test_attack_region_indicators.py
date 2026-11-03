@@ -1,18 +1,21 @@
 import random
 import re
 import time
-from typing import Any
+from collections.abc import Callable, Iterable
 
 import pytest
 
-from guard_core.sync.detection_engine.on_handler_indicator import OnHandlerIndicator
+from guard_core.sync.detection_engine.on_handler_indicator import (
+    OnHandlerIndicator,
+    _Span,
+)
 from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
 
 _REFERENCE = re.compile(r"on\w+=", re.IGNORECASE)
 _FINDER = OnHandlerIndicator()
 
 
-def _spans(finder_result: Any) -> list[tuple[int, int]]:
+def _spans(finder_result: Iterable[re.Match[str] | _Span]) -> list[tuple[int, int]]:
     return [(m.start(), m.end()) for m in finder_result]
 
 
@@ -100,7 +103,7 @@ def test_the_indicator_list_keeps_25_entries_and_the_list_type() -> None:
     assert isinstance(preprocessor.compiled_indicators[2], OnHandlerIndicator)
 
 
-def _cpu_seconds(work: Any) -> float:
+def _cpu_seconds(work: Callable[[], object]) -> float:
     start = time.thread_time()
     work()
     return time.thread_time() - start

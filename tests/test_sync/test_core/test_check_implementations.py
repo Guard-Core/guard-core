@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 from guard_core.models import SyncSecurityConfig
@@ -90,9 +89,13 @@ def _make_middleware(
 
 
 def _make_request_with_route_config(
-    route_config: RouteConfig, **kwargs: Any
+    route_config: RouteConfig,
+    path: str = "/",
+    method: str = "GET",
+    headers: dict[str, str] | None = None,
+    scheme: str = "https",
 ) -> SyncMockGuardRequest:
-    req = SyncMockGuardRequest(**kwargs)
+    req = SyncMockGuardRequest(path=path, method=method, headers=headers, scheme=scheme)
     req.state.route_config = route_config
     return req
 

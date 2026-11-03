@@ -320,7 +320,9 @@ def a_refused_ban_is_logged_once_and_reported_as_one_ip_ban_refused_event(
     events = wait_until(lambda: _refused_ban_event(ctx), timeout=20.0)
     assert events is not None, "no ip_ban_refused event reached the agent stub"
     assert len(events) == 1, events
-    assert (events[0].get("metadata") or {}).get("refusal") == "trusted_proxy"
+    metadata = events[0].get("metadata") or {}
+    assert isinstance(metadata, dict)
+    assert metadata.get("refusal") == "trusted_proxy"
 
 
 HOSTILE_SIGNAL_BAN_CONFIG = {

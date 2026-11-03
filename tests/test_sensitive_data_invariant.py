@@ -1,11 +1,11 @@
 import json
 import logging
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import quote, quote_plus, urlencode
 
@@ -19,7 +19,10 @@ from guard_core.core.bypass.handler import BypassHandler
 from guard_core.core.checks import build_default_pipeline
 from guard_core.core.events.logfire_handler import LogfireHandler
 from guard_core.core.events.metrics import MetricsCollector
-from guard_core.core.events.middleware_events import SecurityEventBus
+from guard_core.core.events.middleware_events import (
+    SecurityEventBus,
+    _CountryLookup,
+)
 from guard_core.core.events.otel_handler import OtelHandler
 from guard_core.core.validation.context import ValidationContext
 from guard_core.core.validation.validator import RequestValidator
@@ -33,6 +36,7 @@ from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.protocols.request_protocol import GuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import detect_penetration_attempt, extract_client_ip, log_activity
 from tests.conftest import MockGuardRequest, MockGuardResponse
 
@@ -79,12 +83,12 @@ class _NullSpan:
         return None
 
 
-def _record_logfire_span(name: str, **kwargs: Any) -> _NullSpan:
+def _record_logfire_span(name: str, **kwargs: object) -> _NullSpan:
     _LOGFIRE_CALLS.append({"span": name, **kwargs})
     return _NullSpan()
 
 
-def _record_logfire_info(name: str, **kwargs: Any) -> None:
+def _record_logfire_info(name: str, **kwargs: object) -> None:
     _LOGFIRE_CALLS.append({"info": name, **kwargs})
 
 
@@ -99,7 +103,7 @@ def _wire_logfire() -> Iterator[None]:
         yield
 
 
-def _build_config(**overrides: Any) -> SecurityConfig:
+def _build_config(**overrides: object) -> SecurityConfig:
     base: dict[str, Any] = {
         "log_sensitive_headers": {_CUSTOM_SENSITIVE_HEADER},
         "log_sensitive_params": {_CUSTOM_SENSITIVE_PARAM},
@@ -113,7 +117,7 @@ def _build_config(**overrides: Any) -> SecurityConfig:
     return SecurityConfig(**base)
 
 
-def _build_otel_handler(config: SecurityConfig) -> Any:
+def _build_otel_handler(config: SecurityConfig) -> OtelHandler | None:
     if not _otel_sdk_available or InMemorySpanExporter is None:
         return None
     handler = OtelHandler(config)
@@ -129,18 +133,18 @@ class _RecordingAgentHandler:
         self.metrics: list[Any] = []
         self._forward_to = forward_to or []
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         self.events.append(event)
         for target in self._forward_to:
             await target.send_event(event)
 
-    async def send_metric(self, metric: Any) -> None:
+    async def send_metric(self, metric: object) -> None:
         self.metrics.append(metric)
         for target in self._forward_to:
             if hasattr(target, "send_metric"):
                 await target.send_metric(metric)
 
-    async def initialize_redis(self, _redis_handler: Any) -> None:
+    async def initialize_redis(self, _redis_handler: object) -> None:
         return None
 
     async def start(self) -> None:
@@ -152,7 +156,7 @@ class _RecordingAgentHandler:
     async def flush_buffer(self) -> None:
         return None
 
-    async def get_dynamic_rules(self) -> Any | None:
+    async def get_dynamic_rules(self) -> DynamicRules | None:
         return None
 
     def get_stats(self) -> dict[str, JsonValue]:
@@ -190,7 +194,7 @@ def _build_middleware(config: SecurityConfig) -> MagicMock:
     return middleware
 
 
-def _scenario_config(**overrides: Any) -> SecurityConfig:
+def _scenario_config(**overrides: object) -> SecurityConfig:
     return _build_config(**overrides)
 
 
@@ -198,7 +202,7 @@ def _scenario_middleware(
     config: SecurityConfig,
     *,
     route_config: RouteConfig | None = None,
-    geo_ip_handler: Any = None,
+    geo_ip_handler: _CountryLookup | None = None,
 ) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
@@ -244,8 +248,8 @@ _PIPELINE = build_default_pipeline(_MIDDLEWARE)
 
 
 class _UserinfoPasswordRequest(MockGuardRequest):
-    def __init__(self, *, password: str, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
+    def __init__(self, *, password: str, query_params: dict[str, str]) -> None:
+        super().__init__(query_params=query_params)
         self._userinfo_password = password
 
     @property
@@ -816,7 +820,7 @@ _CASES: list[Case] = [
 ]
 
 
-def _event_to_dict(event: Any) -> dict[str, Any]:
+def _event_to_dict(event: object) -> dict[str, Any]:
     if hasattr(event, "model_dump"):
         dumped: dict[str, Any] = event.model_dump(mode="json")
         return dumped
@@ -831,7 +835,16 @@ def _on_block_dump(calls: list[dict[str, Any]]) -> str:
     return json.dumps(calls, default=str)
 
 
-def _spans_dump(exporter: Any) -> str:
+class _FinishedSpan(Protocol):
+    @property
+    def attributes(self) -> Mapping[str, object] | None: ...
+
+
+class _SpanSource(Protocol):
+    def get_finished_spans(self) -> Sequence[_FinishedSpan]: ...
+
+
+def _spans_dump(exporter: _SpanSource) -> str:
     spans = exporter.get_finished_spans()
     attrs = [dict(span.attributes or {}) for span in spans]
     return json.dumps(attrs, default=str)
@@ -991,7 +1004,7 @@ def _client_ip_for(scenario_id: str) -> str:
     return f"203.0.113.{digest}"
 
 
-async def _auth_verifier_reject(request: Any, _credential: str) -> Any:
+async def _auth_verifier_reject(request: object, _credential: str) -> object:
     return None
 
 
@@ -1275,7 +1288,7 @@ async def _run_default_excluded_header_log4shell_with_pair(
 async def _run_custom_validator_echo(secret: str, ctx: "_ScenarioContext") -> None:
     client_ip = _client_ip_for("custom_validator_echo")
 
-    async def _validator(request: Any) -> Any:
+    async def _validator(request: GuardRequest) -> GuardResponse:
         return MockGuardResponse(
             f"blocked: saw {request.headers.get(_CUSTOM_SENSITIVE_HEADER)}", 403
         )
@@ -1408,7 +1421,7 @@ async def _run_passive_mode_suspicious(secret: str, ctx: "_ScenarioContext") -> 
     )
 
 
-async def _custom_request_check_callback(request: Any) -> Any:
+async def _custom_request_check_callback(request: object) -> object:
     return MockGuardResponse("blocked by custom check", 451)
 
 
@@ -1709,7 +1722,7 @@ async def _run_security_bypass_event(secret: str, ctx: "_ScenarioContext") -> No
     route_config = RouteConfig()
     route_config.bypassed_checks = {"all"}
 
-    async def _call_next(request: Any) -> Any:
+    async def _call_next(request: GuardRequest) -> GuardResponse:
         return MagicMock(status_code=200)
 
     request = MockGuardRequest(path=f"/items;token={secret}", client_host=client_ip)

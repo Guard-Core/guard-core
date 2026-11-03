@@ -1,7 +1,7 @@
 import json
 import subprocess
 import sys
-from typing import Any, cast
+from typing import cast
 
 import pytest
 
@@ -85,13 +85,13 @@ async def test_otel_only_config_mutes_telemetry_before_first_security_event(
     observed: dict[str, bool] = {}
     original_init = SecurityEvent.__init__
 
-    def spy_init(self: Any, *args: Any, **kwargs: Any) -> None:
+    def spy_init(self: SecurityEvent, **data: object) -> None:
         observed.setdefault(
             "muted_before_construction",
             SecurityEvent.model_config.get("plugin_settings")
             == {"logfire": {"record": "off"}},
         )
-        original_init(self, *args, **kwargs)
+        original_init(self, **data)
 
     monkeypatch.setattr(SecurityEvent, "__init__", spy_init)
 

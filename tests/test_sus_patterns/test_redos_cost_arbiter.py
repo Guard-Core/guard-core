@@ -6,7 +6,7 @@ import signal
 import sys
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import IO, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -1668,8 +1668,8 @@ def _repeat_builder(unit: str) -> Callable[[int], str]:
 def test_time_reach_probes_subprocess_clips_cpu_limit_to_remaining_budget() -> None:
     captured: dict[str, float] = {}
 
-    def _fake_popen(*args: object, **kwargs: Any) -> MagicMock:
-        captured["cpu_limit"] = json.loads(kwargs["stdin"].read())[3]
+    def _fake_popen(*_args: object, stdin: IO[str], **_kwargs: object) -> MagicMock:
+        captured["cpu_limit"] = json.loads(stdin.read())[3]
         raise OSError("stop before actually spawning")
 
     with patch(

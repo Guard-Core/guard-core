@@ -52,7 +52,7 @@ async def _process(
 async def test_body_reading_modifier_on_declared_size_stream_gets_bytes() -> None:
     seen: list[bytes | None] = []
 
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: _StreamedResponse) -> _StreamedResponse:
         seen.append(response.body)
         response.headers["X-Body-Length"] = str(len(response.body))
         return response
@@ -67,7 +67,7 @@ async def test_body_reading_modifier_on_declared_size_stream_gets_bytes() -> Non
 async def test_only_the_replays_header_writes_reach_the_response() -> None:
     calls = 0
 
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: _StreamedResponse) -> _StreamedResponse:
         nonlocal calls
         calls += 1
         response.headers[f"X-Call-{calls}"] = "1"
@@ -87,7 +87,7 @@ async def test_header_only_modifier_on_declared_size_stream_reads_nothing_ahead(
 ):
     calls = 0
 
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: _StreamedResponse) -> _StreamedResponse:
         nonlocal calls
         calls += 1
         response.headers["X-Only"] = "1"

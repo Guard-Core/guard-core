@@ -1,6 +1,6 @@
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
+from contextlib import AbstractContextManager
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -26,7 +26,7 @@ async def redis_fleet() -> AsyncGenerator[Fleet, None]:
     await _close_fleet(opened)
 
 
-def _failing_write(fleet: Fleet) -> Any:
+def _failing_write(fleet: Fleet) -> AbstractContextManager[object]:
     return patch.object(
         fleet.redis,
         "write_ban_extending_only",

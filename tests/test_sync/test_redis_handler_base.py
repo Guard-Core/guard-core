@@ -2,7 +2,7 @@ import logging
 import time
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Protocol, runtime_checkable
 
 import pytest
 from redis import Redis
@@ -24,14 +24,20 @@ from tests.test_sync.protocol_only_redis import REDIS_URL, protocol_only_handler
 IP = "198.51.100.77"
 
 
+@runtime_checkable
+class RecordingRedisHandler(SyncRedisHandlerProtocol, Protocol):
+    used: set[str]
+
+
 @pytest.fixture
-def handler() -> Generator[Any, None]:
+def handler() -> Generator[RecordingRedisHandler, None]:
     with protocol_only_handler() as fake:
+        assert isinstance(fake, RecordingRedisHandler)
         yield fake
 
 
 def test_a_handler_missing_methods_is_named_at_startup(
-    handler: Any, caplog: pytest.LogCaptureFixture
+    handler: RecordingRedisHandler, caplog: pytest.LogCaptureFixture
 ) -> None:
     del handler.write_atomically
     del handler.owned_ban_state
@@ -51,7 +57,7 @@ def test_a_handler_missing_methods_is_named_at_startup(
 
 
 def test_a_handler_missing_one_method_refuses_to_start_when_asked(
-    handler: Any,
+    handler: RecordingRedisHandler,
 ) -> None:
     del handler.disown_ban
     config = handler.config.model_copy(update={"fail_on_misconfiguration": True})
@@ -61,7 +67,7 @@ def test_a_handler_missing_one_method_refuses_to_start_when_asked(
 
 
 def test_the_redis_manager_and_the_base_pass_the_startup_check(
-    handler: Any,
+    handler: RecordingRedisHandler,
 ) -> None:
     assert missing_redis_handler_members(RedisManager(handler.config)) == []
     assert isinstance(RedisManager(handler.config), SyncRedisHandlerProtocol)

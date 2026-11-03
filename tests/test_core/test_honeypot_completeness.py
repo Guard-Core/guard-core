@@ -6,6 +6,7 @@ import pytest
 
 from guard_core.handlers import ipban_handler
 from guard_core.models import SecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from tests.test_core.conftest import build_route_pipeline, send_request
 
 BOT_IP = "203.0.113.7"
@@ -21,7 +22,7 @@ def _multipart(name: str, value: str, extra: str = "") -> bytes:
     ).encode()
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -38,7 +39,7 @@ async def _hit(
     path: str = "/x",
     config: SecurityConfig | None = None,
     ip: str = BOT_IP,
-) -> Any:
+) -> GuardResponse | None:
     pipeline, _, route_id = build_route_pipeline(
         config or _config(), lambda d: d.honeypot_detection(["hp"])
     )

@@ -1,6 +1,6 @@
 import functools
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Protocol
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators import (
@@ -11,7 +11,14 @@ from guard_core.sync.decorators import (
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 
-def _endpoint_from_factory(*guard_decorators: Callable[..., Any]) -> Any:
+class _Endpoint(Protocol):
+    __module__: str
+    __qualname__: str
+
+    def __call__(self) -> str: ...
+
+
+def _endpoint_from_factory(*guard_decorators: Callable[..., Any]) -> _Endpoint:
     def endpoint() -> str:
         return "ok"
 

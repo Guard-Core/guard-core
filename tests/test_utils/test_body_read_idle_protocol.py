@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -26,7 +27,7 @@ CLIENT = "203.0.113.7"
 LOGGER = "guard_core"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": True,
@@ -61,21 +62,23 @@ def _post(**headers: str) -> dict[str, str]:
     return {"content-type": "text/plain", "content-length": "4", **headers}
 
 
-def _idle_request_class(outcome: Any) -> Any:
-    class _IdleRequest(MockGuardRequest):
-        def __init__(self) -> None:
-            super().__init__(method="POST", path="/x", headers=_post())
-            self.calls: list[tuple[int, float]] = []
+class _IdleRequest(MockGuardRequest):
+    def __init__(self, outcome: object) -> None:
+        super().__init__(method="POST", path="/x", headers=_post())
+        self.outcome = outcome
+        self.calls: list[tuple[int, float]] = []
 
-        async def read_body_prefix_until_idle(
-            self, max_bytes: int, idle_timeout: float
-        ) -> bytes:
-            self.calls.append((max_bytes, idle_timeout))
-            if isinstance(outcome, Exception):
-                raise outcome
-            return cast(bytes, outcome)
+    async def read_body_prefix_until_idle(
+        self, max_bytes: int, idle_timeout: float
+    ) -> bytes:
+        self.calls.append((max_bytes, idle_timeout))
+        if isinstance(self.outcome, Exception):
+            raise self.outcome
+        return cast(bytes, self.outcome)
 
-    return _IdleRequest
+
+def _idle_request_class(outcome: object) -> Callable[[], _IdleRequest]:
+    return lambda: _IdleRequest(outcome)
 
 
 async def test_an_adapter_with_the_idle_method_is_read_through_it() -> None:

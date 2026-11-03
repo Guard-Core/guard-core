@@ -1,6 +1,6 @@
 import logging
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -48,7 +48,9 @@ def _request() -> MagicMock:
     return request
 
 
-def _usage(action: Any = "log", threshold: int = 100) -> BehaviorRule:
+def _usage(
+    action: Literal["ban", "log", "throttle", "alert"] = "log", threshold: int = 100
+) -> BehaviorRule:
     return BehaviorRule(
         rule_type="usage", threshold=threshold, window=60, action=action
     )
@@ -71,7 +73,7 @@ async def _one_request(
     processor: BehavioralProcessor,
     route_config: RouteConfig,
     global_rules: list[BehaviorRule] | None = None,
-) -> Any:
+) -> object:
     request = _request()
     response = await processor.process_usage_rules(request, _IP, route_config)
     if global_rules:
@@ -213,7 +215,7 @@ async def test_recent_rule_hit_rides_on_the_behavior_redis_call(
     real_connection = redis_mgr.get_connection
     calls: list[int] = []
 
-    def counting_connection() -> Any:
+    def counting_connection() -> object:
         calls.append(1)
         return real_connection()
 

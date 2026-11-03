@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from typing import Any, Protocol, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -13,12 +13,18 @@ from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
 from guard_core.core.responses.modifier_view import _reported_refusals
 from guard_core.exceptions import ResponseBodyUnavailableError
-from guard_core.handlers.behavior_handler import BehaviorTracker
+from guard_core.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from tests.conftest import MockGuardRequest, MockGuardResponseFactory
 
 _CAP = 2048
+
+
+class _WritableStatusResponse(GuardResponse, Protocol):
+    status_code: int
 
 
 class _Streamed:
@@ -54,8 +60,8 @@ def _fresh_sampling() -> None:
 
 def _factory(
     modifier: Callable[[Any], Awaitable[Any]] | None,
-    agent_handler: Any | None = None,
-    **config_overrides: Any,
+    agent_handler: AgentHandlerProtocol | None = None,
+    **config_overrides: object,
 ) -> ErrorResponseFactory:
     config = SecurityConfig(enable_redis=False, **config_overrides)
     config.custom_response_modifier = modifier
@@ -88,12 +94,14 @@ class _Calls:
 
 
 def _reading_modifier(calls: _Calls) -> Callable[[Any], Awaitable[Any]]:
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: GuardResponse) -> GuardResponse:
         calls.count += 1
         response.headers[f"X-Call-{calls.count}"] = "1"
         try:
-            calls.seen_body = response.body
-            response.headers["X-Body-Length"] = str(len(calls.seen_body))
+            body = response.body
+            assert body is not None
+            calls.seen_body = body
+            response.headers["X-Body-Length"] = str(len(body))
         except ResponseBodyUnavailableError as error:
             calls.error = error
             response.headers["X-Refused"] = "1"
@@ -106,8 +114,8 @@ async def _run(
     modifier: Callable[[Any], Awaitable[Any]],
     response: _Streamed,
     method: str = "GET",
-    agent_handler: Any | None = None,
-    **config_overrides: Any,
+    agent_handler: AgentHandlerProtocol | None = None,
+    **config_overrides: object,
 ) -> GuardResponse:
     factory = _factory(modifier, agent_handler, **config_overrides)
     request = MockGuardRequest(method=method)
@@ -132,7 +140,7 @@ async def test_body_reading_modifier_gets_the_bytes_and_only_the_replay_commits(
 async def test_header_only_modifier_is_called_once_with_no_read_ahead() -> None:
     count = 0
 
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: GuardResponse) -> GuardResponse:
         nonlocal count
         count += 1
         response.headers["X-Only"] = "1"
@@ -255,11 +263,12 @@ async def test_a_replay_that_raises_commits_its_writes_before_the_raise_and_logs
 ) -> None:
     count = 0
 
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: GuardResponse) -> GuardResponse:
         nonlocal count
         count += 1
         response.headers[f"X-Before-{count}"] = "1"
         body = response.body
+        assert body is not None
         response.headers["X-After-Body"] = str(len(body))
         raise RuntimeError("boom")
 
@@ -277,7 +286,7 @@ async def test_a_replay_that_raises_commits_its_writes_before_the_raise_and_logs
 async def test_a_modifier_that_raises_before_any_body_access_keeps_todays_behavior(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: GuardResponse) -> GuardResponse:
         response.headers["X-Early"] = "1"
         raise RuntimeError("boom")
 
@@ -292,7 +301,7 @@ async def test_a_modifier_that_raises_before_any_body_access_keeps_todays_behavi
 async def test_a_replay_never_replays() -> None:
     calls = _Calls()
 
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: GuardResponse) -> GuardResponse:
         calls.count += 1
         _ = response.body
         _ = response.body
@@ -304,7 +313,7 @@ async def test_a_replay_never_replays() -> None:
 
 
 async def test_a_second_refused_access_reports_nothing_more() -> None:
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: GuardResponse) -> GuardResponse:
         for _ in range(2):
             try:
                 _ = response.body
@@ -360,7 +369,7 @@ async def test_a_marked_modifier_on_a_refused_response_is_called_once() -> None:
 
 
 async def test_a_marked_modifier_that_never_reads_the_body_reports_nothing() -> None:
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: GuardResponse) -> GuardResponse:
         response.headers["X-M"] = "1"
         return response
 
@@ -380,9 +389,9 @@ async def test_a_marked_modifier_that_never_reads_the_body_reports_nothing() -> 
 async def test_another_returned_response_is_returned_and_writes_commit() -> None:
     other = _Streamed(b"other")
 
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: GuardResponse) -> GuardResponse:
         response.headers["X-On-Original"] = "1"
-        return other
+        return _as_response(other)
 
     response = _Streamed(b"x")
     result = await _run(modifier, response)
@@ -393,14 +402,14 @@ async def test_another_returned_response_is_returned_and_writes_commit() -> None
 async def test_the_view_forwards_reads_and_records_other_attribute_writes() -> None:
     seen: dict[str, Any] = {}
 
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: _WritableStatusResponse) -> _WritableStatusResponse:
         seen["status"] = response.status_code
         response.status_code = 418
         seen["after"] = response.status_code
         seen["has_headers"] = "Content-Length" in response.headers
         response.headers["A"] = "1"
         del response.headers["A"]
-        seen["len"] = len(response.headers)
+        seen["len"] = len(list(response.headers.keys()))
         return response
 
     response = _Streamed(b"x")
@@ -427,7 +436,10 @@ async def test_one_prefetch_serves_the_return_pattern_scan_and_the_modifier() ->
     matched: list[bool | None] = []
 
     async def process_global(
-        request: Any, response: Any, client_ip: str, _rule_list: Any
+        request: GuardRequest,
+        response: GuardResponse,
+        client_ip: str,
+        _rule_list: list[BehaviorRule],
     ) -> None:
         matched.append(await tracker._check_response_pattern(response, "needle"))
 
@@ -449,7 +461,7 @@ async def test_one_prefetch_serves_the_return_pattern_scan_and_the_modifier() ->
 async def test_error_responses_keep_a_directly_readable_body() -> None:
     seen: list[bytes | None] = []
 
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: GuardResponse) -> GuardResponse:
         seen.append(response.body)
         return response
 

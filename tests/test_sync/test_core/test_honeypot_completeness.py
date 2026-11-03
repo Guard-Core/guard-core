@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.handlers import ipban_handler
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
@@ -21,7 +22,7 @@ def _multipart(name: str, value: str, extra: str = "") -> bytes:
     ).encode()
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -38,7 +39,7 @@ def _hit(
     path: str = "/x",
     config: SyncSecurityConfig | None = None,
     ip: str = BOT_IP,
-) -> Any:
+) -> GuardResponse | None:
     pipeline, _, route_id = build_route_pipeline(
         config or _config(), lambda d: d.honeypot_detection(["hp"])
     )

@@ -66,7 +66,7 @@ class _AgentWithStatus(NullAgent):
     def get_dynamic_rules(self) -> DynamicRules | None:
         return self.answer
 
-    def get_status(self) -> Any:
+    def get_status(self) -> SimpleNamespace:
         return SimpleNamespace(rules_last_checked=self.checked)
 
 
@@ -107,7 +107,7 @@ def live_redis() -> Generator[RedisManager, None]:
 
 
 def _config(
-    redis: RedisManager, tmp_path: Path, **overrides: Any
+    redis: RedisManager, tmp_path: Path, **overrides: object
 ) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": True,
@@ -122,7 +122,7 @@ def _config(
     return SyncSecurityConfig(**settings)
 
 
-def _rules(**overrides: Any) -> DynamicRules:
+def _rules(**overrides: object) -> DynamicRules:
     base: dict[str, Any] = {
         "rule_id": "dash:board",
         "version": 4,
@@ -137,7 +137,9 @@ def _rules(**overrides: Any) -> DynamicRules:
     return DynamicRules(**base)
 
 
-def _manager(config: SyncSecurityConfig, redis: RedisManager, agent: Any = None) -> Any:
+def _manager(
+    config: SyncSecurityConfig, redis: RedisManager, agent: NullAgent | None = None
+) -> DynamicRuleManager:
     DynamicRuleManager._instance = None
     manager = DynamicRuleManager(config)
     manager.redis_handler = redis
@@ -317,7 +319,7 @@ def test_a_rule_id_with_colons_keeps_them() -> None:
 
 
 def _purged_worker(
-    live_redis: RedisManager, tmp_path: Path, agent: Any, holder: DynamicRules
+    live_redis: RedisManager, tmp_path: Path, agent: NullAgent, holder: DynamicRules
 ) -> tuple[DynamicRuleManager, DynamicRules, SyncSecurityConfig]:
     config = _config(live_redis, tmp_path)
     manager = _manager(config, live_redis, agent)

@@ -1,6 +1,5 @@
 import logging
 import warnings
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -19,7 +18,7 @@ class _Decorator(BaseSecurityDecorator, ContentFilteringMixin):
     pass
 
 
-def _route_config(path_params: Any) -> RouteConfig:
+def _route_config(path_params: set[str] | dict[str, set[str]] | None) -> RouteConfig:
     decorator = _Decorator(SecurityConfig(enable_redis=False))
 
     def target() -> None:
@@ -32,7 +31,9 @@ def _route_config(path_params: Any) -> RouteConfig:
 
 
 async def _flagged(
-    path: str, template: str | None, path_params: Any = None
+    path: str,
+    template: str | None,
+    path_params: set[str] | dict[str, set[str]] | None = None,
 ) -> tuple[bool, str]:
     request = MockGuardRequest(path=path)
     if template is not None:
@@ -134,7 +135,7 @@ SYNTAX_CASES = [
 
 @pytest.mark.parametrize(("template", "path", "path_params"), SYNTAX_CASES)
 async def test_a_probe_token_inside_a_declared_parameter_is_the_apps_own_route(
-    template: str, path: str, path_params: Any
+    template: str, path: str, path_params: set[str] | dict[str, set[str]] | None
 ) -> None:
     flagged, trigger = await _flagged(path, template, path_params)
 
@@ -143,7 +144,7 @@ async def test_a_probe_token_inside_a_declared_parameter_is_the_apps_own_route(
 
 @pytest.mark.parametrize(("template", "path", "path_params"), SYNTAX_CASES)
 async def test_the_same_request_with_nothing_declared_is_flagged_as_before(
-    template: str, path: str, path_params: Any
+    template: str, path: str, path_params: set[str] | dict[str, set[str]] | None
 ) -> None:
     assert (await _flagged(path, template))[0] is True
     assert (await _flagged(path, None))[0] is True
@@ -161,7 +162,7 @@ async def test_the_same_request_with_nothing_declared_is_flagged_as_before(
     ],
 )
 async def test_a_probe_token_in_a_literal_segment_still_fires(
-    template: str, path: str, path_params: Any
+    template: str, path: str, path_params: set[str] | dict[str, set[str]] | None
 ) -> None:
     assert (await _flagged(path, template, path_params))[0] is True
 
@@ -219,7 +220,7 @@ async def test_value_rules_still_run_on_a_declared_value(path: str) -> None:
 )
 @pytest.mark.parametrize("path_params", [{"name"}, {"name": {"recon"}}])
 async def test_sensitive_files_inside_a_declared_value_are_not_excluded(
-    path: str, path_params: Any
+    path: str, path_params: set[str] | dict[str, set[str]] | None
 ) -> None:
     assert (await _flagged(path, "/files/{name:path}", path_params))[0] is True
 
@@ -272,7 +273,9 @@ def _check(config: SecurityConfig) -> SuspiciousActivityCheck:
     return SuspiciousActivityCheck(middleware)
 
 
-def _request(template: str, path_params: Any) -> MockGuardRequest:
+def _request(
+    template: str, path_params: set[str] | dict[str, set[str]] | None
+) -> MockGuardRequest:
     request = MockGuardRequest(path="/docs/index.html")
     declare_route(request, template)
     request.state.client_ip = "203.0.113.31"
@@ -320,7 +323,7 @@ async def test_a_root_capture_refuses_when_the_flag_is_on() -> None:
     ],
 )
 async def test_a_parameter_with_a_literal_segment_before_it_is_not_reported(
-    template: str, path_params: Any
+    template: str, path_params: set[str] | dict[str, set[str]] | None
 ) -> None:
     check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=True))
 

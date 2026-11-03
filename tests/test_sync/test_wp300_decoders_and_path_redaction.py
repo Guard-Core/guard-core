@@ -4,13 +4,13 @@ import json
 import logging
 import time
 import zlib
-from collections.abc import Iterator
-from typing import Any
+from collections.abc import Callable, Iterator
 from unittest.mock import MagicMock
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -210,7 +210,7 @@ def test_zlib_bomb_in_base64_ends_bounded_and_a_cut_alone_is_no_threat() -> None
     assert result.is_threat is False
 
 
-def _verdict(result: Any) -> tuple[bool, str | None]:
+def _verdict(result: DetectionResult) -> tuple[bool, str | None]:
     return result.is_threat, result.body_read_error
 
 
@@ -317,7 +317,7 @@ _VALUE_CONTENTS = {
 @pytest.mark.parametrize("pack", [gzip.compress, zlib.compress])
 @pytest.mark.parametrize("name", sorted(_VALUE_CONTENTS))
 def test_b64_compressed_value_verdict_equals_the_plain_value_verdict(
-    name: str, pack: Any, fail_secure: bool
+    name: str, pack: Callable[[bytes], bytes], fail_secure: bool
 ) -> None:
     content = _VALUE_CONTENTS[name]
     config = SyncSecurityConfig(fail_secure=fail_secure)
@@ -382,7 +382,7 @@ def test_a_cut_value_and_a_cut_body_name_the_unpacked_content() -> None:
         "1+2-3 and a+bcd-e",
     ],
 )
-def test_hashes_ids_and_plain_text_stay_clean(value: Any) -> None:
+def test_hashes_ids_and_plain_text_stay_clean(value: str) -> None:
     result = detect_penetration_attempt(_query_request(value), SyncSecurityConfig())
 
     assert result.is_threat is False, value
@@ -487,7 +487,7 @@ def test_a_text_body_that_starts_with_x_is_not_taken_for_zlib() -> None:
 
 @pytest.mark.parametrize("compress", [zlib.compress, gzip.compress])
 def test_a_payload_appended_after_a_compressed_stream_is_still_scanned(
-    compress: Any,
+    compress: Callable[[bytes], bytes],
 ) -> None:
     body = compress(b"harmless text") + b"\x00" + _SCRIPT.encode() + b"\x00"
 

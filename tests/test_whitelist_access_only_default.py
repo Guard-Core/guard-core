@@ -24,7 +24,7 @@ def _fresh_ban_store() -> Generator[None, None, None]:
     ip_ban_manager.banned_networks.clear()
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -35,7 +35,7 @@ def _config(**settings: Any) -> SecurityConfig:
     return SecurityConfig(**{**defaults, **settings})
 
 
-async def _run(config: SecurityConfig) -> tuple[int | None, bool]:
+async def _run(config: SecurityConfig) -> tuple[int | None, object]:
     middleware = build_middleware(config, SecurityDecorator(config))
     request = MockGuardRequest(path="/x", client_host=CLIENT, headers=BAD_AGENT)
     response = await build_default_pipeline(middleware).execute(request)

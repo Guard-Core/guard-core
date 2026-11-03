@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -11,6 +10,7 @@ from guard_core.core.checks.endpoint_limit_keys import (
 from guard_core.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.models import SecurityConfig
+from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.route_identity import RouteIdentity
 
 
@@ -77,7 +77,7 @@ def config() -> SecurityConfig:
     return SecurityConfig(enable_redis=False, passive_mode=False)
 
 
-def _check(config: SecurityConfig, resolver: Any) -> RateLimitCheck:
+def _check(config: SecurityConfig, resolver: object) -> RateLimitCheck:
     middleware = Mock()
     middleware.config = config
     middleware.resolve_route = resolver
@@ -86,7 +86,7 @@ def _check(config: SecurityConfig, resolver: Any) -> RateLimitCheck:
     return RateLimitCheck(middleware)
 
 
-def _request(path: str, identity: RouteIdentity | None) -> Any:
+def _request(path: str, identity: RouteIdentity | None) -> Mock:
     request = Mock()
     request.url_path = path
     request.state = Mock(spec=["guard_route_identity"])
@@ -146,7 +146,7 @@ def test_pipeline_needs_route_identity_follows_its_checks(
     assert pipeline.needs_route_identity is True
 
 
-async def _enforced_keys(check: RateLimitCheck, request: Any) -> list[str]:
+async def _enforced_keys(check: RateLimitCheck, request: GuardRequest) -> list[str]:
     return [plan.tier.bucket for plan in check._endpoint_plans(request)]
 
 
@@ -195,7 +195,7 @@ async def test_other_ids_do_not_borrow_a_concrete_id_key(
 class _PlainCheck(SecurityCheck):
     check_name = "plain"
 
-    async def check(self, request: Any) -> None:
+    async def check(self, request: object) -> None:
         return None
 
 

@@ -1,8 +1,7 @@
 import asyncio
 import re
 import threading
-from collections.abc import AsyncGenerator, Iterator
-from typing import Any
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +17,7 @@ from guard_core.handlers import (
     _suspatterns_lazy_rows,
     _suspatterns_regex,
 )
+from guard_core.handlers._suspatterns_lazy_rows import PatternSource
 from guard_core.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_handler,
@@ -100,9 +100,13 @@ async def test_exhausted_budget_stops_scan_and_flags_request(
     request = MockGuardRequest(path="/items", headers={"x-pad": "benign filler value"})
     manager = SusPatternsManager()
     seen: list[str] = []
-    real = manager._check_regex_pattern
+    real: Callable[..., Awaitable[tuple[dict | None, bool]]] = (
+        manager._check_regex_pattern
+    )
 
-    async def counting(pattern: Any, *args: Any, **kwargs: Any) -> Any:
+    async def counting(
+        pattern: PatternSource, *args: object, **kwargs: object
+    ) -> tuple[dict | None, bool]:
         seen.append(pattern.pattern)
         return await real(pattern, *args, **kwargs)
 
@@ -169,7 +173,7 @@ async def test_fallback_check_honours_budget() -> None:
 async def test_fallback_check_charges_its_inline_scan_cpu(
     fake_regex_clock: _FakeClock,
 ) -> None:
-    async def inline_only(*args: Any, **kwargs: Any) -> tuple[None, bool]:
+    async def inline_only(*_args: object, **_kwargs: object) -> tuple[None, bool]:
         return None, False
 
     with (
@@ -219,9 +223,11 @@ def test_threats_message_appends_the_first_later_timeout() -> None:
 async def test_wall_slow_but_cpu_cheap_scan_does_not_exhaust_the_budget() -> None:
     manager = SusPatternsManager()
     manager.configure(SecurityConfig())
-    real = manager._check_regex_pattern
+    real: Callable[..., Awaitable[tuple[dict | None, bool]]] = (
+        manager._check_regex_pattern
+    )
 
-    async def slow_wall(*args: Any, **kwargs: Any) -> Any:
+    async def slow_wall(*args: object, **kwargs: object) -> tuple[dict | None, bool]:
         await asyncio.sleep(0.01)
         return await real(*args, **kwargs)
 
@@ -243,12 +249,14 @@ async def test_first_scan_lazy_pattern_builds_are_not_charged_to_the_budget() ->
     real_compile = re.compile
     real_linear_finder = _suspatterns_inline_matches.linear_path_finder
 
-    def costly_compile(source: Any, flags: int = 0) -> Any:
+    def costly_compile(source: str, flags: int = 0) -> re.Pattern[str]:
         if source in builtin_sources:
             clock.now += 1000.0
         return real_compile(source, flags)
 
-    def costly_linear_finder(pattern: re.Pattern) -> Any:
+    def costly_linear_finder(
+        pattern: re.Pattern,
+    ) -> Callable[[str], Iterator[re.Match]] | None:
         clock.now += 1000.0
         return real_linear_finder(pattern)
 
@@ -292,7 +300,9 @@ async def test_inline_cpu_is_accounted_per_pass_not_per_pattern() -> None:
     manager = SusPatternsManager()
     manager.configure(SecurityConfig())
     calls = {"clock": 0, "patterns": 0}
-    real = manager._check_regex_pattern
+    real: Callable[..., Awaitable[tuple[dict | None, bool]]] = (
+        manager._check_regex_pattern
+    )
 
     scan_thread = threading.get_ident()
 
@@ -301,7 +311,7 @@ async def test_inline_cpu_is_accounted_per_pass_not_per_pattern() -> None:
             calls["clock"] += 1
         return 0.0
 
-    async def counting(*args: Any, **kwargs: Any) -> Any:
+    async def counting(*args: object, **kwargs: object) -> tuple[dict | None, bool]:
         calls["patterns"] += 1
         return await real(*args, **kwargs)
 

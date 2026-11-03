@@ -37,7 +37,7 @@ def _request() -> MagicMock:
     return request
 
 
-def _rule(rule_type: Any = "usage", **overrides: Any) -> BehaviorRule:
+def _rule(rule_type: object = "usage", **overrides: object) -> BehaviorRule:
     fields: dict[str, Any] = {
         "rule_type": rule_type,
         "threshold": _THRESHOLD,
@@ -60,7 +60,7 @@ def _route(*rules: BehaviorRule) -> RouteConfig:
 def _engine(
     use_redis: bool,
     config: SyncSecurityConfig,
-    middleware: Any = None,
+    middleware: object = None,
 ) -> Iterator[tuple[BehavioralProcessor, MagicMock]]:
     tracker = BehaviorTracker(config)
     manager = None
@@ -88,7 +88,9 @@ def _engine(
             manager.close()
 
 
-def _config(use_redis: bool, redis_config: SyncSecurityConfig, **extra: Any) -> Any:
+def _config(
+    use_redis: bool, redis_config: SyncSecurityConfig, **extra: object
+) -> SyncSecurityConfig:
     base = redis_config if use_redis else SyncSecurityConfig(enable_redis=False)
     return base.model_copy(update=extra)
 
@@ -226,14 +228,16 @@ def test_return_rules_sharing_a_rule_id_apply_their_own_effective_threshold(
 class _Middleware:
     suspicious_request_counts: dict[str, dict[str, int]] = {}
 
-    def create_error_response(self, status_code: int, default_message: str) -> Any:
+    def create_error_response(
+        self, status_code: int, default_message: str
+    ) -> MagicMock:
         response = MagicMock()
         response.status_code = status_code
         response.headers = {}
         return response
 
 
-def _throttle(**overrides: Any) -> BehaviorRule:
+def _throttle(**overrides: object) -> BehaviorRule:
     return _rule(threshold=3, action="throttle", **overrides)
 
 

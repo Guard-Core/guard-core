@@ -1,10 +1,12 @@
 import json
 import logging
+from collections.abc import Sequence
 from typing import Any
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync.handlers import _redis_handler_support as redis_types
 from guard_core.sync.handlers.redis_handler import RedisHandlerBase
 from guard_core.sync.handlers.suspatterns_handler import (
     SusPatternsManager,
@@ -18,7 +20,7 @@ LISTED = ("patterns", "custom_list")
 
 class _FakeRedis(RedisHandlerBase):
     def __init__(self, **stored: str) -> None:
-        self.values: dict[tuple[str, str], Any] = {}
+        self.values: dict[tuple[str, str], str] = {}
         if "legacy" in stored:
             self.values[LEGACY] = stored["legacy"]
         if "listed" in stored:
@@ -26,19 +28,30 @@ class _FakeRedis(RedisHandlerBase):
         self.atomic_writes = 0
 
     def set_key(
-        self, namespace: str, key: str, value: Any, ttl: int | None = None
+        self,
+        namespace: str,
+        key: str,
+        value: redis_types.RedisValue,
+        ttl: int | None = None,
     ) -> bool | None:
         raise AssertionError("the custom patterns are written in one MULTI")
 
-    def get_key(self, namespace: str, key: str) -> Any:
+    def get_key(self, namespace: str, key: str) -> str | None:
         return self.values.get((namespace, key))
 
-    def get_many(self, pairs: Any) -> list[Any]:
+    def get_many(self, pairs: Sequence[tuple[str, str]]) -> list[str | None]:
         return [self.values.get(pair) for pair in pairs]
 
-    def write_atomically(self, *, sets: Any = (), **_: Any) -> None:
+    def write_atomically(
+        self,
+        *,
+        sets: Sequence[tuple[str, str, redis_types.RedisValue, int | None]] = (),
+        deletes: Sequence[tuple[str, str]] = (),
+        increment: tuple[str, str] | None = None,
+    ) -> None:
         self.atomic_writes += 1
         for namespace, key, value, _ttl in sets:
+            assert isinstance(value, str)
             self.values[(namespace, key)] = value
 
 
@@ -51,7 +64,7 @@ def _v440_writes(patterns: set[str]) -> str:
 
 
 @pytest.fixture(autouse=True)
-def clean_registry() -> Any:
+def clean_registry() -> object:
     sus_patterns_handler.configure(SyncSecurityConfig())
     sus_patterns_handler.redis_handler = None
     SusPatternsManager.reset()

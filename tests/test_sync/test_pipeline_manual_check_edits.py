@@ -1,14 +1,15 @@
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import MagicMock
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
+from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 
 class _Named(SecurityCheck):
-    def __init__(self, middleware: Any, name: str) -> None:
+    def __init__(self, middleware: SyncGuardMiddlewareProtocol, name: str) -> None:
         super().__init__(middleware)
         self.name = name
 
@@ -16,7 +17,7 @@ class _Named(SecurityCheck):
     def check_name(self) -> str:
         return self.name
 
-    def check(self, request: Any) -> None:
+    def check(self, request: SyncGuardRequest) -> None:
         return None
 
 

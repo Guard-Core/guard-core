@@ -30,6 +30,8 @@ from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from guard_core.sync.handlers.redis_handler import RedisManager
+from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from tests.test_sync.conftest import REDIS_URL, suite_redis_prefix
 from tests.test_sync.engine_redis_commands import (
     server_loses_the_script_of_the_next_evalsha,
@@ -43,7 +45,9 @@ BAD_AGENT = "badbot/1.0"
 class _Probe(SecurityCheck):
     """A check that is not defer-safe: it records whether a ban read was pending."""
 
-    def __init__(self, middleware: Any, seen: list[bool]) -> None:
+    def __init__(
+        self, middleware: SyncGuardMiddlewareProtocol, seen: list[bool]
+    ) -> None:
         super().__init__(middleware)
         self.seen = seen
 
@@ -51,13 +55,13 @@ class _Probe(SecurityCheck):
     def check_name(self) -> str:
         return "probe"
 
-    def check(self, request: Any) -> None:
+    def check(self, request: SyncGuardRequest) -> None:
         flow = getattr(request.state, "guard_ban_flow", None)
         self.seen.append(isinstance(flow, BanFlow) and flow.pending is not None)
 
 
 class _Rig:
-    def __init__(self, **overrides: Any) -> None:
+    def __init__(self, **overrides: object) -> None:
         fields: dict[str, Any] = dict(
             enable_redis=True,
             redis_url=REDIS_URL,
@@ -107,12 +111,12 @@ class _Rig:
         )
         middleware.event_bus.agent_handler = None
 
-        def create_error_response(status_code: int, default_message: str) -> Any:
+        def create_error_response(status_code: int, default_message: str) -> object:
             return SimpleNamespace(status_code=status_code, headers={})
 
         middleware.create_error_response = create_error_response
 
-        def record(**kwargs: Any) -> None:
+        def record(**kwargs: object) -> None:
             self.events.append((kwargs["event_type"], kwargs.get("filter_type")))
 
         middleware.event_bus.send_middleware_event = record
@@ -206,7 +210,7 @@ class _Rig:
         self.redis.close()
 
 
-def _never_planned(*_args: Any, **_kwargs: Any) -> tuple[None, bool]:
+def _never_planned(*_args: object, **_kwargs: object) -> tuple[None, bool]:
     return None, False
 
 
@@ -217,7 +221,7 @@ def _route(fields: dict[str, Any]) -> RouteConfig:
     return route_config
 
 
-def _command_of(packed: Any) -> str:
+def _command_of(packed: bytes | list[bytes]) -> str:
     chunk = packed[0] if isinstance(packed, list) else packed
     return str(chunk.split(b"\r\n")[2].decode())
 
@@ -232,7 +236,12 @@ _ACTIVE: list[_Rig] = []
 def count_redis_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
     real = Connection.send_packed_command
 
-    def counted(connection: Connection, command: Any, *rest: Any, **kw: Any) -> Any:
+    def counted(
+        connection: Connection,
+        command: bytes | list[bytes],
+        *rest: object,
+        **kw: object,
+    ) -> object:
         name = _command_of(command)
         if name not in _HANDSHAKE:
             for rig in _ACTIVE:
@@ -243,7 +252,7 @@ def count_redis_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @contextmanager
-def _rig(extra_checks: bool = False, **overrides: Any) -> Iterator[_Rig]:
+def _rig(extra_checks: bool = False, /, **overrides: object) -> Iterator[_Rig]:
     rig = _Rig(**overrides)
     rig.start(extra_checks)
     for module in (
@@ -288,7 +297,7 @@ def _deferred_and_not(
     monkeypatch: pytest.MonkeyPatch,
     requests: list[dict[str, Any]],
     prepare_banned: bool = False,
-    **overrides: Any,
+    **overrides: object,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """The same requests from two addresses, the second with the deferral
     switched off (the lookup read at IpSecurity as at 30602dc2)."""
@@ -373,7 +382,7 @@ def test_a_banned_client_is_never_rate_limited_or_counted() -> None:
 
 
 def test_no_check_outside_the_allow_list_runs_with_a_pending_read() -> None:
-    with _rig(extra_checks=True) as rig:
+    with _rig(True) as rig:
         rig.request(CLIENT)
         rig.request(CLIENT, agent=BAD_AGENT)
 
@@ -390,7 +399,12 @@ def test_a_redis_that_drops_the_fused_script_fails_as_before(
 ) -> None:
     real = Connection.send_packed_command
 
-    def dropping(connection: Connection, command: Any, *rest: Any, **kw: Any) -> Any:
+    def dropping(
+        connection: Connection,
+        command: bytes | list[bytes],
+        *rest: object,
+        **kw: object,
+    ) -> object:
         if _command_of(command) in ("EVALSHA", "MGET"):
             raise ConnectionError("dropped")
         return real(connection, command, *rest, **kw)
@@ -545,7 +559,12 @@ def test_a_redis_that_drops_the_group_b_script_fails_as_before(
 ) -> None:
     real = Connection.send_packed_command
 
-    def dropping(connection: Connection, command: Any, *rest: Any, **kw: Any) -> Any:
+    def dropping(
+        connection: Connection,
+        command: bytes | list[bytes],
+        *rest: object,
+        **kw: object,
+    ) -> object:
         if _command_of(command) in ("EVALSHA", "MGET"):
             raise ConnectionError("dropped")
         return real(connection, command, *rest, **kw)
@@ -590,7 +609,12 @@ def test_a_failed_ban_read_is_logged_under_the_ip_check(
 ) -> None:
     real = Connection.send_packed_command
 
-    def dropping(connection: Connection, command: Any, *rest: Any, **kw: Any) -> Any:
+    def dropping(
+        connection: Connection,
+        command: bytes | list[bytes],
+        *rest: object,
+        **kw: object,
+    ) -> object:
         if _command_of(command) in ("EVALSHA", "MGET"):
             raise ConnectionError("dropped")
         return real(connection, command, *rest, **kw)
@@ -645,7 +669,7 @@ def test_a_whitelisted_route_denial_reads_the_ban_without_a_strike() -> None:
 
 
 def test_a_pending_read_resolves_before_a_check_that_cannot_wait() -> None:
-    with _rig(extra_checks=True) as rig:
+    with _rig(True) as rig:
         rig.ban_in_redis_only(CLIENT)
 
         assert rig.request(CLIENT) == 403

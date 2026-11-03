@@ -8,6 +8,7 @@ from pydantic import PrivateAttr
 
 from guard_core import _staged_defaults, models
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
+from guard_core._staged_defaults import StagedDefaultsConfig
 from guard_core.models import SecurityConfig
 
 STATED_EVERY_CHANGED_DEFAULT: dict[str, Any] = {
@@ -120,7 +121,7 @@ def _count_signal_calls(monkeypatch: pytest.MonkeyPatch) -> list[object]:
     signalled: list[object] = []
     real = models.signal_changed_defaults
 
-    def spy(config: Any) -> None:
+    def spy(config: StagedDefaultsConfig) -> None:
         signalled.append(config)
         real(config)
 

@@ -1,12 +1,13 @@
 import json
 from collections.abc import Callable
-from typing import Any
 from urllib.parse import urlencode
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync._utils.detection_scan import LazyPreview
 from guard_core.sync.handlers.suspatterns_handler import (
+    DetectionResult,
     SusPatternsManager,
     sus_patterns_handler,
 )
@@ -120,9 +121,26 @@ def test_a_nested_json_value_is_scanned_once_per_distinct_text(
     scanned: list[str] = []
     detect = SusPatternsManager.detect
 
-    def counting_detect(self: SusPatternsManager, *args: Any, **kwargs: Any) -> Any:
-        scanned.append(kwargs.get("content", ""))
-        return detect(self, *args, **kwargs)
+    def counting_detect(
+        self: SusPatternsManager,
+        content: str,
+        ip_address: str,
+        context: str = "unknown",
+        correlation_id: str | None = None,
+        enabled_categories: set[str] | None = None,
+        *,
+        content_preview: str | LazyPreview | None = None,
+    ) -> DetectionResult:
+        scanned.append(content)
+        return detect(
+            self,
+            content,
+            ip_address,
+            context,
+            correlation_id,
+            enabled_categories,
+            content_preview=content_preview,
+        )
 
     monkeypatch.setattr(SusPatternsManager, "detect", counting_detect)
     config = SyncSecurityConfig(enable_redis=False, rate_limit=10_000_000)
@@ -139,9 +157,26 @@ def test_a_nested_json_value_with_distinct_keys_is_scanned_once_per_level(
     scanned: list[str] = []
     detect = SusPatternsManager.detect
 
-    def counting_detect(self: SusPatternsManager, *args: Any, **kwargs: Any) -> Any:
-        scanned.append(kwargs.get("content", ""))
-        return detect(self, *args, **kwargs)
+    def counting_detect(
+        self: SusPatternsManager,
+        content: str,
+        ip_address: str,
+        context: str = "unknown",
+        correlation_id: str | None = None,
+        enabled_categories: set[str] | None = None,
+        *,
+        content_preview: str | LazyPreview | None = None,
+    ) -> DetectionResult:
+        scanned.append(content)
+        return detect(
+            self,
+            content,
+            ip_address,
+            context,
+            correlation_id,
+            enabled_categories,
+            content_preview=content_preview,
+        )
 
     monkeypatch.setattr(SusPatternsManager, "detect", counting_detect)
     config = SyncSecurityConfig(enable_redis=False, rate_limit=10_000_000)

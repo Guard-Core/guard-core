@@ -1,5 +1,5 @@
-from collections.abc import MutableMapping
-from typing import Any, cast
+from collections.abc import Iterator, MutableMapping
+from typing import cast
 
 from guard_core.core.responses.factory import (
     _merge_planned_security_headers,
@@ -7,17 +7,29 @@ from guard_core.core.responses.factory import (
 )
 
 
-class TupleIterHeaders(MutableMapping[str, str]):
+class TupleIterHeaders:
     """A case-insensitive container that iterates (name, value) pairs like Werkzeug."""
 
     def __init__(self, pairs: list[tuple[str, str]]) -> None:
         self._pairs = list(pairs)
 
-    def __iter__(self) -> Any:
+    def __iter__(self) -> Iterator[tuple[str, str]]:
         return iter(self._pairs)
 
-    def keys(self) -> Any:
+    def keys(self) -> list[str]:
         return [name for name, _ in self._pairs]
+
+    def items(self) -> list[tuple[str, str]]:
+        return list(self._pairs)
+
+    def get(self, name: str) -> str | None:
+        try:
+            return self[name]
+        except KeyError:
+            return None
+
+    def __contains__(self, name: str) -> bool:
+        return self.get(name) is not None
 
     def __len__(self) -> int:
         return len(self._pairs)
@@ -57,7 +69,7 @@ class ContainsOnlyHeaders:
     def __init__(self, values: dict[str, str]) -> None:
         self._values = {key.lower(): (key, value) for key, value in values.items()}
 
-    def __iter__(self) -> Any:
+    def __iter__(self) -> Iterator[bytes]:
         return iter([b"body"])
 
     def __contains__(self, name: str) -> bool:

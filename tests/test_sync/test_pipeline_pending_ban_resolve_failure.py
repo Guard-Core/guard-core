@@ -1,5 +1,4 @@
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -11,6 +10,9 @@ from guard_core.sync.core.checks._ban_flow import BanFlow
 from guard_core.sync.core.checks._pending_ban import PendingBan
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
+from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from tests.test_sync.conftest import SyncMockGuardRequest
 
 
 class _LeavesPending(SecurityCheck):
@@ -20,14 +22,16 @@ class _LeavesPending(SecurityCheck):
     def check_name(self) -> str:
         return "leaves_pending"
 
-    def check(self, request: Any) -> None:
+    def check(self, request: SyncGuardRequest) -> None:
         flow = BanFlow()
         flow.pending = PendingBan(MagicMock(), "198.51.100.9", MagicMock())
         request.state.guard_ban_flow = flow
 
 
 class _Records(SecurityCheck):
-    def __init__(self, middleware: Any, name: str, ran: list[str]) -> None:
+    def __init__(
+        self, middleware: SyncGuardMiddlewareProtocol, name: str, ran: list[str]
+    ) -> None:
         super().__init__(middleware)
         self.name = name
         self.ran = ran
@@ -36,11 +40,11 @@ class _Records(SecurityCheck):
     def check_name(self) -> str:
         return self.name
 
-    def check(self, request: Any) -> None:
+    def check(self, request: SyncGuardRequest) -> None:
         self.ran.append(self.name)
 
 
-def _rig(**config: Any) -> tuple[SecurityCheckPipeline, list[str]]:
+def _rig(**config: object) -> tuple[SecurityCheckPipeline, list[str]]:
     middleware = MagicMock()
     middleware.config = SyncSecurityConfig(**config)
     middleware.logger = MagicMock()
@@ -56,10 +60,8 @@ def _rig(**config: Any) -> tuple[SecurityCheckPipeline, list[str]]:
     return SecurityCheckPipeline(checks), ran
 
 
-def _request() -> Any:
-    return SimpleNamespace(
-        state=SimpleNamespace(), url_path="/x", method="GET", headers={}
-    )
+def _request() -> SyncMockGuardRequest:
+    return SyncMockGuardRequest(path="/x", method="GET")
 
 
 def test_a_failed_pending_ban_resolve_never_skips_a_later_check(

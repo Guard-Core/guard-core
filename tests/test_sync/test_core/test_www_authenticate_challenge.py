@@ -1,12 +1,13 @@
-from typing import Any
+from collections.abc import Callable
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync.decorators import SecurityDecorator
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
@@ -15,11 +16,11 @@ def _config(**overrides: Any) -> SyncSecurityConfig:
     )
 
 
-def _deny(request: Any, credential: str) -> bool:
+def _deny(request: object, credential: str) -> bool:
     return False
 
 
-def _allow(request: Any, credential: str) -> bool:
+def _allow(request: object, credential: str) -> bool:
     return True
 
 
@@ -44,7 +45,7 @@ def _allow(request: Any, credential: str) -> bool:
     ],
 )
 def test_a_401_carries_a_challenge_for_the_scheme_in_use(
-    make: Any, headers: dict[str, str], challenge: str
+    make: Callable[[SecurityDecorator], object], headers: dict[str, str], challenge: str
 ) -> None:
     pipeline, _, route_id = build_route_pipeline(_config(), make)
 

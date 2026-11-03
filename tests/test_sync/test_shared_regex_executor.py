@@ -1,6 +1,7 @@
 import concurrent.futures
 import re
 import time
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
@@ -9,6 +10,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine import compiler as compiler_module
 from guard_core.sync.detection_engine.compiler import (
     PatternCompiler,
+    _MatchWorkWrapper,
     shared_regex_executor,
 )
 from guard_core.sync.handlers.suspatterns_handler import _CTX_ALL, SusPatternsManager
@@ -123,7 +125,7 @@ def test_safe_matcher_still_works_after_a_timeout() -> None:
 
 
 @pytest.fixture
-def fresh_manager() -> Any:
+def fresh_manager() -> Iterator[SusPatternsManager]:
     saved_instance = SusPatternsManager._instance
     saved_config = SusPatternsManager._config
 
@@ -137,18 +139,19 @@ def fresh_manager() -> Any:
 
 
 def test_builtin_category_uses_safe_finditer_matcher(
-    fresh_manager: Any, monkeypatch: pytest.MonkeyPatch
+    fresh_manager: SusPatternsManager, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[Any] = []
+    assert fresh_manager._compiler is not None
     real = fresh_manager._compiler.create_async_safe_finditer_matcher
 
     def _tracking(
-        pattern: Any,
+        pattern: str | re.Pattern,
         timeout: float | None = None,
         inline_safe: bool = False,
-        worker_wrapper: Any = None,
+        worker_wrapper: _MatchWorkWrapper | None = None,
         outcome: list[str] | None = None,
-    ) -> Any:
+    ) -> Callable[[str], list[re.Match]]:
         calls.append(pattern)
         return real(
             pattern,
@@ -175,18 +178,19 @@ def test_builtin_category_uses_safe_finditer_matcher(
 
 
 def test_custom_category_uses_safe_finditer_matcher(
-    fresh_manager: Any, monkeypatch: pytest.MonkeyPatch
+    fresh_manager: SusPatternsManager, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[Any] = []
+    assert fresh_manager._compiler is not None
     real = fresh_manager._compiler.create_async_safe_finditer_matcher
 
     def _tracking(
-        pattern: Any,
+        pattern: str | re.Pattern,
         timeout: float | None = None,
         inline_safe: bool = False,
-        worker_wrapper: Any = None,
+        worker_wrapper: _MatchWorkWrapper | None = None,
         outcome: list[str] | None = None,
-    ) -> Any:
+    ) -> Callable[[str], list[re.Match]]:
         calls.append(pattern)
         return real(
             pattern,
@@ -212,7 +216,7 @@ def test_custom_category_uses_safe_finditer_matcher(
 
 
 def test_pattern_timeout_on_custom_category_is_reported_as_a_threat(
-    fresh_manager: Any,
+    fresh_manager: SusPatternsManager,
 ) -> None:
     fresh_manager.configure(SyncSecurityConfig(detection_compiler_timeout=0.1))
     slow_pattern = re.compile(r"(a+)+$")
@@ -232,7 +236,7 @@ def test_pattern_timeout_on_custom_category_is_reported_as_a_threat(
 
 
 def test_normal_input_stays_clean_after_the_timeout_fix(
-    fresh_manager: Any,
+    fresh_manager: SusPatternsManager,
 ) -> None:
     fresh_manager.configure(SyncSecurityConfig(detection_compiler_timeout=0.1))
     slow_pattern = re.compile(r"(a+)+$")
@@ -249,7 +253,7 @@ def test_normal_input_stays_clean_after_the_timeout_fix(
 
 
 def test_custom_category_timeout_heuristic_ignores_wall_clock_jump(
-    fresh_manager: Any, monkeypatch: pytest.MonkeyPatch
+    fresh_manager: SusPatternsManager, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
         "guard_core.sync.handlers.suspatterns_handler.time.time", lambda: 5_000.0

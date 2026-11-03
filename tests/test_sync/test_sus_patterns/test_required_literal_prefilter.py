@@ -1,17 +1,21 @@
 import re
+from collections.abc import Iterator, Sequence
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync.detection_engine.binary_prefix import BinaryPrefix
 from guard_core.sync.handlers import _suspatterns_regex
+from guard_core.sync.handlers._suspatterns_lazy_rows import PatternRow, PatternSource
 from guard_core.sync.handlers._suspatterns_literals import (
     fold_for_literals,
     required_literals,
     rows_with_required_literal,
 )
 from guard_core.sync.handlers._suspatterns_pattern_table import _PATTERN_DEFINITIONS
+from guard_core.sync.handlers._suspatterns_state import _DetectionState
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sus_patterns.test_detection_benchmark import (
     BENIGN_CORPUS,
@@ -154,11 +158,34 @@ def _rows_reached(prefilter: bool) -> int:
     calls: list[str] = []
     original = _suspatterns_regex._SusPatternsRegexMixin._check_regex_pattern
 
-    def counting(self: Any, pattern: Any, *args: Any, **kwargs: Any) -> Any:
+    def counting(
+        self: _suspatterns_regex._SusPatternsRegexMixin,
+        pattern: PatternSource,
+        content: str,
+        ip_address: str,
+        pattern_start: float,
+        category: str,
+        *,
+        state: _DetectionState | None = None,
+        context: str = "unknown",
+        binary_prefix: BinaryPrefix | None = None,
+    ) -> tuple[dict[str, object] | None, bool]:
         calls.append(pattern.pattern)
-        return original(self, pattern, *args, **kwargs)
+        return original(
+            self,
+            pattern,
+            content,
+            ip_address,
+            pattern_start,
+            category,
+            state=state,
+            context=context,
+            binary_prefix=binary_prefix,
+        )
 
-    def keep_all(rows: Any, _folded: str, _excluded: Any) -> Any:
+    def keep_all(
+        rows: Sequence[PatternRow], _folded: str, _excluded: frozenset[str]
+    ) -> Iterator[PatternRow]:
         return iter(rows)
 
     with patch.object(

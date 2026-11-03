@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 import pytest
@@ -11,7 +12,7 @@ from guard_core.protocols.response_protocol import GuardResponse
 
 
 class _Metrics:
-    async def collect_request_metrics(self, *args: Any, **kwargs: Any) -> None:
+    async def collect_request_metrics(self, *args: object, **kwargs: object) -> None:
         return None
 
 
@@ -35,7 +36,9 @@ class _StreamedResponse:
         return self._body[:max_bytes]
 
 
-async def _process(modifier: Any) -> GuardResponse:
+async def _process(
+    modifier: Callable[[GuardResponse], Awaitable[GuardResponse]],
+) -> GuardResponse:
     config = SecurityConfig(enable_redis=False)
     config.custom_response_modifier = modifier
     factory = ErrorResponseFactory(
@@ -56,9 +59,9 @@ async def _process(modifier: Any) -> GuardResponse:
 
 async def test_a_shape_error_on_the_call_that_reads_the_body_is_not_swallowed() -> None:
     calls: list[None] = []
-    seen: list[bytes] = []
+    seen: list[bytes | None] = []
 
-    async def modifier(response: Any) -> Any:
+    async def modifier(response: GuardResponse) -> GuardResponse:
         calls.append(None)
         seen.append(response.body)
         if len(calls) > 1:

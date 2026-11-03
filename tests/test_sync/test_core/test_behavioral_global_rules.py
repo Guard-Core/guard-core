@@ -1,10 +1,10 @@
 import logging
-from typing import Any
 from unittest.mock import MagicMock
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
+from guard_core.sync.decorators.base import BaseSecurityDecorator
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from tests.test_sync.conftest import MockGuardResponse
 
@@ -12,16 +12,16 @@ from tests.test_sync.conftest import MockGuardResponse
 def _build_processor(
     suspicious_counts: dict[str, dict[str, int]] | None = None,
     *,
-    guard_decorator: Any = "default",
+    guard_decorator: BaseSecurityDecorator | str | None = "default",
     middleware_tracker: BehaviorTracker | None = None,
-    middleware: Any = "default",
+    middleware: MagicMock | str | None = "default",
 ) -> tuple[BehavioralProcessor, MagicMock, BehaviorTracker]:
     config = SyncSecurityConfig()
     event_bus = MagicMock()
     event_bus.send_middleware_event = MagicMock()
     tracker = middleware_tracker or BehaviorTracker(config)
 
-    if guard_decorator == "default":
+    if isinstance(guard_decorator, str):
         decorator = MagicMock()
         decorator.behavior_tracker = tracker
         guard_decorator = decorator

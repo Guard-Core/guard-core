@@ -8,13 +8,16 @@ import socket
 import subprocess
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import httpx
 import redis
+
+T = TypeVar("T")
 
 STACK_DIR = Path(__file__).resolve().parent / "stack"
 REPORT_DIR = Path(__file__).resolve().parent / "live-smoke-report"
@@ -376,12 +379,12 @@ def make_otlp_client() -> httpx.Client:
     return httpx.Client(base_url=OTLP_STUB_URL, timeout=10.0)
 
 
-def wait_until(predicate: Any, timeout: float = 15.0, interval: float = 0.5) -> Any:
+def wait_until(
+    predicate: Callable[[], T], timeout: float = 15.0, interval: float = 0.5
+) -> T:
     deadline = time.monotonic() + timeout
-    last: Any = None
-    while time.monotonic() < deadline:
-        last = predicate()
-        if last:
-            return last
+    last = predicate()
+    while not last and time.monotonic() < deadline:
         time.sleep(interval)
+        last = predicate()
     return last

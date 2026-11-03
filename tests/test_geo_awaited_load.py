@@ -3,7 +3,6 @@ import gc
 import weakref
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -182,7 +181,7 @@ async def test_a_request_after_a_failed_attempt_retries_once_the_backoff_ends(
     assert download.await_count == 3
 
 
-def _broken_load() -> Any:
+def _broken_load() -> AsyncMock:
     return AsyncMock(side_effect=OSError("disk gone"))
 
 
@@ -261,7 +260,7 @@ class _CountryCheck(SecurityCheck):
         return None
 
 
-async def _pipeline_verdict(manager: IPInfoManager, **fields: Any) -> AsyncMock:
+async def _pipeline_verdict(manager: IPInfoManager, **fields: object) -> AsyncMock:
     config = SecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",

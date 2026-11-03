@@ -2,11 +2,11 @@ import math
 import time
 from collections import deque
 from collections.abc import Generator
-from typing import Any
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import (
@@ -60,7 +60,7 @@ def redis_rate_limiter(
         redis.close()
 
 
-def _hit(manager: RateLimitManager) -> Any:
+def _hit(manager: RateLimitManager) -> GuardResponse | None:
     return manager.check_rate_limit(_request(), IP, _error_response)
 
 

@@ -1,6 +1,7 @@
 import logging
 from typing import Any, cast
 
+from guard_core._security_config_fields import CustomResponseModifier
 from guard_core.core.responses import reads_response_body
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
@@ -9,7 +10,7 @@ from guard_core.protocols.response_protocol import GuardResponse
 
 
 class _Metrics:
-    async def collect_request_metrics(self, *args: Any, **kwargs: Any) -> None:
+    async def collect_request_metrics(self, *args: object, **kwargs: object) -> None:
         return None
 
 
@@ -54,8 +55,8 @@ class _Seen:
         self.refused = False
 
 
-def _modifier(seen: _Seen, marked: bool = False) -> Any:
-    async def modifier(response: Any) -> Any:
+def _modifier(seen: _Seen, marked: bool = False) -> CustomResponseModifier:
+    async def modifier(response: GuardResponse) -> GuardResponse:
         seen.calls += 1
         seen.response = response
         try:
@@ -68,7 +69,9 @@ def _modifier(seen: _Seen, marked: bool = False) -> Any:
     return reads_response_body(modifier) if marked else modifier
 
 
-async def _process(modifier: Any, response: _Response) -> GuardResponse:
+async def _process(
+    modifier: CustomResponseModifier, response: _Response
+) -> GuardResponse:
     config = SecurityConfig(enable_redis=False)
     config.custom_response_modifier = modifier
     factory = ErrorResponseFactory(

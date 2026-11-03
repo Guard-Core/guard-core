@@ -1,7 +1,7 @@
 import asyncio
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
@@ -38,7 +38,7 @@ def _make_initializer(
 
 
 @contextmanager
-def _patch_handlers() -> Any:
+def _patch_handlers() -> Iterator[dict[str, MagicMock]]:
     with (
         patch("guard_core.handlers.cloud_handler.cloud_handler") as cloud,
         patch("guard_core.handlers.ipban_handler.ip_ban_manager") as ipban,
@@ -73,10 +73,10 @@ async def test_lazy_init_schedules_background_task_for_cloud_and_geo() -> None:
 async def test_lazy_init_returns_fast_with_slow_background() -> None:  # async-only
     initializer, geo_ip, _ = _make_initializer(lazy_init=True, block_cloud={"AWS"})
 
-    async def slow_cloud_init(*args: Any, **kwargs: Any) -> None:
+    async def slow_cloud_init(*args: object, **kwargs: object) -> None:
         await asyncio.sleep(5)
 
-    async def slow_geo_init(*args: Any, **kwargs: Any) -> None:
+    async def slow_geo_init(*args: object, **kwargs: object) -> None:
         await asyncio.sleep(5)
 
     geo_ip.initialize_redis = AsyncMock(side_effect=slow_geo_init)
@@ -106,7 +106,7 @@ async def test_lazy_init_returns_quickly_with_blocking_background_init() -> None
 
     finished: list[str] = []
 
-    async def blocking_cloud_init(*args: Any, **kwargs: Any) -> None:
+    async def blocking_cloud_init(*args: object, **kwargs: object) -> None:
         await asyncio.sleep(_BACKGROUND_BLOCK_SECONDS)
         finished.append("cloud")
 

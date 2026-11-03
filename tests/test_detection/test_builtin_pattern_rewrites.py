@@ -2,8 +2,9 @@ import multiprocessing as mp
 import random
 import re
 import time
+from multiprocessing.queues import Queue
 from queue import Empty
-from typing import Any, cast
+from typing import cast
 
 import pytest
 
@@ -162,7 +163,10 @@ def _measure_ldap_scaling(
 
 
 def _measure_ldap_scaling_child(
-    payload_kind: str, sizes: list[int], repeats: int, result_queue: Any
+    payload_kind: str,
+    sizes: list[int],
+    repeats: int,
+    result_queue: "Queue[list[float]]",
 ) -> None:
     pattern = re.compile(_REWRITTEN_LDAP_PATTERN, _BUILTIN_PATTERN_COMPILE_FLAGS)
     measurements = []

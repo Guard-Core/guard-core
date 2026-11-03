@@ -24,7 +24,7 @@ def _fresh_ban_store() -> Generator[None, None, None]:
     ip_ban_manager.banned_networks.clear()
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -35,7 +35,7 @@ def _config(**settings: Any) -> SyncSecurityConfig:
     return SyncSecurityConfig(**{**defaults, **settings})
 
 
-def _run(config: SyncSecurityConfig) -> tuple[int | None, bool]:
+def _run(config: SyncSecurityConfig) -> tuple[int | None, object]:
     middleware = build_middleware(config, SecurityDecorator(config))
     request = SyncMockGuardRequest(path="/x", client_host=CLIENT, headers=BAD_AGENT)
     response = build_default_pipeline(middleware).execute(request)

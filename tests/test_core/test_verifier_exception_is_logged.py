@@ -1,10 +1,12 @@
 import base64
 import logging
 import traceback
-from typing import Any
+from collections.abc import Callable
 
 import pytest
 
+from guard_core.core.checks.pipeline import SecurityCheckPipeline
+from guard_core.decorators import SecurityDecorator
 from guard_core.models import SecurityConfig
 from tests.test_core.conftest import build_route_pipeline, send_request
 
@@ -17,7 +19,7 @@ def _config() -> SecurityConfig:
     )
 
 
-def _raising(request: Any, credential: str) -> bool:
+def _raising(request: object, credential: str) -> bool:
     raise RuntimeError("auth backend down")
 
 
@@ -32,7 +34,9 @@ def _raising(request: Any, credential: str) -> bool:
     ],
 )
 async def test_a_raising_verifier_is_logged_with_its_cause_and_answers_503(
-    make: Any, headers: dict[str, str], caplog: pytest.LogCaptureFixture
+    make: Callable[[SecurityDecorator], object],
+    headers: dict[str, str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     pipeline, _, route_id = build_route_pipeline(_config(), make)
 
@@ -71,7 +75,7 @@ async def test_a_verifier_that_returns_false_logs_no_error(
     assert [r for r in caplog.records if r.levelno >= logging.ERROR] == []
 
 
-async def _status(pipeline: Any, route_id: str, ip: str) -> int:
+async def _status(pipeline: SecurityCheckPipeline, route_id: str, ip: str) -> int:
     response = await send_request(
         pipeline, route_id, ip=ip, headers={"authorization": "Bearer token-value"}
     )
@@ -79,7 +83,7 @@ async def _status(pipeline: Any, route_id: str, ip: str) -> int:
     return response.status_code
 
 
-def _ban_config(**overrides: Any) -> SecurityConfig:
+def _ban_config(**overrides: object) -> SecurityConfig:
     return SecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
@@ -137,7 +141,7 @@ async def test_passive_mode_lets_a_verifier_error_through_and_logs_it(
     assert any("RuntimeError" in r.getMessage() for r in caplog.records)
 
 
-def _leaking(request: Any, credential: str) -> bool:
+def _leaking(request: object, credential: str) -> bool:
     raise ValueError(f"bad token {credential}")
 
 
@@ -157,7 +161,7 @@ def _leaking(request: Any, credential: str) -> bool:
     ],
 )
 async def test_the_credential_never_reaches_the_log_through_the_exception(
-    make: Any,
+    make: Callable[[SecurityDecorator], object],
     headers: dict[str, str],
     secret: str,
     caplog: pytest.LogCaptureFixture,
@@ -202,7 +206,7 @@ _BASIC_PASSWORD = "Sup3r-Secret-Pw"
 _BASIC_BLOB = base64.b64encode(f"alice:{_BASIC_PASSWORD}".encode()).decode()
 
 
-def _decoding(request: Any, credential: str) -> bool:
+def _decoding(request: object, credential: str) -> bool:
     user, _, password = base64.b64decode(credential).decode().partition(":")
     raise ValueError(f"backend rejected {user} with password {password}")
 

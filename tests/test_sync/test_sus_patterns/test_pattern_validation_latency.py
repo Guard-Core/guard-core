@@ -3,12 +3,13 @@ import resource
 import subprocess
 import sys
 import time
-from typing import Any
+from collections.abc import Callable
 from unittest.mock import patch
 
 import pytest
 
 from guard_core.sync.detection_engine import _redos_cost_arbiter as arbiter
+from guard_core.sync.detection_engine._redos_limited_child import ChildResult
 from guard_core.sync.detection_engine.compiler import PatternCompiler
 from guard_core.sync.handlers.suspatterns_handler import (
     _PATTERN_SCAN_WINDOW_MATCHERS,
@@ -70,15 +71,19 @@ def _calibration_cpu_seconds() -> float:
 
 def _validate_measuring(compiler: PatternCompiler, pattern: str) -> _Measured:
     measured = _Measured()
-    real_run = subprocess.run
+    real_run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run
 
     real_limited = arbiter.run_limited_child
 
-    def counting_run(*args: Any, **kwargs: Any) -> Any:
+    def counting_run(
+        *args: object, **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
         measured.spawns += 1
         return real_run(*args, **kwargs)
 
-    def counting_limited(script: str, payload: str, cpu_limit: float) -> Any:
+    def counting_limited(
+        script: str, payload: str, cpu_limit: float
+    ) -> ChildResult | None:
         measured.spawns += 1
         decoded = json.loads(payload)
         if len(decoded) == _REACH_PROBE_PAYLOAD_FIELDS:
@@ -156,9 +161,11 @@ def test_a_validator_doing_twice_the_work_is_over_both_work_ceilings(
 ) -> None:
     from guard_core.sync.detection_engine import compiler as compiler_module
 
-    real_verdict = compiler_module._reach_probe_cost_verdict
+    real_verdict: Callable[..., tuple[bool, str]] = (
+        compiler_module._reach_probe_cost_verdict
+    )
 
-    def twice(*args: Any, **kwargs: Any) -> tuple[bool, str]:
+    def twice(*args: object, **kwargs: object) -> tuple[bool, str]:
         real_verdict(*args, **kwargs)
         return real_verdict(*args, **kwargs)
 

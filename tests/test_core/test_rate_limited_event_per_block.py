@@ -1,5 +1,5 @@
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Callable, Mapping
+from typing import Any, Protocol
 
 from guard_core.models import SecurityConfig
 from tests.test_core.conftest import (
@@ -15,14 +15,14 @@ class _RecordingAgent:
     def __init__(self) -> None:
         self.events: list[Any] = []
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         self.events.append(event)
 
     def rate_limited(self) -> list[Any]:
         return [e for e in self.events if e.event_type == "rate_limited"]
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -33,7 +33,12 @@ def _config(**settings: Any) -> SecurityConfig:
     return SecurityConfig(**{**defaults, **settings})
 
 
-def _limit(event: Any) -> int:
+class _EventWithLimits(Protocol):
+    @property
+    def metadata(self) -> Mapping[str, int]: ...
+
+
+def _limit(event: _EventWithLimits) -> int:
     metadata = event.metadata
     return int(
         metadata["rate_limit"] if "rate_limit" in metadata else metadata["limit"]

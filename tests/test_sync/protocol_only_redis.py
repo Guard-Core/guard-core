@@ -1,12 +1,11 @@
 import os
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any
 
 from typing_extensions import get_protocol_members
 
-from guard_core.models import SyncSecurityConfig
+from guard_core.models import SecurityConfig
 from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
@@ -24,8 +23,10 @@ class ProtocolOnlyHandler:
         for name in MEMBERS - {"config"}:
             setattr(self, name, self._recording(name, getattr(inner, name)))
 
-    def _recording(self, name: str, method: Any) -> Any:
-        def call(*args: Any, **kwargs: Any) -> Any:
+    def _recording(
+        self, name: str, method: Callable[..., object]
+    ) -> Callable[..., object]:
+        def call(*args: object, **kwargs: object) -> object:
             self.used.add(name)
             return method(*args, **kwargs)
 
@@ -34,18 +35,20 @@ class ProtocolOnlyHandler:
 
 @contextmanager
 def protocol_only_handler(
-    prefix: str = "wp69", **config: Any
+    prefix: str = "wp69", **config: object
 ) -> Iterator[ProtocolOnlyHandler]:
     manager = RedisManager(
-        SyncSecurityConfig(
-            enable_redis=True,
-            redis_url=REDIS_URL,
-            redis_prefix=f"{prefix}:{uuid.uuid4().hex}:",
-            enable_rate_limiting=True,
-            enable_ip_banning=True,
-            enable_penetration_detection=True,
-            whitelist=["127.0.0.1"],
-            **config,
+        SecurityConfig.model_validate(
+            {
+                "enable_redis": True,
+                "redis_url": REDIS_URL,
+                "redis_prefix": f"{prefix}:{uuid.uuid4().hex}:",
+                "enable_rate_limiting": True,
+                "enable_ip_banning": True,
+                "enable_penetration_detection": True,
+                "whitelist": ["127.0.0.1"],
+                **config,
+            }
         )
     )
     manager.initialize()

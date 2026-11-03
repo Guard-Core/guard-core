@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from collections.abc import Callable
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -12,11 +12,14 @@ from guard_core.sync.core.checks.implementations.rate_limit import RateLimitChec
 HANDLER = object()
 
 
-def _resolver(*known: str) -> Any:
+def _resolver(*known: str) -> Callable[[str], tuple[RouteIdentity, ...]]:
     return lambda path: (RouteIdentity(HANDLER, ()),) if path in known else ()
 
 
-def _check(config: SyncSecurityConfig, resolver: Any) -> RateLimitCheck:
+def _check(
+    config: SyncSecurityConfig,
+    resolver: Callable[[str], tuple[RouteIdentity, ...]] | None,
+) -> RateLimitCheck:
     middleware = Mock()
     middleware.config = config
     middleware.resolve_route = resolver

@@ -1,6 +1,6 @@
 import types
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 from unittest.mock import MagicMock
 
 import pytest
@@ -26,6 +26,8 @@ from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.models import SecurityConfig
 from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from guard_core.protocols.response_protocol import GuardResponse
 from tests.conftest import MockGuardRequest
 from tests.protocol_only_redis import MEMBERS, protocol_only_handler
 
@@ -34,13 +36,19 @@ NETWORK = "203.0.113.0/24"
 DAY = 86400
 
 
+@runtime_checkable
+class RecordingRedisHandler(RedisHandlerProtocol, Protocol):
+    used: set[str]
+
+
 @pytest.fixture
-async def handler() -> AsyncGenerator[Any, None]:
+async def handler() -> AsyncGenerator[RecordingRedisHandler, None]:
     async with protocol_only_handler() as fake:
+        assert isinstance(fake, RecordingRedisHandler)
         yield fake
 
 
-def _fresh_ban_manager(handler: Any) -> IPBanManager:
+def _fresh_ban_manager(handler: RecordingRedisHandler) -> IPBanManager:
     ip_ban_manager.config = handler.config
     ip_ban_manager.redis_handler = handler
     ip_ban_manager.banned_ips.clear()
@@ -52,12 +60,12 @@ def _request() -> MockGuardRequest:
     return MockGuardRequest(path="/x", client_host=IP)
 
 
-async def _error(status: int, message: str) -> Any:
+async def _error(status: int, message: str) -> GuardResponse:
     return MagicMock(status_code=status)
 
 
 def test_the_fake_has_only_the_declared_members(
-    handler: Any,
+    handler: RecordingRedisHandler,
 ) -> None:
     public = {name for name in vars(handler) if not name.startswith("_")}
     assert public - {"used"} == MEMBERS
@@ -90,7 +98,7 @@ def test_the_protocol_declares_every_method_the_engine_calls() -> None:
 
 
 async def test_bans_run_on_a_protocol_only_handler(
-    handler: Any,
+    handler: RecordingRedisHandler,
 ) -> None:
     manager = _fresh_ban_manager(handler)
     assert await manager.ban_ip(IP, 300, "wp69")
@@ -102,7 +110,7 @@ async def test_bans_run_on_a_protocol_only_handler(
 
 
 async def test_rule_owned_bans_run_on_a_protocol_only_handler(
-    handler: Any,
+    handler: RecordingRedisHandler,
 ) -> None:
     manager = _fresh_ban_manager(handler)
     DynamicRuleManager._instance = None
@@ -128,7 +136,7 @@ async def test_rule_owned_bans_run_on_a_protocol_only_handler(
 
 
 async def test_rate_limits_run_on_a_protocol_only_handler(
-    handler: Any,
+    handler: RecordingRedisHandler,
 ) -> None:
     limiter = RateLimitManager(handler.config)
     await limiter.initialize_redis(handler)
@@ -152,7 +160,7 @@ async def test_rate_limits_run_on_a_protocol_only_handler(
 
 
 async def test_behavior_rules_run_on_a_protocol_only_handler(
-    handler: Any,
+    handler: RecordingRedisHandler,
 ) -> None:
     tracker = BehaviorTracker(handler.config)
     await tracker.initialize_redis(handler)
@@ -169,7 +177,7 @@ async def test_behavior_rules_run_on_a_protocol_only_handler(
 
 
 async def test_detection_strikes_run_on_a_protocol_only_handler(
-    handler: Any,
+    handler: RecordingRedisHandler,
 ) -> None:
     middleware: Any = types.SimpleNamespace(
         config=handler.config,
@@ -192,7 +200,7 @@ async def test_detection_strikes_run_on_a_protocol_only_handler(
 
 
 async def test_cloud_ranges_headers_and_patterns_run_on_a_protocol_only_handler(
-    handler: Any,
+    handler: RecordingRedisHandler,
 ) -> None:
     store = RedisCloudIpStore(handler)
     await store.set("AWS", {"203.0.113.0/24|eu"}, ttl=60)
@@ -216,7 +224,7 @@ async def test_cloud_ranges_headers_and_patterns_run_on_a_protocol_only_handler(
 
 
 async def test_the_initializer_runs_on_a_protocol_only_handler(
-    handler: Any,
+    handler: RecordingRedisHandler,
 ) -> None:
     IPBanManager._instance = None
     initializer = HandlerInitializer(handler.config, redis_handler=handler)

@@ -2,7 +2,6 @@ import ipaddress
 import json
 import time
 from collections import deque
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from guard_core.handlers.cloud_handler import CloudManager
@@ -560,10 +559,10 @@ async def test_fetch_gcp_ignores_prefixes_lacking_both_ipv4_and_ipv6() -> None:
         async def __aenter__(self) -> "_FakeSession":
             return self
 
-        async def __aexit__(self, *_a: Any) -> None:
+        async def __aexit__(self, *_a: object) -> None:
             return None
 
-        async def get(self, *_a: Any, **_kw: Any) -> MagicMock:
+        async def get(self, *_a: object, **_kw: object) -> MagicMock:
             response = MagicMock()
             response.raise_for_status = MagicMock()
             response.json = AsyncMock(

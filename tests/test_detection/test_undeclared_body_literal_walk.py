@@ -1,10 +1,11 @@
 import json
-from typing import Any
 
 import pytest
 
+from guard_core._utils.detection_scan import LazyPreview
 from guard_core.decorators.base import RouteConfig
 from guard_core.handlers.suspatterns_handler import (
+    DetectionResult,
     SusPatternsManager,
     sus_patterns_handler,
 )
@@ -36,11 +37,26 @@ def _watch_detect(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     detect = SusPatternsManager.detect
 
     async def counting_detect(
-        self: SusPatternsManager, *args: Any, **kwargs: Any
-    ) -> Any:
-        if str(kwargs.get("context")).startswith("request_body"):
-            scanned.append(kwargs.get("content", ""))
-        return await detect(self, *args, **kwargs)
+        self: SusPatternsManager,
+        content: str,
+        ip_address: str,
+        context: str = "unknown",
+        correlation_id: str | None = None,
+        enabled_categories: set[str] | None = None,
+        *,
+        content_preview: str | LazyPreview | None = None,
+    ) -> DetectionResult:
+        if context.startswith("request_body"):
+            scanned.append(content)
+        return await detect(
+            self,
+            content,
+            ip_address,
+            context,
+            correlation_id,
+            enabled_categories,
+            content_preview=content_preview,
+        )
 
     monkeypatch.setattr(SusPatternsManager, "detect", counting_detect)
     return scanned
@@ -108,7 +124,7 @@ async def test_a_backslash_heavy_benign_body_is_clean(content_type: str) -> None
 
 @pytest.mark.parametrize("exclusion", [{"html"}, {"html": {"xss"}}])
 async def test_an_excluded_body_field_of_an_undeclared_body_is_not_walked(
-    exclusion: Any,
+    exclusion: set[str] | dict[str, set[str]],
 ) -> None:
     route_config = RouteConfig()
     route_config.excluded_detection_body_fields = exclusion

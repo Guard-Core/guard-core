@@ -180,7 +180,7 @@ class _RecordingAgent:
     async def flush_buffer(self) -> None:
         return None
 
-    async def get_dynamic_rules(self) -> Any | None:
+    async def get_dynamic_rules(self) -> None:
         return None
 
     async def health_check(self) -> bool:

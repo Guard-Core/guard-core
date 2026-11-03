@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from collections.abc import Callable
 
 import pytest
 
@@ -27,9 +27,9 @@ def test_a_nested_leaf_past_the_parser_limit_is_redacted_whole() -> None:
 def test_a_url_whose_value_overruns_the_parser_is_displayed_redacted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    real_loads = json.loads
+    real_loads: Callable[..., object] = json.loads
 
-    def overrun(text: str, **kwargs: Any) -> Any:
+    def overrun(text: str, **kwargs: object) -> object:
         if text.startswith("["):
             raise RecursionError
         return real_loads(text, **kwargs)

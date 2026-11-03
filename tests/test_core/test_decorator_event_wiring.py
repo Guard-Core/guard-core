@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -16,6 +17,8 @@ from guard_core.handlers.ratelimit_handler import rate_limit_handler
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
+from guard_core.protocols.request_protocol import GuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 from tests.conftest import MockGuardRequest
 
 _LOGGER = logging.getLogger("test_decorator_event_wiring")
@@ -25,10 +28,10 @@ class _RecordingAgent:
     def __init__(self) -> None:
         self.events: list[Any] = []
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         self.events.append(event)
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(self, redis_handler: object) -> None:
         return None
 
     async def send_metric(self, metric: object) -> None:
@@ -53,7 +56,7 @@ class _RecordingAgent:
         return True
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     fields: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -67,7 +70,7 @@ def _config(**overrides: Any) -> SecurityConfig:
 def _build_middleware(
     config: SecurityConfig,
     decorator: SecurityDecorator,
-    geo_ip_handler: Any = None,
+    geo_ip_handler: object = None,
 ) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
@@ -99,7 +102,13 @@ def _geo_ip_handler(country: str) -> MagicMock:
     return handler
 
 
-def _decorated_route(decorator: SecurityDecorator, apply: Any, name: str) -> str:
+def _decorated_route(
+    decorator: SecurityDecorator,
+    apply: Callable[
+        [SecurityDecorator], Callable[[Callable[[], str]], Callable[[], str]]
+    ],
+    name: str,
+) -> str:
     def endpoint() -> str:
         return "ok"
 
@@ -108,8 +117,7 @@ def _decorated_route(decorator: SecurityDecorator, apply: Any, name: str) -> str
     endpoint.__module__ = __name__
 
     decorated = apply(decorator)(endpoint)
-    route_id: str = decorated._guard_route_id
-    return route_id
+    return decorator._get_route_id(decorated)
 
 
 async def test_require_ip_route_block_wires_send_access_denied_event() -> None:
@@ -200,7 +208,7 @@ async def test_custom_validation_block_wires_generic_send_decorator_event() -> N
     recording_agent = _RecordingAgent()
     await decorator.initialize_agent(recording_agent)
 
-    async def _blocking_validator(request: Any) -> Any:
+    async def _blocking_validator(request: GuardRequest) -> GuardResponse | None:
         from tests.conftest import MockGuardResponse
 
         return MockGuardResponse("blocked", 418)

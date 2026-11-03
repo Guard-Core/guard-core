@@ -1,6 +1,5 @@
 import logging
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -24,8 +23,8 @@ def _processor(config: SecurityConfig) -> BehavioralProcessor:
     return BehavioralProcessor(context)
 
 
-def _request() -> Any:
-    return SimpleNamespace(
+def _request() -> MagicMock:
+    return MagicMock(
         method="POST",
         headers={},
         url_path="/api/reports",

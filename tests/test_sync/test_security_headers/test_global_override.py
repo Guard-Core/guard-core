@@ -23,6 +23,7 @@ from guard_core.sync.core.initialization._headers_manager_attach import (
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.core.responses.factory import ErrorResponseFactory
+from guard_core.sync.handlers._redis_handler_support import RedisValue
 from guard_core.sync.handlers.cors_handler import CorsHandler
 from guard_core.sync.handlers.redis_handler import RedisHandlerBase, RedisManager
 from guard_core.sync.handlers.security_headers_handler import (
@@ -60,14 +61,18 @@ class FakeRedis(RedisHandlerBase):
         self.time_value: tuple[int, int] | None = None
         self.down = False
 
-    def get_key(self, namespace: str, key: str) -> Any:
+    def get_key(self, namespace: str, key: str) -> str | None:
         self.gets += 1
         if self.down:
             raise ConnectionError("redis is down")
         return self.store.get(f"{self.config.redis_prefix}{namespace}:{key}")
 
     def set_key(
-        self, namespace: str, key: str, value: Any, ttl: int | None = None
+        self,
+        namespace: str,
+        key: str,
+        value: RedisValue,
+        ttl: int | None = None,
     ) -> bool:
         self.sets += 1
         if self.down:
@@ -78,7 +83,7 @@ class FakeRedis(RedisHandlerBase):
         return True
 
     @contextmanager
-    def get_connection(self) -> Any:
+    def get_connection(self) -> Iterator[MagicMock]:
         if self.down:
             raise ConnectionError("redis is down")
         store = self.store
@@ -110,25 +115,29 @@ class FakeRedis(RedisHandlerBase):
                 redis.round_trips += 1
                 return results
 
-        class Conn:
-            def pipeline(self, **options: Any) -> Pipe:
-                redis.pipeline_options.append(options)
-                return Pipe()
+        def pipeline(**options: object) -> Pipe:
+            redis.pipeline_options.append(options)
+            return Pipe()
 
-            def scan_iter(self, match: str, count: int | None = None) -> Iterator[str]:
-                prefix = match.rstrip("*")
-                pending = [key for key in store if key.startswith(prefix)]
-                while pending:
-                    yield pending.pop(0)
+        def scan_iter(match: str, count: int | None = None) -> Iterator[str]:
+            prefix = match.rstrip("*")
+            pending = [key for key in store if key.startswith(prefix)]
+            while pending:
+                yield pending.pop(0)
 
-            def delete(self, *keys: str) -> None:
-                for key in keys:
-                    store.pop(key, None)
+        def delete(*keys: str) -> None:
+            for key in keys:
+                store.pop(key, None)
 
-            def unlink(self, *keys: str) -> int:
-                return sum(store.pop(key, None) is not None for key in keys)
+        def unlink(*keys: str) -> int:
+            return sum(store.pop(key, None) is not None for key in keys)
 
-        yield Conn()
+        conn = MagicMock()
+        conn.pipeline = MagicMock(side_effect=pipeline)
+        conn.scan_iter = MagicMock(side_effect=scan_iter)
+        conn.delete = MagicMock(side_effect=delete)
+        conn.unlink = MagicMock(side_effect=unlink)
+        yield conn
 
 
 class Clock:
@@ -146,7 +155,7 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> Clock:
     return fake
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     headers = {
         "enabled": True,
         "csp": APP_CSP,
@@ -160,7 +169,7 @@ def _config(**overrides: Any) -> SyncSecurityConfig:
 def _app(
     config: SyncSecurityConfig | None = None,
     redis: FakeRedis | None = None,
-    agent: Any = None,
+    agent: MagicMock | None = None,
 ) -> ErrorResponseFactory:
     metrics = MagicMock(spec=MetricsCollector)
     metrics.collect_request_metrics = MagicMock()
@@ -182,7 +191,7 @@ def _hash_of(manager: SecurityHeadersManager) -> str | None:
     return manager._startup_hash
 
 
-def _redis_of(manager: SecurityHeadersManager) -> Any:
+def _redis_of(manager: SecurityHeadersManager) -> SyncRedisHandlerProtocol | None:
     return manager.redis_handler
 
 
@@ -190,11 +199,12 @@ def _in_redis(manager: SecurityHeadersManager) -> bool:
     return bool(manager._override_in_redis)
 
 
-def _override(**keys: Any) -> None:
-    security_headers_manager.configure(override_apps=True, **keys)
+def _override(**keys: object) -> None:
+    configure: Callable[..., None] = security_headers_manager.configure
+    configure(override_apps=True, **keys)
 
 
-def _override_events(agent: Any) -> list[Any]:
+def _override_events(agent: MagicMock) -> list[Any]:
     events = [call.args[0] for call in agent.send_event.call_args_list]
     return [e for e in events if e.action_taken.startswith("override_")]
 
@@ -615,7 +625,7 @@ def test_an_unreadable_record_is_refused(raw: str) -> None:
 
 
 def test_the_config_fingerprint_ignores_object_addresses_and_set_order() -> None:
-    def check(request: Any) -> None:
+    def check(request: object) -> None:
         return None
 
     first = SyncSecurityConfig(
@@ -1540,14 +1550,16 @@ def test_the_override_is_saved_and_pulled_through_the_persistence_methods(
     app = _app(redis=redis)
     manager = app.security_headers_manager
     calls: list[str] = []
-    cache = type(manager)._cache_configuration
-    load = type(manager)._load_cached_config
+    cache: Callable[..., None] = type(manager)._cache_configuration
+    load: Callable[..., None] = type(manager)._load_cached_config
 
-    def spy_cache(self: Any, *args: Any, **kwargs: Any) -> Any:
+    def spy_cache(
+        self: SecurityHeadersManager, *args: object, **kwargs: object
+    ) -> None:
         calls.append("cache")
         return cache(self, *args, **kwargs)
 
-    def spy_load(self: Any, *args: Any, **kwargs: Any) -> Any:
+    def spy_load(self: SecurityHeadersManager, *args: object, **kwargs: object) -> None:
         calls.append("load")
         return load(self, *args, **kwargs)
 
@@ -1601,14 +1613,16 @@ def test_a_sync_round_calls_the_persistence_methods_without_the_managers_own_key
     app = _app(redis=redis)
     manager = app.security_headers_manager
     seen: list[tuple[str, Any]] = []
-    cache = type(manager)._cache_configuration
-    load = type(manager)._load_cached_config
+    cache: Callable[..., None] = type(manager)._cache_configuration
+    load: Callable[..., None] = type(manager)._load_cached_config
 
-    def spy_cache(self: Any, *args: Any, **kwargs: Any) -> Any:
+    def spy_cache(
+        self: SecurityHeadersManager, *args: object, **kwargs: object
+    ) -> None:
         seen.append(("cache", kwargs.get("own_state")))
         return cache(self, *args, **kwargs)
 
-    def spy_load(self: Any, *args: Any, **kwargs: Any) -> Any:
+    def spy_load(self: SecurityHeadersManager, *args: object, **kwargs: object) -> None:
         seen.append(("load", kwargs.get("own_state")))
         return load(self, *args, **kwargs)
 
@@ -1743,7 +1757,7 @@ def test_a_response_with_a_cors_origin_resolves_the_override_once(
     calls: list[int] = []
     original = type(manager)._current_override
 
-    def counted(self: Any) -> Any:
+    def counted(self: SecurityHeadersManager) -> override_module.OverrideRecord:
         calls.append(1)
         return original(self)
 
@@ -1766,7 +1780,7 @@ def test_a_response_resolves_the_override_once(
     calls: list[int] = []
     original = type(manager)._current_override
 
-    def counted(self: Any) -> Any:
+    def counted(self: SecurityHeadersManager) -> override_module.OverrideRecord:
         calls.append(1)
         return original(self)
 
@@ -1952,7 +1966,7 @@ def test_the_lookup_runs_once_per_window_not_per_response(
     lookups: list[int] = []
     original = REDIS_HANDLERS.lookup
 
-    def counted(cfg: Any) -> Any:
+    def counted(cfg: object) -> object:
         lookups.append(1)
         return original(cfg)
 
@@ -2354,7 +2368,7 @@ NEW_ORIGIN = "https://new.example"
 OLD_ORIGIN = "https://app.example"
 
 
-def _cors_config(**overrides: Any) -> SyncSecurityConfig:
+def _cors_config(**overrides: object) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": False,
         "enable_cors": True,
@@ -2608,7 +2622,7 @@ def test_the_cors_note_registry_forgets_its_oldest_entry_when_full(
     assert list(seen) == [(2, 1.0), (3, 1.0)]
 
 
-def _only(**passed: Any) -> dict[str, Any]:
+def _only(**passed: object) -> dict[str, Any]:
     blank: dict[str, Any] = {
         name: override_module.NOT_PASSED
         for name in (
@@ -2640,7 +2654,9 @@ def _only(**passed: Any) -> dict[str, Any]:
         ("cors_expose_headers", ["X-B"]),
     ],
 )
-def test_each_cors_key_alone_is_recorded_as_the_override(key: str, value: Any) -> None:
+def test_each_cors_key_alone_is_recorded_as_the_override(
+    key: str, value: object
+) -> None:
     assert _only(**{key: value}) == {key: value}
     assert key in override_module.CORS_OVERRIDE_KEYS
 
@@ -2660,7 +2676,7 @@ def test_each_cors_key_alone_is_recorded_as_the_override(key: str, value: Any) -
     ],
 )
 def test_a_bad_cors_override_value_names_the_key_and_the_expected_type(
-    key: str, bad: Any, expected: str
+    key: str, bad: object, expected: str
 ) -> None:
     with pytest.raises(ValueError, match=f"^{key} must be {expected}$"):
         override_module.validate_cors_override({key: bad})
@@ -2988,7 +3004,7 @@ def test_a_cleared_override_in_redis_is_adopted_into_the_process_cache(
     [("abc", None, False), (None, FakeRedis(), False), ("abc", FakeRedis(), True)],
 )
 def test_a_configure_marks_the_own_state_dirty_only_when_bound_to_redis(
-    startup_hash: str | None, handler: Any, dirty: bool
+    startup_hash: str | None, handler: FakeRedis | None, dirty: bool
 ) -> None:
     manager = SecurityHeadersManager.isolated()
     manager._startup_hash = startup_hash

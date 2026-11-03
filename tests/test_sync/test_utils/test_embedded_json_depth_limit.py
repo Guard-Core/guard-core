@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -144,9 +145,14 @@ def test_a_parser_that_raises_its_recursion_error_is_treated_as_too_deep(
 ) -> None:
     real_loads = json.loads
 
-    def refuse(text: str, **kwargs: Any) -> Any:
+    def refuse(
+        text: str,
+        *,
+        strict: bool = True,
+        object_pairs_hook: Callable[[list[tuple[str, object]]], object] | None = None,
+    ) -> object:
         if text.startswith('"'):
-            return real_loads(text, **kwargs)
+            return real_loads(text, strict=strict, object_pairs_hook=object_pairs_hook)
         raise RecursionError
 
     monkeypatch.setattr(embedded_json_scan.json, "loads", refuse)

@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlencode
 
@@ -16,6 +17,9 @@ SCRIPT = "<script>alert(1)</script>"
 MULTIPART_TYPE = "multipart/form-data; boundary=B0"
 
 
+_BodyFields = set[str] | dict[str, set[str]]
+
+
 class _FakeDecorator(BaseSecurityDecorator, ContentFilteringMixin):
     pass
 
@@ -25,7 +29,7 @@ def _force_enhanced_detection_singleton() -> None:
     sus_patterns_handler.configure(SyncSecurityConfig())
 
 
-def _route_config(body_fields: Any) -> RouteConfig:
+def _route_config(body_fields: _BodyFields) -> RouteConfig:
     decorator = _FakeDecorator(SyncSecurityConfig())
 
     def target() -> None:
@@ -60,9 +64,9 @@ def _body(surface: str, fields: dict[str, str]) -> SyncMockGuardRequest:
 
 def _is_threat(
     request: SyncMockGuardRequest,
-    global_fields: Any,
-    route_fields: Any = None,
-    **config_options: Any,
+    global_fields: _BodyFields,
+    route_fields: _BodyFields | None = None,
+    **config_options: object,
 ) -> bool:
     config = SyncSecurityConfig(
         enable_redis=False,
@@ -98,14 +102,19 @@ def test_a_reassigned_map_is_validated() -> None:
     "bad",
     [{"note": set()}, {"note": {"not_a_category"}}, {1: {"xss"}}, {"note": "xss"}],
 )
-def test_the_map_form_is_validated_like_the_decorator(bad: Any) -> None:
+def test_the_map_form_is_validated_like_the_decorator(
+    bad: dict[object, object],
+) -> None:
     decorator = _FakeDecorator(SyncSecurityConfig())
+    exclude: Callable[..., Callable[[Callable[[], None]], Callable[[], None]]] = (
+        decorator.detection_exclusion
+    )
 
     def target() -> None:
         pass
 
     with pytest.raises(ValueError) as from_decorator:
-        decorator.detection_exclusion(body_fields=bad)(target)
+        exclude(body_fields=bad)(target)
     with pytest.raises(ValueError) as from_config:
         SyncSecurityConfig(excluded_detection_body_fields=bad)
     decorator_text = str(from_decorator.value)

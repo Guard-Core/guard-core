@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from collections.abc import Callable
 from urllib.parse import quote
 
 import pytest
@@ -109,7 +109,8 @@ def _post(content_type: str, body: str) -> MockGuardRequest:
     ids=["query", "json", "form"],
 )
 async def test_the_hit_log_hides_the_value_of_a_credential_named_field(
-    caplog: pytest.LogCaptureFixture, request_factory: Any
+    caplog: pytest.LogCaptureFixture,
+    request_factory: Callable[[str, str], MockGuardRequest],
 ) -> None:
     value = "<script>alert('SECRETVALUE')</script>"
     config = SecurityConfig(enable_penetration_detection=True)

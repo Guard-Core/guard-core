@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from collections.abc import Callable
 from unittest.mock import patch
 
 import pytest
@@ -38,8 +38,8 @@ class _Spies:
     def __init__(self) -> None:
         self.calls: list[str] = []
 
-    def wrap(self, name: str, original: Any) -> Any:
-        def spy(*args: Any, **kwargs: Any) -> Any:
+    def wrap(self, name: str, original: Callable[..., object]) -> Callable[..., object]:
+        def spy(*args: object, **kwargs: object) -> object:
             self.calls.append(name)
             return original(*args, **kwargs)
 

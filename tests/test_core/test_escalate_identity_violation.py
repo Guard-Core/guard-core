@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -11,7 +10,7 @@ from guard_core.models import SecurityConfig, ThreatBanConfig
 def _make_middleware(
     counts: dict[str, dict[str, int]] | None = None,
     cap: int = 10_000,
-) -> Any:
+) -> MagicMock:
     mw = MagicMock()
     mw.config = SecurityConfig(enable_redis=False, ban_counters_max_tracked_ips=cap)
     mw.suspicious_request_counts = counts if counts is not None else {}
@@ -22,7 +21,7 @@ def _make_middleware(
     return mw
 
 
-def _make_request(is_whitelisted: bool = False) -> Any:
+def _make_request(is_whitelisted: bool = False) -> MagicMock:
     request = MagicMock()
     request.state = MagicMock()
     request.state.is_whitelisted = is_whitelisted
@@ -37,7 +36,7 @@ def _patch_detect(
     trigger_info: str = "xss hit",
     threat_categories: list[str] | None = None,
 ) -> None:
-    async def fake_detect(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def fake_detect(*_args: object, **_kwargs: object) -> DetectionResult:
         return DetectionResult(
             is_threat=is_threat,
             trigger_info=trigger_info,
@@ -624,7 +623,7 @@ async def test_ban_and_event_bus_both_failing_does_not_raise(
     logger = MagicMock()
     _patch_detect(monkeypatch)
 
-    async def selective_failure(*_a: Any, **kwargs: Any) -> None:
+    async def selective_failure(*_a: object, **kwargs: object) -> None:
         if kwargs.get("event_type") == "ip_ban_failed":
             raise ConnectionError("event bus down too")
 

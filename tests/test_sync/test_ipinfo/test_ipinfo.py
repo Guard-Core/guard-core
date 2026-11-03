@@ -1,7 +1,7 @@
 import time
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import MagicMock, Mock, call, patch
 
 import maxminddb
@@ -155,7 +155,7 @@ def test_database_retry_success(tmp_path: Path) -> None:
     mock_response.__exit__ = MagicMock(return_value=None)
     mock_response.raw.read1 = MagicMock(side_effect=[VALID_DB, b""])
 
-    def get_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
+    def get_side_effect(*_args: object, **_kwargs: object) -> MagicMock:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -1065,9 +1065,11 @@ def test_refresh_keeps_previous_database_when_temp_write_fails(
     db.reader = working_reader
 
     mock_session = _mock_aiohttp(content=VALID_DB)
-    real_open = open
+    real_open: Callable[..., object] = open
 
-    def fake_open(path: Any, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+    def fake_open(
+        path: object, mode: str = "r", *args: object, **kwargs: object
+    ) -> object:
         if str(path).endswith(".tmp") and "w" in mode:
             raise OSError("disk full")
         return real_open(path, mode, *args, **kwargs)

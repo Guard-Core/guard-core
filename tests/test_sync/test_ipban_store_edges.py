@@ -2,7 +2,6 @@ import logging
 import os
 import time
 from collections.abc import Generator
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -146,7 +145,7 @@ CARVED = "2001:db8:0:1::5/128"
 BASE = "2001:db8:0:1::/64"
 
 
-def _carve_manager(connection: Any) -> IPBanManager:
+def _carve_manager(connection: object) -> IPBanManager:
     manager = IPBanManager()
     manager.config = SyncSecurityConfig(enable_redis=False)
     manager.redis_handler = redis_with_connection(connection)

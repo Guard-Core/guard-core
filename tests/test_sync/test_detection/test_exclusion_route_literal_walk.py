@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -7,6 +8,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils import embedded_json_scan
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.suspatterns_handler import (
+    DetectionResult,
     SusPatternsManager,
     sus_patterns_handler,
 )
@@ -16,7 +18,8 @@ from tests.test_sync.conftest import SyncMockGuardRequest
 XSS_ESCAPED = "\\u003cscript\\u003ealert(1)\\u003c/script\\u003e"
 SQLI_ESCAPED = "1\\u0027 OR \\u00271\\u0027=\\u00271"
 CONTENT_TYPES = ["text/plain", "application/octet-stream"]
-EXCLUSION_FORMS = [{"html"}, {"html": {"xss"}}]
+_Exclusion = set[str] | dict[str, set[str]]
+EXCLUSION_FORMS: list[_Exclusion] = [{"html"}, {"html": {"xss"}}]
 MAX_SCANS_FOR_A_BODY_WITHOUT_A_BACKSLASH = 3
 
 
@@ -43,11 +46,13 @@ def _inner(payload: str) -> str:
 
 def _watch_detect(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     scanned: list[str] = []
-    detect = SusPatternsManager.detect
+    detect: Callable[..., DetectionResult] = SusPatternsManager.detect
 
-    def counting_detect(self: SusPatternsManager, *args: Any, **kwargs: Any) -> Any:
+    def counting_detect(
+        self: SusPatternsManager, *args: object, **kwargs: object
+    ) -> DetectionResult:
         if str(kwargs.get("context")).startswith("request_body"):
-            scanned.append(kwargs.get("content", ""))
+            scanned.append(str(kwargs.get("content", "")))
         return detect(self, *args, **kwargs)
 
     monkeypatch.setattr(SusPatternsManager, "detect", counting_detect)
@@ -56,8 +61,8 @@ def _watch_detect(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 def _is_threat(
     request: SyncMockGuardRequest,
-    route_fields: Any = None,
-    config_fields: Any = None,
+    route_fields: _Exclusion | None = None,
+    config_fields: _Exclusion | None = None,
 ) -> bool:
     route_config = RouteConfig()
     if route_fields is not None:
@@ -69,7 +74,7 @@ def _is_threat(
     return (detect_penetration_attempt(request, config, route_config)).is_threat
 
 
-def _route_or_config(form: Any, where: str) -> dict[str, Any]:
+def _route_or_config(form: _Exclusion, where: str) -> dict[str, _Exclusion]:
     return {"route_fields": form} if where == "route" else {"config_fields": form}
 
 
@@ -77,7 +82,7 @@ def _route_or_config(form: Any, where: str) -> dict[str, Any]:
 @pytest.mark.parametrize("form", EXCLUSION_FORMS)
 @pytest.mark.parametrize("content_type", CONTENT_TYPES)
 def test_an_excluded_field_holding_an_escaped_xss_is_not_flagged(
-    content_type: str, form: Any, where: str
+    content_type: str, form: _Exclusion, where: str
 ) -> None:
     exclusion = _route_or_config(form, where)
     body = json.dumps({"html": _inner(XSS_ESCAPED), "name": "Mary"})
@@ -88,7 +93,7 @@ def test_an_excluded_field_holding_an_escaped_xss_is_not_flagged(
 @pytest.mark.parametrize("form", EXCLUSION_FORMS)
 @pytest.mark.parametrize("content_type", CONTENT_TYPES)
 def test_a_sibling_field_with_the_same_escaped_payload_is_flagged(
-    content_type: str, form: Any, where: str
+    content_type: str, form: _Exclusion, where: str
 ) -> None:
     exclusion = _route_or_config(form, where)
     inner = _inner(XSS_ESCAPED)
@@ -125,7 +130,7 @@ def test_a_repeated_key_cannot_hide_an_escaped_payload(
 @pytest.mark.parametrize("form", EXCLUSION_FORMS)
 @pytest.mark.parametrize("content_type", CONTENT_TYPES)
 def test_a_body_that_is_not_json_keeps_the_flat_literal_scan(
-    content_type: str, form: Any
+    content_type: str, form: _Exclusion
 ) -> None:
     body = f'{{"html": "fine", "q": "{XSS_ESCAPED}"'
     assert _is_threat(_body(content_type, body), form) is True

@@ -9,6 +9,8 @@ from guard_core.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from guard_core.protocols.response_protocol import GuardResponse
 from tests.conftest import (
     REDIS_URL,
     MockGuardRequest,
@@ -66,7 +68,7 @@ class _Worker:
 
         self.check.ip_ban_manager = Mock(_ban_ip_escalating=record_ban)
 
-    async def violate(self) -> Any:
+    async def violate(self) -> GuardResponse | None:
         request = MockGuardRequest(path="/x", client_host=IP)
         request.state.client_ip = IP
         request.state.route_config = None
@@ -132,11 +134,11 @@ async def test_the_ban_clears_the_violations_on_the_handler_that_counted_them(
     real_record = module.record_shared_violation
     real_forget = module.forget_shared_violations
 
-    async def record(handler: Any, ip: str) -> int:
+    async def record(handler: RedisHandlerProtocol, ip: str) -> int:
         counted_on.append(handler)
         return await real_record(handler, ip)
 
-    async def forget(handler: Any, ip: str) -> None:
+    async def forget(handler: RedisHandlerProtocol, ip: str) -> None:
         forgotten_on.append(handler)
         await real_forget(handler, ip)
 
@@ -146,7 +148,7 @@ async def test_the_ban_clears_the_violations_on_the_handler_that_counted_them(
     handler_reads: list[Any] = []
     real_read = worker.check._shared_redis
 
-    def read_handler() -> Any:
+    def read_handler() -> RedisHandlerProtocol | None:
         handler_reads.append(None)
         return real_read()
 

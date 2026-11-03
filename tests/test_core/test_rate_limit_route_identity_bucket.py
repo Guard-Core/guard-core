@@ -1,11 +1,12 @@
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import Mock
 
 import pytest
 
 from guard_core.core.checks.implementations.rate_limit import RateLimitCheck
+from guard_core.decorators.route_config import RouteConfig
 from guard_core.models import SecurityConfig
+from guard_core.protocols.request_protocol import GuardRequest
 
 SPELLINGS = ["/users/1", "/users/2", "/users/1/", "//users/1", "/USERS/1"]
 
@@ -21,7 +22,7 @@ def check() -> RateLimitCheck:
     return RateLimitCheck(middleware)
 
 
-def _request(path: str, route_id: str) -> Any:
+def _request(path: str, route_id: str) -> Mock:
     request = Mock()
     request.url_path = path
     request.state = Mock(spec=["guard_route_id"])
@@ -29,7 +30,12 @@ def _request(path: str, route_id: str) -> Any:
     return request
 
 
-def _bucket(check: RateLimitCheck, kind: str, request: Any, route_config: Any) -> str:
+def _bucket(
+    check: RateLimitCheck,
+    kind: str,
+    request: GuardRequest,
+    route_config: RouteConfig | None,
+) -> str:
     plan = (
         check._route_plan(request, route_config)
         if kind == "route"

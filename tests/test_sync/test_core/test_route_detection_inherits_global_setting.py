@@ -1,8 +1,7 @@
-from typing import Any
-
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.decorators import SecurityDecorator, get_route_id
 from guard_core.sync.decorators.route_config import RouteConfig
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
@@ -19,7 +18,7 @@ def _config(detection: bool) -> SyncSecurityConfig:
     )
 
 
-def _status(pipeline: Any, route_id: str) -> int | None:
+def _status(pipeline: SecurityCheckPipeline, route_id: str) -> int | None:
     response = send_request(pipeline, route_id, ip="203.0.113.80", path=SQLI_PATH)
     return None if response is None else response.status_code
 

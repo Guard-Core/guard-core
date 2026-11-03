@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from collections.abc import Callable
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -12,11 +12,14 @@ from guard_core.protocols.route_identity import RouteIdentity
 HANDLER = object()
 
 
-def _resolver(*known: str) -> Any:
+def _resolver(*known: str) -> Callable[[str], tuple[RouteIdentity, ...]]:
     return lambda path: (RouteIdentity(HANDLER, ()),) if path in known else ()
 
 
-def _check(config: SecurityConfig, resolver: Any) -> RateLimitCheck:
+def _check(
+    config: SecurityConfig,
+    resolver: Callable[[str], tuple[RouteIdentity, ...]] | None,
+) -> RateLimitCheck:
     middleware = Mock()
     middleware.config = config
     middleware.resolve_route = resolver

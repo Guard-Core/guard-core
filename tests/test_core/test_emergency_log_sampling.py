@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -7,13 +6,14 @@ import pytest
 from guard_core.core.checks.implementations import emergency_mode
 from guard_core.core.checks.implementations.emergency_mode import EmergencyModeCheck
 from guard_core.models import SecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from tests.conftest import MockGuardRequest, MockGuardResponse
 
 _ALLOWED = "10.0.0.1"
 _BLOCKED = "203.0.113.9"
 
 
-def _check(**config: Any) -> tuple[EmergencyModeCheck, MagicMock]:
+def _check(**config: object) -> tuple[EmergencyModeCheck, MagicMock]:
     middleware = MagicMock()
     middleware.config = SecurityConfig(
         enable_redis=False,
@@ -31,7 +31,7 @@ def _check(**config: Any) -> tuple[EmergencyModeCheck, MagicMock]:
     return EmergencyModeCheck(middleware), middleware
 
 
-async def _hit(check: EmergencyModeCheck, ip: str) -> Any:
+async def _hit(check: EmergencyModeCheck, ip: str) -> GuardResponse | None:
     request = MockGuardRequest(client_host=ip)
     request.state.client_ip = ip
     return await check.check(request)
@@ -40,7 +40,9 @@ async def _hit(check: EmergencyModeCheck, ip: str) -> Any:
 async def test_every_blocked_request_still_gets_a_503() -> None:
     check, _ = _check()
 
-    statuses = [(await _hit(check, _BLOCKED)).status_code for _ in range(5)]
+    responses = [await _hit(check, _BLOCKED) for _ in range(5)]
+    assert all(response is not None for response in responses)
+    statuses = [response.status_code for response in responses if response]
 
     assert statuses == [503] * 5
 
@@ -50,6 +52,7 @@ async def test_the_503_carries_retry_after() -> None:
 
     response = await _hit(check, _BLOCKED)
 
+    assert response is not None
     assert response.headers["Retry-After"] == str(emergency_mode.EMERGENCY_RETRY_AFTER)
     assert int(response.headers["Retry-After"]) > 0
 
@@ -105,6 +108,7 @@ async def test_the_on_block_hook_still_sees_every_blocked_request() -> None:
     for _ in range(3):
         await check.check(request)
         stash = request.state._guard_block_stash
+        assert isinstance(stash, dict)
         assert stash["reason"].startswith("[EMERGENCY MODE]")
         request.state._guard_block_stash = None
 

@@ -1,14 +1,15 @@
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import MagicMock
 
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.models import SecurityConfig
+from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
+from guard_core.protocols.request_protocol import GuardRequest
 
 
 class _Named(SecurityCheck):
-    def __init__(self, middleware: Any, name: str) -> None:
+    def __init__(self, middleware: GuardMiddlewareProtocol, name: str) -> None:
         super().__init__(middleware)
         self.name = name
 
@@ -16,7 +17,7 @@ class _Named(SecurityCheck):
     def check_name(self) -> str:
         return self.name
 
-    async def check(self, request: Any) -> None:
+    async def check(self, request: GuardRequest) -> None:
         return None
 
 

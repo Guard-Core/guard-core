@@ -1,7 +1,7 @@
 import json
 import logging
-from collections.abc import Iterator
-from typing import Any
+from collections.abc import Iterator, Mapping
+from typing import Any, Protocol, runtime_checkable
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -53,6 +53,14 @@ def _nested_wrapper_body(depth: int, wrapper_key: str, leaf: dict) -> bytes:
     prefix = f'{{"{wrapper_key}":' * depth
     suffix = "}" * depth
     return (prefix + leaf_json + suffix).encode()
+
+
+@runtime_checkable
+class _PatternDetectedEvent(Protocol):
+    handler_name: str
+    pattern_matched: str
+    reason: str
+    metadata: Mapping[str, str | list[str]]
 
 
 def _single_threat_event_metadata(mock_agent: MagicMock) -> dict[str, Any]:
@@ -155,7 +163,7 @@ def test_non_sensitive_header_embedded_json_field_content_preview_is_raw(
     assert metadata["content_preview"] == "<script>alert(1)</script>"
 
 
-def _single_threat_event(mock_agent: MagicMock) -> Any:
+def _single_threat_event(mock_agent: MagicMock) -> _PatternDetectedEvent:
     pattern_detected_calls = [
         call
         for call in mock_agent.send_event.call_args_list
@@ -165,7 +173,9 @@ def _single_threat_event(mock_agent: MagicMock) -> Any:
         f"expected exactly one pattern_detected event, "
         f"got {len(pattern_detected_calls)}"
     )
-    return pattern_detected_calls[0].args[0]
+    event = pattern_detected_calls[0].args[0]
+    assert isinstance(event, _PatternDetectedEvent)
+    return event
 
 
 _EMBEDDED_JSON_SECRET_KEY = "SECRET-KEY-<script>alert(1)</script>"
@@ -542,7 +552,7 @@ def test_semantic_attack_type_to_category_map_targets_are_known_regex_categories
     assert not unknown, f"category map targets are not real categories: {unknown}"
 
 
-def _event_to_dict(event: Any) -> dict[str, Any]:
+def _event_to_dict(event: object) -> dict[str, Any]:
     if hasattr(event, "model_dump"):
         return dict(event.model_dump(mode="json"))
     return dict(vars(event))
@@ -588,7 +598,7 @@ def _run_custom_secret_pattern_pipeline(
 ) -> tuple[list[dict[str, Any]], Any]:
     on_block_calls: list[dict[str, Any]] = []
 
-    def _on_block(request: Any, payload: dict[str, Any]) -> None:
+    def _on_block(request: object, payload: dict[str, Any]) -> None:
         on_block_calls.append(payload)
 
     config = SyncSecurityConfig(

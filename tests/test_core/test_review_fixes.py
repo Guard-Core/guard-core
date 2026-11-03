@@ -17,6 +17,7 @@ from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.ratelimit_handler import RateLimitManager, rate_limit_handler
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from tests.conftest import (
     REDIS_URL,
     MockGuardRequest,
@@ -40,7 +41,7 @@ INSIDE = "198.51.100.10"
 OUTSIDE = "203.0.113.10"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
@@ -71,7 +72,7 @@ async def redis() -> AsyncGenerator[RedisManager, None]:
         ratelimit_handler.clear_by_ip_strikes()
 
 
-def _middleware(config: SecurityConfig, redis: Any) -> MagicMock:
+def _middleware(config: SecurityConfig, redis: RedisHandlerProtocol) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = logging.getLogger("test_review_fixes")
@@ -98,7 +99,7 @@ async def _detect(
         threat_scores={"xss": 1.0},
     )
 
-    async def fake(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    async def fake(*_args: object, **_kwargs: object) -> DetectionResult:
         return result
 
     monkeypatch.setattr(f"{DETECT}.get_cached_detection_result", fake)
@@ -228,7 +229,7 @@ async def test_the_rate_limit_feed_never_records_detection_strikes(
     calls = {"count": 0}
     real = ratelimit_handler.record_shared_violation
 
-    async def flaky(handler: Any, ip: str) -> int:
+    async def flaky(handler: RedisHandlerProtocol, ip: str) -> int:
         calls["count"] += 1
         if calls["count"] == 2:
             raise RuntimeError("redis hiccup")
@@ -254,7 +255,7 @@ async def test_keys_returns_a_key_once_when_scan_yields_it_twice(
 ) -> None:
     manager = RedisManager(SecurityConfig(enable_redis=True))
 
-    async def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
+    async def scan_iter(*_args: object, **_kwargs: object) -> object:
         for key in ("p:a", "p:b", "p:a", "p:c", "p:b"):
             yield str(key)
 

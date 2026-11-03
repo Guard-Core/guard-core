@@ -1,9 +1,9 @@
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.implementations.route_config import RouteConfigCheck
 from tests.test_sync.conftest import MockGuardResponse, SyncMockGuardRequest
 
@@ -17,7 +17,7 @@ _PREFLIGHT_HEADERS = {
 def _middleware(
     resolved_paths: set[str] | None,
     allowed: dict[str, tuple[str, ...]] | None = None,
-    **config: Any,
+    **config: object,
 ) -> MagicMock:
     mw = MagicMock()
     mw.config = SyncSecurityConfig(
@@ -46,7 +46,7 @@ def _middleware(
     return mw
 
 
-def _check(mw: MagicMock, request: SyncMockGuardRequest) -> Any:
+def _check(mw: MagicMock, request: SyncMockGuardRequest) -> GuardResponse | None:
     request.state.guard_route_unresolved = True
     with (
         patch(f"{_ROUTE_CONFIG}.extract_client_ip", MagicMock(return_value="1.2.3.4")),

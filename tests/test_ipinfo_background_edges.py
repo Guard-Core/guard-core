@@ -1,7 +1,6 @@
 import logging
-from collections.abc import Generator
+from collections.abc import Coroutine, Generator
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -18,7 +17,7 @@ def manager(tmp_path: Path) -> Generator[IPInfoManager, None, None]:
     IPInfoManager._instance = None
 
 
-def _redis(**operations: Any) -> AsyncMock:
+def _redis(**operations: object) -> AsyncMock:
     redis = AsyncMock()
     for name, outcome in operations.items():
         setattr(redis, name, outcome)
@@ -28,7 +27,7 @@ def _redis(**operations: Any) -> AsyncMock:
 async def test_a_load_that_cannot_be_scheduled_is_logged_and_not_left_in_flight(
     manager: IPInfoManager, caplog: pytest.LogCaptureFixture
 ) -> None:
-    def refuse(coroutine: Any) -> None:
+    def refuse(coroutine: Coroutine[object, object, object]) -> None:
         coroutine.close()
         raise RuntimeError("no running loop")
 

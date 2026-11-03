@@ -2,14 +2,14 @@ from typing import Any
 
 import pytest
 
-from guard_core.handlers.cors_handler import CorsHandler
+from guard_core.handlers.cors_handler import CorsHandler, CorsPreflightResponse
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.models import SecurityConfig
 
 ORIGIN = "https://app.example.com"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     fields: dict[str, Any] = {
         "enable_redis": False,
         "enable_cors": True,
@@ -21,7 +21,9 @@ def _config(**overrides: Any) -> SecurityConfig:
     return SecurityConfig(**fields)
 
 
-def _preflight(handler: CorsHandler, requested: str = "X-Custom") -> Any:
+def _preflight(
+    handler: CorsHandler, requested: str = "X-Custom"
+) -> CorsPreflightResponse:
     return handler.build_preflight_response(
         {
             "origin": ORIGIN,

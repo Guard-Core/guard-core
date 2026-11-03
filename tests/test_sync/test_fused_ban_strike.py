@@ -1,6 +1,6 @@
 import logging
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -29,7 +29,7 @@ VERSION = ("ban_version", "counter")
 
 
 class _Rig:
-    def __init__(self, threshold: int, **overrides: Any) -> None:
+    def __init__(self, threshold: int, **overrides: object) -> None:
         fields: dict[str, Any] = dict(
             enable_redis=True,
             redis_url=REDIS_URL,
@@ -75,8 +75,10 @@ class _Rig:
             return_value=MagicMock(status_code=403)
         )
 
-        def record(**kwargs: Any) -> None:
-            self.events.append((kwargs["event_type"], kwargs.get("filter_type")))
+        def record(
+            *, event_type: str, filter_type: str | None = None, **_rest: object
+        ) -> None:
+            self.events.append((event_type, filter_type))
 
         middleware.event_bus.send_middleware_event = record
         middleware.event_bus.agent_handler = None
@@ -137,7 +139,7 @@ class _Rig:
         self.redis.close()
 
 
-def _command_of(packed: Any) -> str:
+def _command_of(packed: bytes | list[bytes]) -> str:
     chunk = packed[0] if isinstance(packed, list) else packed
     return str(chunk.split(b"\r\n")[2].decode())
 
@@ -150,9 +152,14 @@ _ACTIVE: list[_Rig] = []
 
 @pytest.fixture(autouse=True)
 def count_redis_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
-    real = Connection.send_packed_command
+    real: Callable[..., None] = Connection.send_packed_command
 
-    def counted(connection: Connection, command: Any, *rest: Any, **kw: Any) -> Any:
+    def counted(
+        connection: Connection,
+        command: bytes | list[bytes],
+        *rest: object,
+        **kw: object,
+    ) -> None:
         name = _command_of(command)
         if name not in _HANDSHAKE:
             for rig in _ACTIVE:
@@ -163,7 +170,7 @@ def count_redis_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @contextmanager
-def _rig(threshold: int, **overrides: Any) -> Iterator[_Rig]:
+def _rig(threshold: int, **overrides: object) -> Iterator[_Rig]:
     rig = _Rig(threshold, **overrides)
     rig.start()
     _ACTIVE.append(rig)
@@ -174,7 +181,7 @@ def _rig(threshold: int, **overrides: Any) -> Iterator[_Rig]:
         rig.stop()
 
 
-def _without_ip(value: Any, ip: str) -> Any:
+def _without_ip(value: tuple[str, object], ip: str) -> tuple[str, str]:
     return (value[0], str(value[1]).replace(ip, "IP"))
 
 
@@ -185,18 +192,27 @@ def _banned(rig: _Rig, ip: str) -> bool | str:
         return "GuardRedisError"
 
 
-def _outcome(rig: _Rig, ip: str, **request_state: Any) -> Any:
+def _outcome(
+    rig: _Rig,
+    ip: str,
+    route_config: RouteConfig | None = None,
+    exclusion_scoped: bool = False,
+) -> int | str | None:
     try:
-        return rig.request(ip, **request_state)
+        return rig.request(ip, route_config, exclusion_scoped)
     except GuardRedisError:
         return "GuardRedisError"
 
 
 def _observed(
-    rig: _Rig, ip: str, requests: int, **request_state: Any
+    rig: _Rig,
+    ip: str,
+    requests: int,
+    route_config: RouteConfig | None = None,
+    exclusion_scoped: bool = False,
 ) -> dict[str, Any]:
     first_event = len(rig.events)
-    codes = [_outcome(rig, ip, **request_state) for _ in range(requests)]
+    codes = [_outcome(rig, ip, route_config, exclusion_scoped) for _ in range(requests)]
     state = rig.state()
     return {
         "codes": codes,
@@ -220,7 +236,7 @@ def _route(fields: dict[str, Any]) -> RouteConfig:
     return route_config
 
 
-def _never_planned(*_args: Any, **_kwargs: Any) -> tuple[None, bool]:
+def _never_planned(*_args: object, **_kwargs: object) -> tuple[None, bool]:
     return None, False
 
 
@@ -230,17 +246,15 @@ def _fused_and_separate(
     threshold: int = 3,
     config: dict[str, Any] | None = None,
     route: dict[str, Any] | None = None,
-    **request_state: Any,
+    exclusion_scoped: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """The same requests from two addresses of one list, the second with the
     fused lookup switched off (the two separate calls of 49493c30)."""
     with _rig(threshold, **(config or {})) as rig:
         route_config = _route(route) if route else None
-        fused = _observed(rig, ip, 6, route_config=route_config, **request_state)
+        fused = _observed(rig, ip, 6, route_config, exclusion_scoped)
         monkeypatch.setattr(IpSecurityCheck, "_plan_ban_read", _never_planned, False)
-        separate = _observed(
-            rig, TWINS[ip], 6, route_config=route_config, **request_state
-        )
+        separate = _observed(rig, TWINS[ip], 6, route_config, exclusion_scoped)
     return fused, separate
 
 
@@ -320,9 +334,14 @@ def test_a_redis_that_drops_the_lookup_fails_as_the_two_calls_did(
     fail_open: bool,
     ip: str,
 ) -> None:
-    real = Connection.send_packed_command
+    real: Callable[..., None] = Connection.send_packed_command
 
-    def dropping(connection: Connection, command: Any, *rest: Any, **kw: Any) -> Any:
+    def dropping(
+        connection: Connection,
+        command: bytes | list[bytes],
+        *rest: object,
+        **kw: object,
+    ) -> None:
         if _command_of(command) in ("EVALSHA", "MGET"):
             raise ConnectionError("dropped")
         return real(connection, command, *rest, **kw)

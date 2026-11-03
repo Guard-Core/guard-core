@@ -1,6 +1,6 @@
 import logging
 import warnings
-from typing import Any
+from collections.abc import Callable
 
 import pytest
 
@@ -13,11 +13,13 @@ def _decorator(**flag: bool) -> SecurityDecorator:
     return SecurityDecorator(SecurityConfig(enable_redis=False, **flag))
 
 
-def _decorate(decorator: SecurityDecorator, *args: Any, **kwargs: Any) -> Any:
+def _decorate(
+    decorator: SecurityDecorator, max_frequency: float, window: int
+) -> Callable[[], None]:
     def route() -> None:
         pass
 
-    return decorator.suspicious_frequency(*args, **kwargs)(route)
+    return decorator.suspicious_frequency(max_frequency, window)(route)
 
 
 BAD_VALUES = [(0.001, 300), (0.5, 1), (0, 300), (1.0, 0), (-1.0, 300)]
@@ -74,7 +76,7 @@ class TestThresholdBelowOne:
             warnings.simplefilter("error")
             decorated = _decorate(decorator, frequency, window)
 
-        config = decorator.get_route_config(decorated._guard_route_id)
+        config = decorator.get_route_config(vars(decorated)["_guard_route_id"])
         assert config is not None
         assert config.behavior_rules[0].threshold == int(frequency * window)
 
@@ -92,7 +94,7 @@ def test_valid_values_never_warn_and_keep_the_threshold(
         warnings.simplefilter("error")
         decorated = _decorate(decorator, frequency, window)
 
-    config = decorator.get_route_config(decorated._guard_route_id)
+    config = decorator.get_route_config(vars(decorated)["_guard_route_id"])
     assert config is not None
     assert config.behavior_rules[0].threshold == threshold
 

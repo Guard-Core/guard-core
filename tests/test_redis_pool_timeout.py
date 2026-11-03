@@ -2,7 +2,7 @@ import asyncio
 import time
 from collections import Counter
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, Protocol
 
 import pytest
 from pydantic import ValidationError
@@ -25,7 +25,7 @@ async def _error_response(status_code: int, message: str) -> MockGuardResponse:
     return MockGuardResponse(message, status_code)
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
@@ -47,11 +47,17 @@ async def _stack(
     return manager, redis
 
 
+class _StackFactory(Protocol):
+    async def __call__(
+        self, **settings: object
+    ) -> tuple[RateLimitManager, RedisManager]: ...
+
+
 @pytest.fixture
-async def stack_factory() -> AsyncGenerator[Any, None]:
+async def stack_factory() -> AsyncGenerator[_StackFactory, None]:
     opened: list[RedisManager] = []
 
-    async def make(**settings: Any) -> tuple[RateLimitManager, RedisManager]:
+    async def make(**settings: object) -> tuple[RateLimitManager, RedisManager]:
         manager, redis = await _stack(_config(**settings))
         opened.append(redis)
         return manager, redis
@@ -73,7 +79,7 @@ def test_a_pool_timeout_that_is_not_positive_is_rejected(value: float) -> None:
 
 
 async def test_a_burst_above_the_pool_waits_instead_of_failing(  # async-only
-    stack_factory: Any,
+    stack_factory: _StackFactory,
 ) -> None:
     manager, _ = await stack_factory()
 
@@ -104,7 +110,7 @@ async def _release(redis: RedisManager, held: list[Any]) -> None:
 
 
 async def test_an_exhausted_pool_fails_closed_after_the_pool_timeout(  # async-only
-    stack_factory: Any,
+    stack_factory: _StackFactory,
 ) -> None:
     manager, redis = await stack_factory(redis_pool_timeout=0.3)
     held = await _hold_every_connection(redis)
@@ -121,7 +127,7 @@ async def test_an_exhausted_pool_fails_closed_after_the_pool_timeout(  # async-o
 
 
 async def test_an_exhausted_pool_uses_the_memory_window_when_failing_open(  # async-only
-    stack_factory: Any,
+    stack_factory: _StackFactory,
 ) -> None:
     manager, redis = await stack_factory(
         redis_pool_timeout=0.2, redis_fail_open=True, rate_limit=1

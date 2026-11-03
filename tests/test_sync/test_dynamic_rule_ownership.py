@@ -25,7 +25,7 @@ def reset_singleton() -> Iterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _rules(**overrides: Any) -> DynamicRules:
+def _rules(**overrides: object) -> DynamicRules:
     base: dict[str, Any] = {
         "rule_id": "R",
         "version": 1,
@@ -51,7 +51,7 @@ def _manager() -> DynamicRuleManager:
     return manager
 
 
-def _poll(manager: DynamicRuleManager, answer: Any) -> None:
+def _poll(manager: DynamicRuleManager, answer: object) -> None:
     mock_agent(manager.agent_handler).get_dynamic_rules.return_value = answer
     manager.update_rules()
 

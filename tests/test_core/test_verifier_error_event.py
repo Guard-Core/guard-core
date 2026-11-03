@@ -1,10 +1,12 @@
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import pytest
 
 from guard_core.core.events.event_types import EventFilter
 from guard_core.core.events.middleware_events import SecurityEventBus
+from guard_core.decorators import SecurityDecorator
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import JsonValue
 from tests.test_core.conftest import build_route_pipeline, send_request
@@ -16,10 +18,10 @@ class _RecordingAgent:
     def __init__(self) -> None:
         self.events: list[Any] = []
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         self.events.append(event)
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(self, redis_handler: object) -> None:
         return None
 
     async def send_metric(self, metric: object) -> None:
@@ -44,7 +46,7 @@ class _RecordingAgent:
         return True
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     return SecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
@@ -56,11 +58,13 @@ def _config(**overrides: Any) -> SecurityConfig:
     )
 
 
-def _raising(request: Any, credential: str) -> bool:
+def _raising(request: object, credential: str) -> bool:
     raise RuntimeError(f"auth backend down for {credential}")
 
 
-async def _wired(config: SecurityConfig, make: Any) -> tuple[Any, Any, str, Any]:
+async def _wired(
+    config: SecurityConfig, make: Callable[[SecurityDecorator], object]
+) -> tuple[Any, Any, str, Any]:
     pipeline, middleware, route_id = build_route_pipeline(config, make)
     agent = _RecordingAgent()
     await middleware.guard_decorator.initialize_agent(agent)
@@ -91,7 +95,7 @@ async def _wired(config: SecurityConfig, make: Any) -> tuple[Any, Any, str, Any]
     ],
 )
 async def test_a_verifier_outage_is_reported_as_a_verifier_error_not_an_attack(
-    make: Any,
+    make: Callable[[SecurityDecorator], object],
     headers: dict[str, str],
     secret: str,
     auth_type: str,

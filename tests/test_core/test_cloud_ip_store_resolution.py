@@ -5,6 +5,7 @@ import pytest
 
 from guard_core.handlers.cloud_ip_stores import RedisCloudIpStore
 from guard_core.models import SecurityConfig
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 
 @pytest.fixture
@@ -48,7 +49,7 @@ async def test_callable_form_invoked_with_redis_handler(
 ) -> None:
     factory_calls: list[Any] = []
 
-    def factory(redis: Any) -> RedisCloudIpStore:
+    def factory(redis: RedisHandlerProtocol) -> RedisCloudIpStore:
         factory_calls.append(redis)
         return RedisCloudIpStore(redis, key_prefix="from_factory")
 
@@ -114,7 +115,7 @@ async def test_class_object_passed_as_factory_is_invoked(
 async def test_callable_form_invoked_on_no_redis_path() -> None:
     factory_calls: list[Any] = []
 
-    def factory(redis: Any) -> RedisCloudIpStore:
+    def factory(redis: RedisHandlerProtocol) -> RedisCloudIpStore:
         factory_calls.append(redis)
         return RedisCloudIpStore(redis, key_prefix="no_redis_path")
 

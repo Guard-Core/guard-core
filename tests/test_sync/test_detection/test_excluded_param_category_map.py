@@ -1,9 +1,9 @@
-from typing import Any
+from collections.abc import Callable
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.decorators.base import RouteConfig
+from guard_core.sync.decorators.base import GuardedParams, GuardedReturn, RouteConfig
 from guard_core.sync.decorators.content_filtering import ContentFilteringMixin
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -66,10 +66,12 @@ def test_the_decorator_accepts_a_category_map_and_copies_it() -> None:
     route_config = RouteConfig()
 
     class _Decorators(ContentFilteringMixin):
-        def _ensure_route_config(self, _func: Any) -> RouteConfig:
+        def _ensure_route_config(self, _func: object) -> RouteConfig:
             return route_config
 
-        def _apply_route_config(self, func: Any) -> Any:
+        def _apply_route_config(
+            self, func: Callable[GuardedParams, GuardedReturn]
+        ) -> Callable[GuardedParams, GuardedReturn]:
             return func
 
     _Decorators().detection_exclusion(params=mapping)(lambda: None)
@@ -80,10 +82,12 @@ def test_the_decorator_accepts_a_category_map_and_copies_it() -> None:
 
 def test_the_decorator_rejects_an_unknown_category() -> None:
     class _Decorators(ContentFilteringMixin):
-        def _ensure_route_config(self, _func: Any) -> RouteConfig:
+        def _ensure_route_config(self, _func: object) -> RouteConfig:
             return RouteConfig()
 
-        def _apply_route_config(self, func: Any) -> Any:
+        def _apply_route_config(
+            self, func: Callable[GuardedParams, GuardedReturn]
+        ) -> Callable[GuardedParams, GuardedReturn]:
             return func
 
     with pytest.raises(ValueError, match="Unknown detection categories"):
@@ -100,13 +104,14 @@ def test_the_decorator_rejects_an_unknown_category() -> None:
         ({"q": "sqli"}, "excluded_detection_params is invalid"),
     ],
 )
-def test_the_config_rejects_a_bad_param_exclusion(value: Any, message: str) -> None:
+def test_the_config_rejects_a_bad_param_exclusion(value: object, message: str) -> None:
     with pytest.raises(ValueError, match=message):
         SyncSecurityConfig(excluded_detection_params=value)
 
     config = SyncSecurityConfig()
+    option = "excluded_detection_params"
     with pytest.raises(ValueError, match=message):
-        config.excluded_detection_params = value
+        setattr(config, option, value)
 
 
 def test_the_config_keeps_the_shape_it_was_given() -> None:

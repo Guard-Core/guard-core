@@ -1,7 +1,6 @@
 import subprocess
 import sys
 from collections.abc import Callable
-from typing import Any
 
 _WALL_PER_CPU_SECOND = 10
 
@@ -16,7 +15,7 @@ def _limit_cpu_seconds(seconds: int) -> Callable[[], None]:
 
 
 def run_probe_child(
-    args: list[str], cpu_seconds: int, **options: Any
+    args: list[str], cpu_seconds: int, check: bool = False
 ) -> subprocess.CompletedProcess[str]:
     # A timing child is bounded by the CPU it burns, which does not stretch with host
     # load; the wall timeout is only a backstop for a child that hangs without burning
@@ -27,5 +26,5 @@ def run_probe_child(
         text=True,
         timeout=cpu_seconds * _WALL_PER_CPU_SECOND,
         preexec_fn=None if sys.platform == "win32" else _limit_cpu_seconds(cpu_seconds),
-        **options,
+        check=check,
     )

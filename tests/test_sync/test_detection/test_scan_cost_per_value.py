@@ -1,8 +1,12 @@
+from collections.abc import Callable
 from typing import Any
 from unittest.mock import patch
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.detection_engine.monitor import PerformanceMonitor
+from guard_core.sync.detection_engine.monitor import (
+    PerformanceMetric,
+    PerformanceMonitor,
+)
 from guard_core.sync.handlers import _suspatterns_applicable
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -21,10 +25,10 @@ def test_benign_scan_never_enters_the_anomaly_check() -> None:
         detection_slow_pattern_threshold=1.0, detection_min_samples_for_anomaly=1000
     )
     _scan_benign_request(config)
-    calls: list[Any] = []
-    original = PerformanceMonitor._check_anomalies
+    calls: list[tuple[object, ...]] = []
+    original: Callable[..., None] = PerformanceMonitor._check_anomalies
 
-    def spy(self: PerformanceMonitor, *args: Any, **kwargs: Any) -> None:
+    def spy(self: PerformanceMonitor, *args: object, **kwargs: object) -> None:
         calls.append(args)
         original(self, *args, **kwargs)
 
@@ -38,9 +42,9 @@ def test_repeated_scan_does_not_refilter_the_pattern_table() -> None:
     config = SyncSecurityConfig()
     _scan_benign_request(config)
     calls: list[int] = []
-    original = _suspatterns_applicable._pattern_should_be_skipped
+    original: Callable[..., bool] = _suspatterns_applicable._pattern_should_be_skipped
 
-    def spy(*args: Any, **kwargs: Any) -> bool:
+    def spy(*args: object, **kwargs: object) -> bool:
         calls.append(1)
         return original(*args, **kwargs)
 
@@ -116,7 +120,7 @@ def test_batched_timeout_row_reaches_the_anomaly_check() -> None:
     monitor = PerformanceMonitor()
     seen: list[str] = []
 
-    def spy(metric: Any, *_args: Any) -> None:
+    def spy(metric: PerformanceMetric, *_args: object) -> None:
         seen.append(metric.pattern)
 
     with patch.object(monitor, "_check_anomalies", spy):

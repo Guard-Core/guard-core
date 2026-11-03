@@ -1,7 +1,7 @@
 import time
+from collections.abc import Callable, Coroutine
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
 import maxminddb
@@ -153,7 +153,7 @@ async def test_database_retry_success(tmp_path: Path) -> None:
     mock_response.content_length = None
     mock_response.content.iter_chunked = streamed(VALID_DB)
 
-    async def get_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
+    async def get_side_effect(*_args: object, **_kwargs: object) -> MagicMock:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -852,9 +852,9 @@ async def test_get_country_exception_with_agent_dispatches_geo_event(  # async-o
     mgr.agent_handler = AsyncMock()
     mgr.agent_handler.send_event = AsyncMock()
 
-    captured: list[Any] = []
+    captured: list[Coroutine[object, object, object]] = []
 
-    def fake_create_task(coro: Any) -> Mock:
+    def fake_create_task(coro: Coroutine[object, object, object]) -> Mock:
         captured.append(coro)
         coro.close()
         return Mock()
@@ -1118,9 +1118,11 @@ async def test_refresh_keeps_previous_database_when_temp_write_fails(
     db.reader = working_reader
 
     mock_session = _mock_aiohttp(content=VALID_DB)
-    real_open = open
+    real_open: Callable[..., object] = open
 
-    def fake_open(path: Any, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+    def fake_open(
+        path: object, mode: str = "r", *args: object, **kwargs: object
+    ) -> object:
         if str(path).endswith(".tmp") and "w" in mode:
             raise OSError("disk full")
         return real_open(path, mode, *args, **kwargs)

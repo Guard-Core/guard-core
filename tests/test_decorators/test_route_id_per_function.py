@@ -1,6 +1,6 @@
 import functools
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, Protocol
 
 from guard_core.decorators import (
     SecurityDecorator,
@@ -11,7 +11,14 @@ from guard_core.models import SecurityConfig
 from tests.conftest import MockGuardRequest
 
 
-def _endpoint_from_factory(*guard_decorators: Callable[..., Any]) -> Any:
+class _Endpoint(Protocol):
+    __module__: str
+    __qualname__: str
+
+    def __call__(self) -> Awaitable[str]: ...
+
+
+def _endpoint_from_factory(*guard_decorators: Callable[..., Any]) -> _Endpoint:
     async def endpoint() -> str:
         return "ok"
 

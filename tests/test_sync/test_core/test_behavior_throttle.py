@@ -1,23 +1,24 @@
 import logging
 import subprocess
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import MagicMock
 
 import pytest
 
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils import sampling
 from guard_core.sync.core.behavioral import _throttle
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.core.responses.factory import ErrorResponseFactory
-from guard_core.sync.decorators.base import RouteConfig
+from guard_core.sync.decorators.base import BaseSecurityDecorator, RouteConfig
 from guard_core.sync.handlers import _behavior_throttle, behavior_handler
 from guard_core.sync.handlers._behavior_throttle import (
     ThrottleCheck,
@@ -64,20 +65,22 @@ class _Middleware:
             )
         )
 
-    def create_error_response(self, status_code: int, default_message: str) -> Any:
+    def create_error_response(
+        self, status_code: int, default_message: str
+    ) -> GuardResponse:
         return self._factory.create_error_response(status_code, default_message)
 
 
 class _Agent(MagicMock):
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, **kwargs: object) -> None:
         super().__init__(**kwargs)
         self.events: list[Any] = []
 
-    def send_event(self, event: Any) -> None:
+    def send_event(self, event: object) -> None:
         self.events.append(event)
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     fields: dict[str, Any] = {"enable_redis": False}
     fields.update(overrides)
     return SyncSecurityConfig(**fields)
@@ -87,7 +90,7 @@ def _processor(
     config: SyncSecurityConfig,
     tracker: BehaviorTracker,
     middleware: bool = True,
-    decorator: Any = None,
+    decorator: BaseSecurityDecorator | None = None,
 ) -> tuple[BehavioralProcessor, MagicMock, _Agent]:
     event_bus = MagicMock()
     event_bus.send_middleware_event = MagicMock()
@@ -123,14 +126,19 @@ def _route(*rules: BehaviorRule) -> RouteConfig:
 
 
 def _throttle_rule(
-    threshold: int, window: int = 60, rule_type: Any = "usage", **kw: Any
+    threshold: int,
+    window: int = 60,
+    rule_type: Literal["usage", "return_pattern", "frequency"] = "usage",
+    pattern: str | None = None,
+    custom_action: Callable[..., object] | None = None,
 ) -> BehaviorRule:
     return BehaviorRule(
         rule_type=rule_type,
         threshold=threshold,
         window=window,
+        pattern=pattern,
         action="throttle",
-        **kw,
+        custom_action=custom_action,
     )
 
 
@@ -586,10 +594,25 @@ def test_throttled_requests_count_toward_a_route_ban_rule(
     fired: list[int] = []
     original = tracker.apply_action
 
-    def record(rule: BehaviorRule, *args: Any, **kwargs: Any) -> str:
+    def record(
+        rule: BehaviorRule,
+        client_ip: str,
+        endpoint_id: str,
+        details: str,
+        *,
+        observe_only: bool = False,
+        **event_metadata: object,
+    ) -> str:
         if rule.action == "ban":
             fired.append(len(results) + 1)
-        return original(rule, *args, **kwargs)
+        return original(
+            rule,
+            client_ip,
+            endpoint_id,
+            details,
+            observe_only=observe_only,
+            **event_metadata,
+        )
 
     monkeypatch.setattr(tracker, "apply_action", record)
     route = _route(
@@ -620,10 +643,25 @@ def test_throttled_requests_count_toward_global_rules(
     current = [0]
     original = tracker.apply_action
 
-    def record(rule: BehaviorRule, *args: Any, **kwargs: Any) -> str:
+    def record(
+        rule: BehaviorRule,
+        client_ip: str,
+        endpoint_id: str,
+        details: str,
+        *,
+        observe_only: bool = False,
+        **event_metadata: object,
+    ) -> str:
         if rule.action == "ban":
             fired.append(current[0])
-        return original(rule, *args, **kwargs)
+        return original(
+            rule,
+            client_ip,
+            endpoint_id,
+            details,
+            observe_only=observe_only,
+            **event_metadata,
+        )
 
     monkeypatch.setattr(tracker, "apply_action", record)
     route = _route(_throttle_rule(2))
@@ -796,7 +834,7 @@ def test_adapter_without_middleware_only_logs_and_warns_once(
     assert len(warnings) == 1
 
 
-def _global_rule_config(**fields: Any) -> BehaviorRuleConfig:
+def _global_rule_config(**fields: object) -> BehaviorRuleConfig:
     values: dict[str, Any] = {"threshold": 1, "window": 60, "action": "throttle"}
     values.update(fields)
     return BehaviorRuleConfig(**values)
@@ -899,10 +937,23 @@ def test_throttle_trip_reports_the_rule_and_its_limit(
     original = tracker.apply_action
 
     def record(
-        rule: BehaviorRule, client_ip: str, endpoint_id: str, details: str, **kw: Any
+        rule: BehaviorRule,
+        client_ip: str,
+        endpoint_id: str,
+        details: str,
+        *,
+        observe_only: bool = False,
+        **event_metadata: object,
     ) -> str:
         reasons.append(details)
-        return original(rule, client_ip, endpoint_id, details, **kw)
+        return original(
+            rule,
+            client_ip,
+            endpoint_id,
+            details,
+            observe_only=observe_only,
+            **event_metadata,
+        )
 
     monkeypatch.setattr(tracker, "apply_action", record)
     route = _route(*route_rules) if route_rules else None

@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 from urllib.parse import quote, quote_plus
@@ -89,7 +90,7 @@ async def test_is_user_agent_allowed(security_config: SecurityConfig) -> None:
     assert not await is_user_agent_allowed("badbot", security_config)
 
 
-async def test_custom_logging(security_config: SecurityConfig, tmp_path: Any) -> None:
+async def test_custom_logging(security_config: SecurityConfig, tmp_path: Path) -> None:
     log_file = tmp_path / "test_log.log"
     logger = setup_custom_logging(str(log_file))
 
@@ -108,7 +109,7 @@ async def test_custom_logging(security_config: SecurityConfig, tmp_path: Any) ->
 
 
 async def test_detected_component_with_lone_surrogate_writes_intact_log_line(
-    tmp_path: Any,
+    tmp_path: Path,
 ) -> None:
     log_file = tmp_path / "audit.log"
     setup_custom_logging(str(log_file))
@@ -132,7 +133,7 @@ async def test_detected_component_with_lone_surrogate_writes_intact_log_line(
 
 
 async def test_detect_penetration_attempt_attributes_real_client_ip_behind_proxy(
-    tmp_path: Any,
+    tmp_path: Path,
 ) -> None:
     log_file = tmp_path / "audit.log"
     setup_custom_logging(str(log_file))
@@ -161,7 +162,7 @@ async def test_detect_penetration_attempt_attributes_real_client_ip_behind_proxy
 
 
 async def test_detect_penetration_attempt_falls_back_to_connecting_ip_without_config(
-    tmp_path: Any,
+    tmp_path: Path,
 ) -> None:
     log_file = tmp_path / "audit.log"
     setup_custom_logging(str(log_file))
@@ -272,7 +273,7 @@ async def test_log_custom_type(caplog: pytest.LogCaptureFixture) -> None:
 
 
 def test_setup_custom_logging_always_attaches_console_and_file_handlers(
-    tmp_path: Any,
+    tmp_path: Path,
 ) -> None:
     log_file = tmp_path / "security.log"
     logger = setup_custom_logging(str(log_file))
@@ -371,7 +372,7 @@ def test_setup_custom_logging_emits_once_via_own_handler_when_root_has_no_handle
     ["root_configured_first", "guard_configured_first", "no_root_handlers"],
 )
 def test_custom_log_file_receives_the_line_in_every_root_handler_ordering(
-    tmp_path: Any, ordering: str
+    tmp_path: Path, ordering: str
 ) -> None:
     logging.getLogger().handlers = []
     log_file = tmp_path / "audit.log"
@@ -427,7 +428,7 @@ def test_setup_custom_logging_keeps_a_foreign_handler_across_repeated_setup() ->
         guard_logger.removeHandler(foreign_handler)
 
 
-def test_no_duplicate_logs(caplog: pytest.LogCaptureFixture, tmp_path: Any) -> None:
+def test_no_duplicate_logs(caplog: pytest.LogCaptureFixture, tmp_path: Path) -> None:
     log_file = tmp_path / "test_no_duplicates.log"
 
     guard_logger = setup_custom_logging(str(log_file))
@@ -487,7 +488,7 @@ def test_hierarchical_namespace_isolation() -> None:
     assert user_logger.name == "myapp"
 
 
-def test_custom_log_file_configuration(tmp_path: Any) -> None:
+def test_custom_log_file_configuration(tmp_path: Path) -> None:
     custom_log_path = tmp_path / "my_custom_security.log"
     logger = setup_custom_logging(str(custom_log_path))
 
@@ -541,7 +542,7 @@ def test_logger_output_reaches_caplog_with_and_without_log_file(
         os.unlink(tmp_file.name)
 
 
-def test_setup_custom_logging_creates_directory(tmp_path: Any) -> None:
+def test_setup_custom_logging_creates_directory(tmp_path: Path) -> None:
     non_existent_dir = tmp_path / "logs" / "subdirectory" / "deep"
     log_file_path = non_existent_dir / "test.log"
 

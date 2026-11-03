@@ -18,12 +18,12 @@ class _SingleUseState:
     def __init__(self) -> None:
         self._attrs: dict[str, Any] = {}
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         if name == "_attrs":
             return super().__getattribute__(name)
         return self._attrs.get(name)
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: object) -> None:
         if name == "_attrs":
             super().__setattr__(name, value)
         else:
@@ -88,7 +88,7 @@ class _SingleUseChunkedRequest:
         return {}
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     fields: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": True,
@@ -98,7 +98,9 @@ def _config(**overrides: Any) -> SyncSecurityConfig:
     return SyncSecurityConfig(**fields)
 
 
-def _build_middleware(config: SyncSecurityConfig, decorator: Any) -> MagicMock:
+def _build_middleware(
+    config: SyncSecurityConfig, decorator: SecurityDecorator | None
+) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = _LOGGER

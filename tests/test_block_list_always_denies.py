@@ -1,4 +1,4 @@
-from typing import Any
+from collections.abc import Callable
 
 import pytest
 
@@ -18,7 +18,7 @@ NEIGHBOUR = "10.0.0.5"
 OUTSIDER = "203.0.113.9"
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: object) -> SecurityConfig:
     return SecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
@@ -34,7 +34,9 @@ async def _global_status(config: SecurityConfig, ip: str) -> int | None:
     return None if response is None else response.status_code
 
 
-async def _route_status(config: SecurityConfig, factory: Any, ip: str) -> int | None:
+async def _route_status(
+    config: SecurityConfig, factory: Callable[[SecurityDecorator], object], ip: str
+) -> int | None:
     pipeline, _, route_id = build_route_pipeline(config, factory)
     response = await send_request(pipeline, route_id, ip=ip)
     return None if response is None else response.status_code

@@ -4,7 +4,6 @@ import time
 import weakref
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -179,7 +178,7 @@ def test_a_request_after_a_failed_attempt_retries_once_the_backoff_ends(
     assert download.call_count == 3
 
 
-def _broken_load() -> Any:
+def _broken_load() -> MagicMock:
     return MagicMock(side_effect=OSError("disk gone"))
 
 
@@ -258,7 +257,7 @@ class _CountryCheck(SecurityCheck):
         return None
 
 
-def _pipeline_verdict(manager: IPInfoManager, **fields: Any) -> MagicMock:
+def _pipeline_verdict(manager: IPInfoManager, **fields: object) -> MagicMock:
     config = SyncSecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",

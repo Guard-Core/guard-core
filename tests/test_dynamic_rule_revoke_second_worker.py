@@ -3,8 +3,8 @@ import os
 import subprocess
 import sys
 import time
-from collections.abc import AsyncGenerator
-from typing import Any
+from collections.abc import AsyncGenerator, Iterator
+from typing import IO, Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -93,7 +93,7 @@ class SecondWorker:
         )
         assert self._stdout().readline().strip() == "ready"
 
-    def _stdout(self) -> Any:
+    def _stdout(self) -> IO[str]:
         assert self.process.stdout is not None
         return self.process.stdout
 
@@ -133,7 +133,7 @@ async def redis_fleet() -> AsyncGenerator[Fleet, None]:
 
 
 @pytest.fixture
-def second_worker(redis_fleet: Fleet) -> Any:
+def second_worker(redis_fleet: Fleet) -> Iterator[SecondWorker]:
     assert redis_fleet.redis is not None
     worker = SecondWorker(redis_fleet.redis.config.redis_prefix)
     yield worker

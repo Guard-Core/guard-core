@@ -1,5 +1,6 @@
 import sys
 import threading
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import MagicMock
@@ -23,7 +24,7 @@ FIELDS = (
 )
 
 
-def _rules(index: int, **overrides: Any) -> DynamicRules:
+def _rules(index: int, **overrides: object) -> DynamicRules:
     base: dict[str, Any] = {
         "rule_id": f"R{index}",
         "version": 1,
@@ -42,7 +43,7 @@ def _rules(index: int, **overrides: Any) -> DynamicRules:
     return DynamicRules(**base)
 
 
-def _signature(source: Any) -> tuple[Any, ...]:
+def _signature(source: Mapping[str, object]) -> tuple[object, ...]:
     return tuple(source[name] for name in FIELDS)
 
 

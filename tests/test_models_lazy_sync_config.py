@@ -1,10 +1,10 @@
 import multiprocessing
+import multiprocessing.queues
 import os
 import pickle
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -152,7 +152,10 @@ def test_threads_reading_the_name_first_get_one_class_that_pickles(
     assert all(_fresh(code) == "1 3" for _ in range(6))
 
 
-def _rate_limit_of(config: SecurityConfig[SyncGuardRequest], queue: Any) -> None:
+def _rate_limit_of(
+    config: SecurityConfig[SyncGuardRequest],
+    queue: "multiprocessing.queues.Queue[tuple[str, int]]",
+) -> None:
     queue.put((type(config).__name__, config.rate_limit))
 
 

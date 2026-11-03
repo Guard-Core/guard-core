@@ -5,9 +5,11 @@ import tempfile
 import uuid
 import weakref
 from pathlib import Path
+from types import FrameType
 from typing import Any
 from unittest.mock import Mock, patch
 
+from guard_core._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.core.events.metrics import MetricsCollector
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.core.responses.context import ResponseContext
@@ -16,6 +18,7 @@ from guard_core.handlers import _suspatterns_enhanced as enhanced_module
 from guard_core.handlers import cloud_handler as cloud_module
 from guard_core.handlers import ipban_handler as ipban_module
 from guard_core.handlers import suspatterns_handler as suspatterns_module
+from guard_core.handlers._suspatterns_enhanced import _DetectionState
 from guard_core.handlers.cloud_handler import cloud_handler_for
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
@@ -40,7 +43,7 @@ _LOOKUP_FUNCTIONS = frozenset(
 _MANAGER_REGISTRY_FILE = "app_managers.py"
 
 
-def _config(prefix: str | None = None, **settings: Any) -> SecurityConfig:
+def _config(prefix: str | None = None, **settings: object) -> SecurityConfig:
     redis: dict[str, Any]
     if prefix is not None:
         redis = {"enable_redis": True, "redis_url": REDIS_URL, "redis_prefix": prefix}
@@ -76,7 +79,9 @@ async def test_two_apps_without_redis_alternate_without_rebuilding_detection() -
     builds: list[int] = []
     real = enhanced_module._build_enhanced_detection_state
 
-    def counting(config: Any, redaction_names: Any = None) -> Any:
+    def counting(
+        config: SecurityConfig, redaction_names: _SensitiveNameSets | None = None
+    ) -> _DetectionState:
         builds.append(1)
         return real(config, redaction_names)
 
@@ -150,7 +155,7 @@ async def test_a_warm_request_resolves_its_manager_in_one_call_without_a_lookup(
     c_calls_made_by_it = 0
     name = "_ensure_detection_singleton_configured"
 
-    def profile(frame: Any, event: str, arg: Any) -> None:
+    def profile(frame: FrameType, event: str, arg: object) -> None:
         nonlocal resolution_calls, calls_made_by_it, c_calls_made_by_it
         if event == "call":
             if frame.f_code.co_name == name:

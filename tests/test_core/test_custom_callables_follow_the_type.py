@@ -14,12 +14,13 @@ from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
 from guard_core.exceptions import CallableShapeError
 from guard_core.models import SecurityConfig
+from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from tests.conftest import MockGuardRequest, MockGuardResponse
 
 
 class _Metrics:
-    async def collect_request_metrics(self, *args: Any, **kwargs: Any) -> None:
+    async def collect_request_metrics(self, *args: object, **kwargs: object) -> None:
         return None
 
 
@@ -35,29 +36,29 @@ def _blocked() -> MockGuardResponse:
     return MockGuardResponse("blocked", 403)
 
 
-async def _async_check(request: Any) -> Any:
+async def _async_check(request: GuardRequest) -> GuardResponse | None:
     return _blocked()
 
 
-def _sync_check(request: Any) -> Any:
+def _sync_check(request: GuardRequest) -> GuardResponse | None:
     return _blocked()
 
 
 class _AsyncCallCheck:
-    async def __call__(self, request: Any) -> Any:
+    async def __call__(self, request: GuardRequest) -> GuardResponse | None:
         return _blocked()
 
 
 class _SyncCallCheck:
-    def __call__(self, request: Any) -> Any:
+    def __call__(self, request: GuardRequest) -> GuardResponse | None:
         return _blocked()
 
 
 class _Methods:
-    async def async_check(self, request: Any) -> Any:
+    async def async_check(self, request: GuardRequest) -> GuardResponse | None:
         return _blocked()
 
-    def sync_check(self, request: Any) -> Any:
+    def sync_check(self, request: GuardRequest) -> GuardResponse | None:
         return _blocked()
 
 
@@ -65,17 +66,17 @@ def _sync_decorator_around_async(
     function: Callable[..., Any],
 ) -> Callable[..., Any]:
     @functools.wraps(function)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
+    def wrapper(*args: object, **kwargs: object) -> object:
         return function(*args, **kwargs)
 
     return wrapper
 
 
-async def _partial_target(extra: int, request: Any) -> Any:
+async def _partial_target(extra: int, request: GuardRequest) -> GuardResponse | None:
     return _blocked()
 
 
-def _sync_partial_target(extra: int, request: Any) -> Any:
+def _sync_partial_target(extra: int, request: GuardRequest) -> GuardResponse | None:
     return _blocked()
 
 
@@ -118,7 +119,7 @@ async def test_every_shape_of_custom_request_check_blocks_in_the_async_tree(
 async def test_a_sync_check_runs_inline_and_is_called_once_per_request() -> None:
     calls: list[Any] = []
 
-    def sync_check(request: Any) -> Any:
+    def sync_check(request: GuardRequest) -> GuardResponse | None:
         calls.append(request)
         return None
 
@@ -140,7 +141,7 @@ async def test_the_check_is_reclassified_when_the_configured_object_changes() ->
 
 
 async def test_a_shape_error_raised_by_a_check_is_not_swallowed() -> None:
-    def refusing(request: Any) -> Any:
+    def refusing(request: GuardRequest) -> GuardResponse | None:
         raise CallableShapeError("custom_request_check")
 
     check = CustomRequestCheck(_middleware(refusing))
@@ -152,37 +153,37 @@ def _modified() -> MockGuardResponse:
     return MockGuardResponse("modified", 200, {"X-Mod": "1"})
 
 
-async def _async_modifier(response: Any) -> Any:
+async def _async_modifier(response: GuardResponse) -> GuardResponse:
     return _modified()
 
 
-def _sync_modifier(response: Any) -> Any:
+def _sync_modifier(response: GuardResponse) -> GuardResponse:
     return _modified()
 
 
 class _AsyncCallModifier:
-    async def __call__(self, response: Any) -> Any:
+    async def __call__(self, response: GuardResponse) -> GuardResponse:
         return await _async_modifier(response)
 
 
 class _SyncCallModifier:
-    def __call__(self, response: Any) -> Any:
+    def __call__(self, response: GuardResponse) -> GuardResponse:
         return _sync_modifier(response)
 
 
 class _ModifierMethods:
-    async def async_modifier(self, response: Any) -> Any:
+    async def async_modifier(self, response: GuardResponse) -> GuardResponse:
         return await _async_modifier(response)
 
-    def sync_modifier(self, response: Any) -> Any:
+    def sync_modifier(self, response: GuardResponse) -> GuardResponse:
         return _sync_modifier(response)
 
 
-async def _async_partial_target(extra: int, response: Any) -> Any:
+async def _async_partial_target(extra: int, response: GuardResponse) -> GuardResponse:
     return await _async_modifier(response)
 
 
-def _sync_partial_modifier(extra: int, response: Any) -> Any:
+def _sync_partial_modifier(extra: int, response: GuardResponse) -> GuardResponse:
     return _sync_modifier(response)
 
 
@@ -215,7 +216,7 @@ def _factory(modifier: Callable[..., Any] | None) -> ErrorResponseFactory:
     )
 
 
-def _response() -> Any:
+def _response() -> GuardResponse:
     return MockGuardResponse("body", 200, {"Content-Length": "4"})
 
 
@@ -250,7 +251,7 @@ async def test_the_modifier_is_reclassified_when_the_configured_object_changes()
 async def test_a_shape_error_raised_by_a_modifier_is_not_swallowed(
     with_request: bool,
 ) -> None:
-    def refusing(response: Any) -> Any:
+    def refusing(response: GuardResponse) -> GuardResponse:
         raise CallableShapeError("custom_response_modifier")
 
     request: Any = _Request() if with_request else None
@@ -259,7 +260,7 @@ async def test_a_shape_error_raised_by_a_modifier_is_not_swallowed(
 
 
 async def test_a_modifier_that_raises_still_returns_the_unmodified_response() -> None:
-    def broken(response: Any) -> Any:
+    def broken(response: GuardResponse) -> GuardResponse:
         raise RuntimeError("boom")
 
     response = _response()

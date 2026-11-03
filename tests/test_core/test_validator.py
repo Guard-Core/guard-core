@@ -1,6 +1,6 @@
 import time
+from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -12,7 +12,7 @@ from guard_core.models import SecurityConfig
 
 
 @pytest.fixture
-def mock_config() -> Any:
+def mock_config() -> Mock:
     config = Mock()
     config.trust_x_forwarded_proto = True
     config.trusted_proxies = ["192.168.1.1", "10.0.0.0/8"]
@@ -25,14 +25,14 @@ def mock_config() -> Any:
 
 
 @pytest.fixture
-def mock_event_bus() -> Any:
+def mock_event_bus() -> Mock:
     event_bus = Mock()
     event_bus.send_middleware_event = AsyncMock()
     return event_bus
 
 
 @pytest.fixture
-def validation_context(mock_config: Any, mock_event_bus: Any) -> ValidationContext:
+def validation_context(mock_config: Mock, mock_event_bus: Mock) -> ValidationContext:
     return ValidationContext(
         config=mock_config,
         logger=Mock(),
@@ -46,7 +46,7 @@ def validator(validation_context: ValidationContext) -> RequestValidator:
 
 
 @pytest.fixture
-def mock_request() -> Any:
+def mock_request() -> Mock:
     request = Mock()
     request.url_scheme = "http"
     request.url_path = "/test"
@@ -61,7 +61,7 @@ def test_init(validation_context: ValidationContext) -> None:
 
 
 def test_is_request_https_direct_https(
-    validator: RequestValidator, mock_request: Any
+    validator: RequestValidator, mock_request: Mock
 ) -> None:
     mock_request.url_scheme = "https"
 
@@ -71,7 +71,7 @@ def test_is_request_https_direct_https(
 
 
 def test_is_request_https_direct_http(
-    validator: RequestValidator, mock_request: Any
+    validator: RequestValidator, mock_request: Mock
 ) -> None:
     mock_request.url_scheme = "http"
 
@@ -81,7 +81,7 @@ def test_is_request_https_direct_http(
 
 
 def test_is_request_https_forwarded_proto_trusted_proxy(
-    validator: RequestValidator, mock_request: Any
+    validator: RequestValidator, mock_request: Mock
 ) -> None:
     mock_request.url_scheme = "http"
     mock_request.headers = {"X-Forwarded-Proto": "https"}
@@ -93,7 +93,7 @@ def test_is_request_https_forwarded_proto_trusted_proxy(
 
 
 def test_is_request_https_forwarded_proto_untrusted_proxy(
-    validator: RequestValidator, mock_request: Any
+    validator: RequestValidator, mock_request: Mock
 ) -> None:
     mock_request.url_scheme = "http"
     mock_request.headers = {"X-Forwarded-Proto": "https"}
@@ -105,7 +105,7 @@ def test_is_request_https_forwarded_proto_untrusted_proxy(
 
 
 def test_is_request_https_no_client(
-    validator: RequestValidator, mock_request: Any
+    validator: RequestValidator, mock_request: Mock
 ) -> None:
     mock_request.url_scheme = "http"
     mock_request.client_host = None
@@ -116,7 +116,7 @@ def test_is_request_https_no_client(
 
 
 def test_is_request_https_trust_disabled(
-    validator: RequestValidator, mock_request: Any
+    validator: RequestValidator, mock_request: Mock
 ) -> None:
     validator.context.config.trust_x_forwarded_proto = False
     mock_request.url_scheme = "http"
@@ -128,7 +128,7 @@ def test_is_request_https_trust_disabled(
 
 
 def test_is_request_https_no_trusted_proxies(
-    validator: RequestValidator, mock_request: Any
+    validator: RequestValidator, mock_request: Mock
 ) -> None:
     validator.context.config.trusted_proxies = ()
     mock_request.url_scheme = "http"
@@ -226,7 +226,7 @@ async def test_check_time_window_error_handling(
 
 
 async def test_is_path_excluded_matching_path(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     mock_request.url_path = "/health"
 
@@ -240,7 +240,7 @@ async def test_is_path_excluded_matching_path(
 
 
 async def test_is_path_excluded_prefix_match(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     mock_request.url_path = "/health/check"
 
@@ -251,7 +251,7 @@ async def test_is_path_excluded_prefix_match(
 
 
 async def test_is_path_excluded_no_match(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     mock_request.url_path = "/api/endpoint"
 
@@ -262,7 +262,7 @@ async def test_is_path_excluded_no_match(
 
 
 async def test_is_path_excluded_rejects_prefix_confusion_at_validator_level(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     validator.context.config.exclude_paths = ["/static"]
     mock_request.url_path = "/staticadmin"
@@ -274,7 +274,7 @@ async def test_is_path_excluded_rejects_prefix_confusion_at_validator_level(
 
 
 async def test_is_path_excluded_rejects_traversal_escaping_subtree_at_validator_level(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     validator.context.config.exclude_paths = ["/static"]
     mock_request.url_path = "/static/../../../root/.ssh/id_rsa"
@@ -286,7 +286,7 @@ async def test_is_path_excluded_rejects_traversal_escaping_subtree_at_validator_
 
 
 async def test_is_path_excluded_emits_event_once_across_many_requests(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     mock_request.url_path = "/health"
 
@@ -297,7 +297,7 @@ async def test_is_path_excluded_emits_event_once_across_many_requests(
 
 
 async def test_is_path_excluded_emits_separate_event_for_second_distinct_path(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     mock_request.url_path = "/health"
     await validator.is_path_excluded(mock_request)
@@ -314,7 +314,7 @@ async def test_is_path_excluded_emits_separate_event_for_second_distinct_path(
 
 
 async def test_is_path_excluded_emits_again_after_ttl_expires(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     mock_request.url_path = "/health"
 
@@ -328,7 +328,7 @@ async def test_is_path_excluded_emits_again_after_ttl_expires(
 
 
 async def test_is_path_excluded_decision_unaffected_by_cache_hit(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     mock_request.url_path = "/health"
 
@@ -341,7 +341,7 @@ async def test_is_path_excluded_decision_unaffected_by_cache_hit(
 
 
 async def test_is_path_excluded_cached_entry_does_not_exclude_unrelated_path(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     mock_request.url_path = "/health"
     await validator.is_path_excluded(mock_request)
@@ -355,7 +355,7 @@ async def test_is_path_excluded_cached_entry_does_not_exclude_unrelated_path(
 
 
 async def test_is_path_excluded_unresolvable_request_path_is_not_excluded(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     mock_request.url_path = "/health%c0%af.."
 
@@ -366,7 +366,7 @@ async def test_is_path_excluded_unresolvable_request_path_is_not_excluded(
 
 
 async def test_is_path_excluded_throttle_keyed_on_normalized_path_not_raw(
-    validator: RequestValidator, mock_request: Any, mock_event_bus: Any
+    validator: RequestValidator, mock_request: Mock, mock_event_bus: Mock
 ) -> None:
     for raw_variant in ("/health", "/health/"):
         mock_request.url_path = raw_variant
@@ -411,7 +411,7 @@ async def test_is_path_excluded_normalizes_exclude_list_once_until_content_chang
     call_count = 0
     original_normalize_exclude_paths = validator_module.normalize_exclude_paths
 
-    def counting_normalize_exclude_paths(paths: Any) -> tuple[str, ...]:
+    def counting_normalize_exclude_paths(paths: Sequence[str]) -> tuple[str, ...]:
         nonlocal call_count
         call_count += 1
         return original_normalize_exclude_paths(paths)

@@ -1,6 +1,7 @@
 from typing import Any
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.decorators import SecurityDecorator
@@ -12,7 +13,7 @@ ORIGIN = "https://new.example"
 PREFLIGHT = {"Origin": ORIGIN, "Access-Control-Request-Method": "POST"}
 
 
-def _pipeline(**settings: Any) -> SecurityCheckPipeline:
+def _pipeline(**settings: object) -> SecurityCheckPipeline:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -29,7 +30,7 @@ def _send(
     method: str = "OPTIONS",
     headers: dict[str, str] | None = None,
     path: str = "/api",
-) -> Any:
+) -> GuardResponse | None:
     request = SyncMockGuardRequest(
         path=path,
         method=method,
@@ -37,6 +38,12 @@ def _send(
         client_host="198.51.100.9",
     )
     return pipeline.execute(request)
+
+
+def _send_for_a_response(pipeline: SecurityCheckPipeline) -> GuardResponse:
+    response = _send(pipeline)
+    assert response is not None
+    return response
 
 
 def test_an_app_built_without_cors_has_the_check_before_rate_limiting() -> None:
@@ -109,7 +116,7 @@ def test_a_flagged_enable_cors_makes_the_pipeline_answer_the_preflight() -> None
         override_apps=True,
     )
 
-    response = _send(pipeline)
+    response = _send_for_a_response(pipeline)
 
     assert response.status_code == 200
     assert response.headers["Access-Control-Allow-Origin"] == ORIGIN
@@ -122,7 +129,7 @@ def test_a_disallowed_origin_gets_the_400_of_an_app_built_with_cors() -> None:
         enable_cors=True, cors_origins=["https://other.example"], override_apps=True
     )
 
-    response = _send(pipeline)
+    response = _send_for_a_response(pipeline)
 
     assert response.status_code == 400
     assert "origin" in response.headers or response.status_code == 400
@@ -137,7 +144,7 @@ def test_the_answer_comes_before_rate_limiting_and_auth_checks() -> None:
         enable_cors=True, cors_origins=[ORIGIN], override_apps=True
     )
 
-    statuses = [(_send(pipeline)).status_code for _ in range(4)]
+    statuses = [(_send_for_a_response(pipeline)).status_code for _ in range(4)]
 
     assert statuses == [200, 200, 200, 200]
 
@@ -157,7 +164,7 @@ def test_clearing_the_override_ends_the_answer() -> None:
     security_headers_manager.configure(
         enable_cors=True, cors_origins=[ORIGIN], override_apps=True
     )
-    assert (_send(pipeline)).status_code == 200
+    assert (_send_for_a_response(pipeline)).status_code == 200
 
     security_headers_manager.configure(override_apps=True)
 

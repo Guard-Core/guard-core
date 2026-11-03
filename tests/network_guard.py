@@ -2,7 +2,6 @@ import ipaddress
 import os
 import socket
 import traceback
-from typing import Any
 from urllib.parse import urlparse
 
 import pytest
@@ -62,7 +61,10 @@ def configure(redis_url: str) -> None:
     _configured_endpoints = resolve_endpoints(redis_url)
 
 
-def is_allowed(family: int, address: Any) -> bool:
+_Address = tuple[object, ...] | str | bytes
+
+
+def is_allowed(family: int, address: _Address) -> bool:
     if family == socket.AF_UNIX:
         return True
     if isinstance(address, tuple) and len(address) >= 2 and isinstance(address[0], str):
@@ -73,19 +75,19 @@ def is_allowed(family: int, address: Any) -> bool:
     return False
 
 
-def _record(address: Any) -> NetworkAccessError:
+def _record(address: _Address) -> NetworkAccessError:
     frames = "".join(traceback.format_stack(limit=_STACK_FRAMES + 2)[:-2])
     _violations.append(f"connect to {address!r}\n{frames}")
     return NetworkAccessError(f"tests must not reach the network: {address!r}")
 
 
-def _guarded_connect(self: socket.socket, address: Any) -> None:
+def _guarded_connect(self: socket.socket, address: _Address) -> None:
     if not is_allowed(self.family, address):
         raise _record(address)
     _real_connect(self, address)
 
 
-def _guarded_connect_ex(self: socket.socket, address: Any) -> int:
+def _guarded_connect_ex(self: socket.socket, address: _Address) -> int:
     if not is_allowed(self.family, address):
         raise _record(address)
     return _real_connect_ex(self, address)

@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -7,14 +6,14 @@ from guard_core.core.initialization.handler_initializer import HandlerInitialize
 from guard_core.detection_engine.monitor import PerformanceMonitor
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import SecurityConfig
-from guard_core.protocols.agent_protocol import JsonValue
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol, JsonValue
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
 
 
 class _Agent:
     def __init__(self) -> None:
-        self.events: list[Any] = []
+        self.events: list[object] = []
 
     async def start(self) -> None:
         return None
@@ -22,19 +21,19 @@ class _Agent:
     async def stop(self) -> None:
         return None
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         self.events.append(event)
 
-    async def send_metric(self, _metric: Any) -> None:
+    async def send_metric(self, _metric: object) -> None:
         return None
 
-    async def initialize_redis(self, _redis: Any) -> None:
+    async def initialize_redis(self, _redis: object) -> None:
         return None
 
     async def flush_buffer(self) -> None:
         return None
 
-    async def get_dynamic_rules(self) -> Any | None:
+    async def get_dynamic_rules(self) -> None:
         return None
 
     async def health_check(self) -> bool:
@@ -48,7 +47,7 @@ def _threat_request() -> MockGuardRequest:
     return MockGuardRequest(path="/s", query_params={"q": "<script>alert(1)</script>"})
 
 
-async def _wired(**overrides: Any) -> tuple[SecurityConfig, _Agent]:
+async def _wired(**overrides: object) -> tuple[SecurityConfig, _Agent]:
     config = SecurityConfig(enable_agent=True, agent_api_key="a" * 10, **overrides)
     agent = _Agent()
     await HandlerInitializer(
@@ -61,7 +60,7 @@ async def _wired(**overrides: Any) -> tuple[SecurityConfig, _Agent]:
 async def _event_types(config: SecurityConfig, agent: _Agent) -> list[str]:
     result = await detect_penetration_attempt(_threat_request(), config)
     assert result.is_threat is True
-    return [event.event_type for event in agent.events]
+    return [vars(event)["event_type"] for event in agent.events]
 
 
 async def test_the_pattern_detected_event_is_sent_by_default() -> None:
@@ -103,14 +102,19 @@ async def test_the_anomaly_monitor_is_handed_no_agent_when_events_are_off(
     enabled: bool, expected_agent_is_none: bool
 ) -> None:
     config, agent = await _wired(agent_enable_events=enabled)
-    seen: list[Any] = []
+    seen: list[AgentHandlerProtocol | None] = []
     original = PerformanceMonitor.record_metrics
 
     async def spy(
-        self: PerformanceMonitor, rows: Any, agent_handler: Any = None, **kw: Any
+        self: PerformanceMonitor,
+        rows: list[tuple[str, float, int, bool, bool]],
+        agent_handler: AgentHandlerProtocol | None = None,
+        correlation_id: str | None = None,
     ) -> None:
         seen.append(agent_handler)
-        await original(self, rows, agent_handler=agent_handler, **kw)
+        await original(
+            self, rows, agent_handler=agent_handler, correlation_id=correlation_id
+        )
 
     with patch.object(PerformanceMonitor, "record_metrics", spy):
         await detect_penetration_attempt(_threat_request(), config)

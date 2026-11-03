@@ -1,5 +1,6 @@
 import time
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -23,7 +24,7 @@ def _build() -> tuple[Any, Any, str]:
     return build_route_pipeline(_config(), lambda d: d.suspicious_detection(False))
 
 
-def _disabled_events(middleware: Any) -> list[Any]:
+def _disabled_events(middleware: MagicMock) -> list[Any]:
     return [
         call
         for call in middleware.event_bus.send_middleware_event.call_args_list

@@ -6,11 +6,11 @@ import re
 import secrets
 import sys
 import uuid
-from collections.abc import AsyncGenerator, Callable, Generator, Iterator
+from collections.abc import AsyncGenerator, Callable, Generator, Iterator, Sequence
 from importlib.machinery import ModuleSpec
 from pathlib import Path
-from types import FrameType
-from typing import TYPE_CHECKING, Any, cast
+from types import FrameType, ModuleType
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qsl
 
@@ -57,6 +57,7 @@ from guard_core.handlers.suspatterns_handler import (
     sus_patterns_handler,
 )
 from guard_core.models import SecurityConfig
+from guard_core.protocols.request_protocol import RequestState
 from guard_core.sync.core.checks import _strike_forget as _sync_strike_forget_module
 from guard_core.sync.handlers import ipban_handler as _sync_ipban_module
 from guard_core.sync.handlers import suspatterns_handler as _sync_suspatterns_module
@@ -138,7 +139,7 @@ def _close_engine_command_monitors() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_guard_core_logger_levels() -> Any:
+def _isolate_guard_core_logger_levels() -> Iterator[None]:
     original_root_level = logging.getLogger().level
     original_levels = {
         name: logging.getLogger(name).level for name in _guard_core_logger_names()
@@ -150,7 +151,7 @@ def _isolate_guard_core_logger_levels() -> Any:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_detection_singleton() -> Any:
+def _isolate_detection_singleton() -> Iterator[None]:
     handler = _suspatterns_module.sus_patterns_handler
     saved_state = handler._detection_state
     saved_instance = SusPatternsManager._instance
@@ -220,7 +221,7 @@ def _isolate_strike_registry() -> Iterator[None]:
     _sync_strike_forget_module._registered.clear()
 
 
-def _restore_submodule_identity(module: Any) -> None:
+def _restore_submodule_identity(module: ModuleType) -> None:
     """Undo a test that reimported a submodule (`sys.modules.pop` + fresh
     `import_module`/`reload`), which rebinds the module as a *package*
     attribute but leaves the old, still-imported package attribute pointing
@@ -236,7 +237,7 @@ def _restore_submodule_identity(module: Any) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_event_handler_modules() -> Any:
+def _isolate_event_handler_modules() -> Iterator[None]:
     yield
     _restore_submodule_identity(_otel_handler_module)
     _restore_submodule_identity(_logfire_handler_module)
@@ -361,14 +362,14 @@ async def _reset_security_headers_manager() -> None:
 
 class MockState:
     def __init__(self) -> None:
-        self._attrs: dict[str, Any] = {}
+        self._attrs: dict[str, object] = {}
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         if name == "_attrs":
             return super().__getattribute__(name)
         return self._attrs.get(name)
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: object) -> None:
         if name == "_attrs":
             super().__setattr__(name, value)
         else:
@@ -384,7 +385,15 @@ def _parse_query_params(query: str) -> dict[str, str]:
     return dict(parse_qsl(query, keep_blank_values=True))
 
 
-def declare_route(request: Any, template: str) -> Any:
+class _HasRequestState(Protocol):
+    @property
+    def state(self) -> RequestState: ...
+
+
+_R = TypeVar("_R", bound=_HasRequestState)
+
+
+def declare_route(request: _R, template: str) -> _R:
     request.state.guard_route_template = template
     return request
 
@@ -605,7 +614,7 @@ async def redis_cleanup() -> AsyncGenerator[None, None]:
 
 
 @pytest.fixture(autouse=True)
-def _collect_garbage_after_test() -> Any:
+def _collect_garbage_after_test() -> Iterator[None]:
     yield
     if GUARD_TESTS_GC_PER_TEST:
         gc.collect()
@@ -983,7 +992,10 @@ class _GuardAgentImportFinder:
         self.violations: list[str] = []
 
     def find_spec(
-        self, fullname: str, path: Any, target: Any = None
+        self,
+        fullname: str,
+        path: Sequence[str] | None,
+        target: ModuleType | None = None,
     ) -> ModuleSpec | None:
         if fullname == "guard_agent" or fullname.startswith("guard_agent."):
             caller = _calling_module_name(sys._getframe(1))
@@ -1050,7 +1062,7 @@ _ASYNC_CONFTEST = Path(__file__).resolve()
 _SYNC_CONFTEST = _ASYNC_CONFTEST.parent / "test_sync" / "conftest.py"
 
 
-def _location(fixture: Any) -> str:
+def _location(fixture: Callable[..., object]) -> str:
     func = inspect.unwrap(getattr(fixture, "_get_wrapped_function", lambda: fixture)())
     return f"{inspect.getsourcefile(func)}:{func.__code__.co_firstlineno}"
 

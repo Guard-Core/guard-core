@@ -26,7 +26,7 @@ IP = "198.51.100.20"
 ROUTE_ID = "app.module.handler"
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -57,7 +57,9 @@ def _middleware(config: SyncSecurityConfig, manager: RateLimitManager) -> Mock:
     return middleware
 
 
-def _request(path: str = "/x", route_config: RouteConfig | None = None) -> Any:
+def _request(
+    path: str = "/x", route_config: RouteConfig | None = None
+) -> SyncMockGuardRequest:
     request = SyncMockGuardRequest(path=path, client_host=IP)
     request.state.client_ip = IP
     request.state.route_config = route_config
@@ -66,8 +68,10 @@ def _request(path: str = "/x", route_config: RouteConfig | None = None) -> Any:
     return request
 
 
-def _statuses(check: RateLimitCheck, route_config: RouteConfig, count: int) -> Any:
-    statuses = []
+def _statuses(
+    check: RateLimitCheck, route_config: RouteConfig, count: int
+) -> list[int | None]:
+    statuses: list[int | None] = []
     for _ in range(count):
         response = check.check(_request(route_config=route_config))
         statuses.append(None if response is None else response.status_code)
@@ -146,7 +150,7 @@ def _record_commands(client: Redis, monkeypatch: pytest.MonkeyPatch) -> list[str
     commands: list[str] = []
     original = client.execute_command
 
-    def recording(*args: Any, **kwargs: Any) -> Any:
+    def recording(*args: object, **kwargs: object) -> object:
         name = str(args[0])
         if name == "SCRIPT LOAD" and commands[-1:] == ["EVALSHA"]:
             commands.pop()

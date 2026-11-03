@@ -37,7 +37,7 @@ def _request() -> MagicMock:
     return request
 
 
-def _rule(rule_type: Any = "usage", **overrides: Any) -> BehaviorRule:
+def _rule(rule_type: object = "usage", **overrides: object) -> BehaviorRule:
     fields: dict[str, Any] = {
         "rule_type": rule_type,
         "threshold": _THRESHOLD,
@@ -60,7 +60,7 @@ def _route(*rules: BehaviorRule) -> RouteConfig:
 async def _engine(
     use_redis: bool,
     config: SecurityConfig,
-    middleware: Any = None,
+    middleware: object = None,
 ) -> AsyncIterator[tuple[BehavioralProcessor, AsyncMock]]:
     tracker = BehaviorTracker(config)
     manager = None
@@ -88,7 +88,9 @@ async def _engine(
             await manager.close()
 
 
-def _config(use_redis: bool, redis_config: SecurityConfig, **extra: Any) -> Any:
+def _config(
+    use_redis: bool, redis_config: SecurityConfig, **extra: object
+) -> SecurityConfig:
     base = redis_config if use_redis else SecurityConfig(enable_redis=False)
     return base.model_copy(update=extra)
 
@@ -228,14 +230,14 @@ class _Middleware:
 
     async def create_error_response(
         self, status_code: int, default_message: str
-    ) -> Any:
+    ) -> MagicMock:
         response = MagicMock()
         response.status_code = status_code
         response.headers = {}
         return response
 
 
-def _throttle(**overrides: Any) -> BehaviorRule:
+def _throttle(**overrides: object) -> BehaviorRule:
     return _rule(threshold=3, action="throttle", **overrides)
 
 

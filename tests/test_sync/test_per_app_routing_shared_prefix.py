@@ -24,9 +24,10 @@ from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers import _ipban_sharing, ratelimit_handler
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
-from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+from guard_core.sync.handlers.ipban_handler import IPBanManager, ip_ban_manager_for
 from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_manager_for
+from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
 from tests.test_sync.conftest import SyncMockGuardRequest, suite_redis_prefix
 from tests.test_sync.protocol_only_redis import REDIS_URL
 
@@ -76,11 +77,13 @@ def _start(prefix: str, url: str, proxies: list[str]) -> _App:
 class _SeesManagers(SecurityCheck):
     check_name = "sees_managers"
 
-    def __init__(self, middleware: Any, seen: dict[str, Any]) -> None:
+    def __init__(
+        self, middleware: SyncGuardMiddlewareProtocol, seen: dict[str, Any]
+    ) -> None:
         super().__init__(middleware)
         self.seen = seen
 
-    def check(self, request: Any) -> None:
+    def check(self, request: object) -> None:
         ban = ip_ban_manager_for(self.config)
         patterns = sus_patterns_manager_for(self.config)
         self.seen["ban"] = (ban.redis_handler, ban.agent_handler, ban.config)
@@ -100,7 +103,7 @@ def _run_request(app: _App) -> dict[str, Any]:
     return seen
 
 
-def _telemetry(app: _App) -> Any:
+def _telemetry(app: _App) -> object:
     return app.initializer.composite_handler or app.initializer.agent_handler
 
 
@@ -212,10 +215,10 @@ def test_a_dynamic_rule_ban_from_the_second_app_uses_its_own_handlers(
     second_rules.agent_handler = Mock(get_dynamic_rules=MagicMock(return_value=answer))
     seen: dict[str, Any] = {}
 
-    def not_banned(*args: Any, **kwargs: Any) -> bool:
+    def not_banned(*args: object, **kwargs: object) -> bool:
         return False
 
-    def record_ban(*args: Any, **kwargs: Any) -> bool:
+    def record_ban(*args: object, **kwargs: object) -> bool:
         seen["redis"] = ban_manager.redis_handler
         seen["agent"] = ban_manager.agent_handler
         seen["config"] = ban_manager.config
@@ -304,7 +307,9 @@ def test_the_split_warning_fires_with_a_redis_url_and_enable_redis_left_default(
 EXEMPT = "203.0.113.7"
 
 
-def _whitelist_rules(rule_id: str, whitelist: list[str], version: int = 1) -> Any:
+def _whitelist_rules(
+    rule_id: str, whitelist: list[str], version: int = 1
+) -> DynamicRules:
     now = datetime.now(timezone.utc)
     return DynamicRules(
         rule_id=rule_id,
@@ -315,7 +320,7 @@ def _whitelist_rules(rule_id: str, whitelist: list[str], version: int = 1) -> An
     )
 
 
-def _refresh(app: _App, rules: Any) -> None:
+def _refresh(app: _App, rules: DynamicRules) -> None:
     object.__setattr__(app.config, "enable_dynamic_rules", True)
     manager = DynamicRuleManager(app.config)
     manager.agent_handler = Mock(get_dynamic_rules=MagicMock(return_value=rules))
@@ -380,10 +385,10 @@ V6 = "2001:db8:1:2::9"
 
 def _record_store_ban(
     monkeypatch: pytest.MonkeyPatch,
-    manager: Any,
+    manager: IPBanManager,
     seen: list[tuple[str, str, Any, Any]],
 ) -> None:
-    def store_ban(namespace: str, key: str, *args: Any, **kwargs: Any) -> None:
+    def store_ban(namespace: str, key: str, *args: object, **kwargs: object) -> None:
         seen.append((namespace, key, manager.redis_handler, manager.agent_handler))
 
     monkeypatch.setattr(manager, "_store_ban", store_ban)
@@ -528,11 +533,13 @@ def test_a_nested_hold_restores_the_outer_scope_and_never_sets_none() -> None:
 class _ReadsScope(SecurityCheck):
     check_name = "reads_scope"
 
-    def __init__(self, middleware: Any, seen: list[Any]) -> None:
+    def __init__(
+        self, middleware: SyncGuardMiddlewareProtocol, seen: list[Any]
+    ) -> None:
         super().__init__(middleware)
         self.seen = seen
 
-    def check(self, request: Any) -> None:
+    def check(self, request: object) -> None:
         self.seen.append(_current_app_scope.get())
         return None
 
@@ -579,7 +586,7 @@ def _live_pair(prefix: str) -> tuple[_App, _App, Any]:
     return first, second, ban
 
 
-def _forget_local_bans(ban: Any) -> None:
+def _forget_local_bans(ban: IPBanManager) -> None:
     ban.banned_ips.clear()
     ban.banned_networks.clear()
 

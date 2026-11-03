@@ -2,7 +2,6 @@ import ipaddress
 import json
 import time
 from collections import deque
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 from guard_core.models import SyncSecurityConfig
@@ -567,10 +566,10 @@ def test_fetch_gcp_ignores_prefixes_lacking_both_ipv4_and_ipv6() -> None:
         def __enter__(self) -> "_FakeSession":
             return self
 
-        def __exit__(self, *_a: Any) -> None:
+        def __exit__(self, *_a: object) -> None:
             return None
 
-        def get(self, *_a: Any, **_kw: Any) -> MagicMock:
+        def get(self, *_a: object, **_kw: object) -> MagicMock:
             response = MagicMock()
             response.raise_for_status = MagicMock()
             response.json = MagicMock(

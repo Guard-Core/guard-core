@@ -1,21 +1,23 @@
-from typing import Any
+from collections.abc import Callable
 
 import pytest
 
-from guard_core.models import SyncSecurityConfig
-from guard_core.sync.decorators.base import RouteConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
+from guard_core.sync.decorators.base import GuardedParams, GuardedReturn, RouteConfig
 from guard_core.sync.decorators.content_filtering import ContentFilteringMixin
 
 
 class _Decorators(ContentFilteringMixin):
-    def _ensure_route_config(self, _func: Any) -> RouteConfig:
+    def _ensure_route_config(self, _func: object) -> RouteConfig:
         return RouteConfig()
 
-    def _apply_route_config(self, func: Any) -> Any:
+    def _apply_route_config(
+        self, func: Callable[GuardedParams, GuardedReturn]
+    ) -> Callable[GuardedParams, GuardedReturn]:
         return func
 
 
-_BAD_MAPS = [
+_BAD_MAPS: list[tuple[dict[str, set[str]], str]] = [
     ({"q": {"nope"}}, "Unknown detection categories for {option} 'q'"),
     ({"q": set()}, "{option} lists no category for 'q'"),
 ]
@@ -26,10 +28,10 @@ _BAD_MAPS = [
 )
 @pytest.mark.parametrize(("value", "message"), _BAD_MAPS)
 def test_the_config_error_names_the_option_it_validates(
-    option: str, value: Any, message: str
+    option: str, value: dict[str, set[str]], message: str
 ) -> None:
     with pytest.raises(ValueError, match=message.format(option=option)):
-        SyncSecurityConfig(**{option: value})
+        SecurityConfig.model_validate({option: value})
 
     config = SyncSecurityConfig()
     with pytest.raises(ValueError, match=message.format(option=option)):
@@ -45,7 +47,10 @@ def test_the_config_error_names_the_option_it_validates(
 )
 @pytest.mark.parametrize(("value", "message"), _BAD_MAPS)
 def test_the_decorator_error_names_the_option_it_validates(
-    argument: str, option: str, value: Any, message: str
+    argument: str, option: str, value: dict[str, set[str]], message: str
 ) -> None:
     with pytest.raises(ValueError, match=message.format(option=option)):
-        _Decorators().detection_exclusion(**{argument: value})(lambda: None)
+        if argument == "params":
+            _Decorators().detection_exclusion(params=value)(lambda: None)
+        else:
+            _Decorators().detection_exclusion(body_fields=value)(lambda: None)

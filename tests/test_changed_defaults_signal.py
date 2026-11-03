@@ -1,6 +1,7 @@
 import logging
 import warnings
 from collections.abc import Generator
+from contextlib import AbstractContextManager
 from typing import Any
 
 import pytest
@@ -46,7 +47,7 @@ def _signals(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [r.getMessage() for r in caplog.records if MARKER in r.getMessage()]
 
 
-def _build(caplog: pytest.LogCaptureFixture, **settings: Any) -> list[str]:
+def _build(caplog: pytest.LogCaptureFixture, **settings: object) -> list[str]:
     with caplog.at_level(logging.WARNING, logger="guard_core"):
         with warnings.catch_warnings():
             warnings.simplefilter("error")
@@ -66,7 +67,7 @@ def test_every_unset_flip_is_listed_once_with_its_restore_line(
 
 @pytest.mark.parametrize(("name", "value"), EXPLICIT.items())
 def test_a_stated_setting_leaves_its_flip_out(
-    name: str, value: Any, caplog: pytest.LogCaptureFixture
+    name: str, value: object, caplog: pytest.LogCaptureFixture
 ) -> None:
     signals = _build(caplog, whitelist=["203.0.113.5"], **{name: value})
 
@@ -136,7 +137,7 @@ def test_each_flip_is_logged_once_per_app(
     assert second == first * 2
 
 
-def _logging(caplog: pytest.LogCaptureFixture) -> Any:
+def _logging(caplog: pytest.LogCaptureFixture) -> AbstractContextManager[None]:
     return caplog.at_level(logging.WARNING, logger="guard_core")
 
 

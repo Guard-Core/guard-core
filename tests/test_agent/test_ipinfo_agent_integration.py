@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from collections.abc import Generator
+from collections.abc import Coroutine, Generator
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -216,7 +216,7 @@ def test_get_country_exception_create_task_fails(  # async-only
 
     create_task_called = False
 
-    def mock_create_task(coro: Any) -> Any:
+    def mock_create_task(coro: Coroutine[object, object, object]) -> object:
         nonlocal create_task_called
         create_task_called = True
         coro.close()

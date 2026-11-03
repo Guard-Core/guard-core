@@ -3,13 +3,13 @@ import math
 import time
 from collections import deque
 from collections.abc import AsyncGenerator
-from typing import Any
 
 import pytest
 
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from tests.conftest import (
     REDIS_URL,
     MockGuardRequest,
@@ -61,7 +61,7 @@ async def redis_rate_limiter(
         await redis.close()
 
 
-async def _hit(manager: RateLimitManager) -> Any:
+async def _hit(manager: RateLimitManager) -> GuardResponse | None:
     return await manager.check_rate_limit(_request(), IP, _error_response)
 
 

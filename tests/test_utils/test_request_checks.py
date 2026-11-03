@@ -649,7 +649,7 @@ async def test_check_ip_country_regression_returns_false_when_country_unresolvab
 
 
 async def test_check_ip_country_no_countries_configured(
-    caplog: Any,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = SecurityConfig(blocked_countries=[], whitelist_countries=[])
 
@@ -706,7 +706,7 @@ async def test_is_ip_allowed_cidr_whitelist() -> None:
     assert not await is_ip_allowed("172.16.0.1", config_multiple)
 
 
-async def test_is_ip_allowed_invalid_ip(caplog: Any) -> None:
+async def test_is_ip_allowed_invalid_ip(caplog: pytest.LogCaptureFixture) -> None:
     config = SecurityConfig()
 
     with caplog.at_level(logging.ERROR):
@@ -767,7 +767,7 @@ async def test_detect_penetration_attempt_regex_timeout() -> None:
         body_content=b"",
     )
 
-    async def mock_detect_with_timeout(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    async def mock_detect_with_timeout(*args: str, **kwargs: str) -> dict[str, Any]:
         return {
             "is_threat": False,
             "threat_score": 0.0,
@@ -810,7 +810,7 @@ async def test_detect_penetration_attempt_regex_exception() -> None:
         body_content=b"",
     )
 
-    async def mock_detect_with_exception(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    async def mock_detect_with_exception(*args: str, **kwargs: str) -> dict[str, Any]:
         raise Exception("Unexpected detection error")
 
     with (
@@ -845,7 +845,7 @@ async def test_detect_penetration_json_non_regex_threat() -> None:
         body_content=b"",
     )
 
-    async def mock_detect(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    async def mock_detect(*args: str, **kwargs: str) -> dict[str, Any]:
         content = args[0] if args else kwargs.get("content", "")
         if "test_password" in content:
             return {
@@ -878,7 +878,7 @@ async def test_detect_penetration_semantic_threat() -> None:
         body_content=b"",
     )
 
-    async def mock_detect(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    async def mock_detect(*args: str, **kwargs: str) -> dict[str, Any]:
         return {
             "is_threat": True,
             "threats": [
@@ -911,7 +911,7 @@ async def test_detect_penetration_semantic_threat_with_score() -> None:
         body_content=b"",
     )
 
-    async def mock_detect(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    async def mock_detect(*args: str, **kwargs: str) -> dict[str, Any]:
         return {
             "is_threat": True,
             "threats": [
@@ -940,7 +940,7 @@ async def test_detect_penetration_fallback_pattern_match() -> None:
         body_content=b"",
     )
 
-    async def mock_detect_error(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+    async def mock_detect_error(*_args: object, **_kwargs: object) -> dict[str, Any]:
         raise RuntimeError("Detection engine failure")
 
     mock_pattern = re.compile(r"<script>")
@@ -981,7 +981,7 @@ async def test_detect_penetration_fallback_pattern_exception() -> None:
         body_content=b"",
     )
 
-    async def mock_detect_error(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+    async def mock_detect_error(*_args: object, **_kwargs: object) -> dict[str, Any]:
         raise RuntimeError("Detection engine failure")
 
     mock_pattern = re.compile(r"unmatched_pattern_xyz")
@@ -1061,7 +1061,7 @@ async def test_detect_penetration_empty_threat_fallback() -> None:
         body_content=b"",
     )
 
-    async def mock_detect(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    async def mock_detect(*args: str, **kwargs: str) -> dict[str, Any]:
         if kwargs.get("content") == "suspicious_value":
             return {
                 "is_threat": True,
@@ -1090,7 +1090,7 @@ async def test_detect_penetration_unknown_threat_type() -> None:
         body_content=b"",
     )
 
-    async def mock_detect(*_args: Any, **kwargs: Any) -> dict[str, Any]:
+    async def mock_detect(*_args: object, **kwargs: object) -> dict[str, Any]:
         if kwargs.get("content") == "test_value":
             return {
                 "is_threat": True,

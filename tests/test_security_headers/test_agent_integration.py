@@ -11,6 +11,7 @@ from guard_core.handlers.security_headers_handler import (
     security_headers_manager,
 )
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import DynamicRulesProtocol
 
 
 @pytest.fixture
@@ -361,7 +362,7 @@ class _RecordingTransport:
     async def flush_buffer(self) -> None:
         return None
 
-    async def get_dynamic_rules(self) -> Any | None:
+    async def get_dynamic_rules(self) -> DynamicRulesProtocol | None:
         return None
 
     async def health_check(self) -> bool:

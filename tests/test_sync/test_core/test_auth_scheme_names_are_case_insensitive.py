@@ -1,5 +1,6 @@
 import base64
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -8,6 +9,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.helpers import _SCHEME_FAILURES
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.decorators._route_arguments import BUILT_IN_AUTH_SCHEMES
+from guard_core.sync.decorators.base import RouteConfig
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
 PASSWORD = "Sup3r-Secret-Pw"
@@ -23,24 +25,30 @@ def _config() -> SyncSecurityConfig:
     )
 
 
-def _decoding(request: Any, credential: str) -> bool:
+def _decoding(request: object, credential: str) -> bool:
     blob = credential.rsplit(" ", 1)[-1]
     user, _, password = base64.b64decode(blob).decode().partition(":")
     raise ValueError(f"backend rejected {user} with password {password}")
 
 
-def _deny(request: Any, credential: str) -> bool:
+def _deny(request: object, credential: str) -> bool:
     return False
 
 
-def _route_config(make: Any) -> Any:
+def _route_config(
+    make: Callable[
+        [SecurityDecorator], Callable[[Callable[[], None]], Callable[[], None]]
+    ],
+) -> RouteConfig:
     decorator = SecurityDecorator(_config())
 
     def route() -> None:
         pass
 
     decorated = make(decorator)(route)
-    return decorator.get_route_config(decorated._guard_route_id)
+    route_config = decorator.get_route_config(decorator._get_route_id(decorated))
+    assert route_config is not None
+    return route_config
 
 
 def test_a_capitalized_basic_type_never_logs_the_decoded_password(
@@ -86,7 +94,7 @@ def test_a_capitalized_basic_type_answers_the_basic_challenge(
 def _verifier_inputs(scheme: str, authorization: str) -> tuple[Any, list[str]]:
     received: list[str] = []
 
-    def verifier(request: Any, credential: str) -> bool:
+    def verifier(request: object, credential: str) -> bool:
         received.append(credential)
         return True
 

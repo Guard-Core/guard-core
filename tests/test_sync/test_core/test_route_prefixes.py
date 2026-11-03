@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from collections.abc import Iterable
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -75,7 +75,9 @@ def test_entry_matches_route_prefixes(
     assert entry_matches_route_prefixes(entry, prefixes) is expected
 
 
-def _middleware(config: SyncSecurityConfig, prefixes: Any = None) -> Mock:
+def _middleware(
+    config: SyncSecurityConfig, prefixes: Iterable[str] | None = None
+) -> Mock:
     middleware = Mock()
     middleware.config = config
     middleware.logger = Mock()
@@ -107,7 +109,7 @@ def _first_requests(middleware: Mock, count: int = 2) -> None:
         check.check(request)
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(enable_redis=False, **settings)
 
 

@@ -1,12 +1,17 @@
 import logging
 import warnings
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 import pytest
 
 from guard_core.decorators import SecurityDecorator
 from guard_core.models import VALID_CLOUD_PROVIDERS, SecurityConfig
+
+
+@runtime_checkable
+class _GuardedRoute(Protocol):
+    _guard_route_id: str
 
 
 def _decorator(**flag: bool) -> SecurityDecorator:
@@ -17,11 +22,13 @@ def _decorator(**flag: bool) -> SecurityDecorator:
 
 def _decorate(
     decorator: SecurityDecorator, make: Callable[[SecurityDecorator], Any]
-) -> Any:
+) -> _GuardedRoute:
     def route() -> None:
         pass
 
-    return make(decorator)(route)
+    routed = make(decorator)(route)
+    assert isinstance(routed, _GuardedRoute)
+    return routed
 
 
 EMPTY_LISTS: list[tuple[str, Callable[[SecurityDecorator], Any], str]] = [

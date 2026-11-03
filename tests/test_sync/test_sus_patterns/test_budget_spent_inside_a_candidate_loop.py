@@ -1,13 +1,13 @@
 import re
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import patch
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync._utils import detection_scan
 from guard_core.sync._utils.detection_scan import _scan_value_budget
 from guard_core.sync.handlers import _suspatterns_regex as regex_module
@@ -43,9 +43,11 @@ def test_a_budget_spent_inside_one_rows_candidates_ends_the_whole_pass() -> None
     manager = SusPatternsManager()
     manager.configure(SyncSecurityConfig(enable_redis=False))
     judged = {"count": 0}
-    real_build = regex_module._build_regex_threat
+    real_build: Callable[..., dict[str, JsonValue] | None] = (
+        regex_module._build_regex_threat
+    )
 
-    def counting_build(*args: Any, **kwargs: Any) -> Any:
+    def counting_build(*args: object, **kwargs: object) -> dict[str, JsonValue] | None:
         judged["count"] += 1
         cpu_clock[0] += _CPU_SECONDS_PER_JUDGED_CANDIDATE
         return real_build(*args, **kwargs)

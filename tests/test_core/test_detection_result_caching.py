@@ -1,5 +1,4 @@
-from types import SimpleNamespace
-from typing import Any
+from collections.abc import Callable
 
 import pytest
 
@@ -8,14 +7,18 @@ from guard_core.core.checks.helpers import get_cached_detection_result
 from guard_core.decorators.base import RouteConfig
 from guard_core.detection_result import DetectionResult
 from guard_core.models import SecurityConfig
+from guard_core.protocols.request_protocol import GuardRequest
+from tests.conftest import MockGuardRequest
 
 
-def _make_request() -> Any:
-    return SimpleNamespace(state=SimpleNamespace())
+def _make_request() -> MockGuardRequest:
+    return MockGuardRequest()
 
 
-def _bypass_fn(calls: list[int] | None = None) -> Any:
-    def bypass(*_a: Any, **_kw: Any) -> bool:
+def _bypass_fn(
+    calls: list[int] | None = None,
+) -> Callable[[str, RouteConfig | None], bool]:
+    def bypass(_path: str, _route: RouteConfig | None) -> bool:
         if calls is not None:
             calls.append(1)
         return True
@@ -57,7 +60,9 @@ async def test_cache_stores_live_object_references_not_raw_ids() -> None:
 
     await get_cached_detection_result(request, route_config, config, _bypass_fn())
 
-    cached_request, cached_route_config, _ = request.state._guard_detection_result_cache
+    cached = request.state._guard_detection_result_cache
+    assert isinstance(cached, tuple)
+    cached_request, cached_route_config, _ = cached
     assert cached_request is request
     assert cached_route_config is route_config
     assert not isinstance(cached_request, int)
@@ -85,11 +90,13 @@ async def test_reused_request_state_object_does_not_share_a_stale_result(
 ) -> None:
     config = SecurityConfig(enable_penetration_detection=True)
     route_config = RouteConfig()
-    shared_state = SimpleNamespace()
     call_count = 0
 
     async def fake_detect_penetration_patterns(
-        request: Any, route_config: Any, config: Any, should_bypass_check_fn: Any
+        request: GuardRequest,
+        route_config: RouteConfig | None,
+        config: SecurityConfig,
+        should_bypass_check_fn: Callable[[str, RouteConfig | None], bool],
     ) -> DetectionResult:
         nonlocal call_count
         call_count += 1
@@ -101,8 +108,9 @@ async def test_reused_request_state_object_does_not_share_a_stale_result(
         helpers_module, "detect_penetration_patterns", fake_detect_penetration_patterns
     )
 
-    request_1 = SimpleNamespace(state=shared_state)
-    request_2 = SimpleNamespace(state=shared_state)
+    request_1 = _make_request()
+    request_2 = _make_request()
+    request_2._state = request_1._state
 
     first = await get_cached_detection_result(
         request_1, route_config, config, _bypass_fn()

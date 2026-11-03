@@ -1,28 +1,31 @@
-from types import SimpleNamespace
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
+from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import count_hostile_signal_and_maybe_ban
 from guard_core.models import SecurityConfig, ThreatBanConfig
 
 BOT_IP = "40.0.0.1"
 
 
-def _check(config: SecurityConfig, ban: Any = None, counts: Any = None) -> Any:
+def _check(
+    config: SecurityConfig,
+    ban: AsyncMock | None = None,
+    counts: dict[str, dict[str, int]] | None = None,
+) -> Mock:
     middleware = MagicMock()
     middleware.config = config
     middleware.suspicious_request_counts = counts if counts is not None else {}
     middleware.event_bus.send_middleware_event = AsyncMock()
-    return SimpleNamespace(
-        config=config,
-        middleware=middleware,
-        logger=MagicMock(),
-        check_name="authentication",
-        ip_ban_manager=ban if ban is not None else AsyncMock(),
-    )
+    check = Mock(spec=SecurityCheck)
+    check.config = config
+    check.middleware = middleware
+    check.logger = MagicMock()
+    check.check_name = "authentication"
+    check.ip_ban_manager = ban if ban is not None else AsyncMock()
+    return check
 
 
-def _request(client_ip: str | None = BOT_IP, whitelisted: bool = False) -> Any:
+def _request(client_ip: str | None = BOT_IP, whitelisted: bool = False) -> MagicMock:
     request = MagicMock()
     request.state.client_ip = client_ip
     request.state.is_whitelisted = whitelisted

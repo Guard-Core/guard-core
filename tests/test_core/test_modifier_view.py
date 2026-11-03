@@ -1,5 +1,6 @@
 import logging
-from typing import Any, cast
+from collections.abc import Iterable
+from typing import Any, TypeVar, cast, overload
 from unittest.mock import MagicMock
 
 import pytest
@@ -22,6 +23,8 @@ from guard_core.core.responses.modifier_view import (
 from guard_core.exceptions import ResponseBodyUnavailableError
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+
+_T = TypeVar("_T")
 
 
 class _Response:
@@ -115,24 +118,36 @@ def test_undo_headers_support_the_mutable_mapping_helpers() -> None:
     assert real == {"A": "1"}
 
 
-class _AppendingHeaders(dict[str, str]):
+class _AppendingHeaders:
     def __init__(self, items: dict[str, str]) -> None:
-        super().__init__(items)
+        self._store = dict(items)
         self.pairs: list[tuple[str, str]] = list(items.items())
 
     def append(self, key: str, value: str) -> None:
         self.pairs.append((key, value))
-        self[key] = value
+        self._store[key] = value
 
-    def __setitem__(self, key: str, value: str) -> None:
-        super().__setitem__(key, value)
+    def __getitem__(self, key: str, /) -> str:
+        return self._store[key]
 
-    def items(self) -> Any:
-        return list(self.pairs)
+    def __setitem__(self, key: str, value: str, /) -> None:
+        self._store[key] = value
 
-    def __delitem__(self, key: str) -> None:
-        super().__delitem__(key)
+    def __delitem__(self, key: str, /) -> None:
+        del self._store[key]
         self.pairs = [pair for pair in self.pairs if pair[0] != key]
+
+    def __contains__(self, key: str, /) -> bool:
+        return key in self._store
+
+    def get(self, key: str, /) -> str | None:
+        return self._store.get(key)
+
+    def keys(self) -> Iterable[str]:
+        return self._store.keys()
+
+    def items(self) -> Iterable[tuple[str, str]]:
+        return list(self.pairs)
 
 
 def test_undo_headers_append_is_undone_from_a_snapshot() -> None:
@@ -390,7 +405,16 @@ def test_gate_finds_plain_dict_headers_in_either_casing(
 
 
 class _CaseInsensitive(dict[str, str]):
-    def get(self, key: str, default: Any = None) -> Any:
+    @overload
+    def get(self, key: str, default: None = None, /) -> str | None: ...
+
+    @overload
+    def get(self, key: str, default: str, /) -> str: ...
+
+    @overload
+    def get(self, key: str, default: _T, /) -> str | _T: ...
+
+    def get(self, key: str, default: object = None, /) -> object:
         return super().get(key.lower(), default)
 
 

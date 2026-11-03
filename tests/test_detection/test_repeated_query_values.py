@@ -1,5 +1,3 @@
-from typing import Any
-
 import pytest
 
 from guard_core.models import SecurityConfig
@@ -13,8 +11,8 @@ class _FirstValueRequest(MockGuardRequest):
     """A request whose query_params keeps one value per name, the way Tornado's
     adapter and Flask's .args do, while url_full keeps the whole query string."""
 
-    def __init__(self, query: str, keep: str = "last", **kwargs: Any) -> None:
-        super().__init__(path=f"/s?{query}", **kwargs)
+    def __init__(self, query: str, keep: str = "last") -> None:
+        super().__init__(path=f"/s?{query}")
         pairs = [pair.split("=", 1) for pair in query.split("&") if "=" in pair]
         chosen: dict[str, str] = {}
         for name, value in pairs:

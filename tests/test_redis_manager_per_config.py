@@ -2,7 +2,6 @@ import gc
 import time
 import weakref
 from collections.abc import AsyncGenerator
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -18,7 +17,7 @@ IP_A = "198.51.100.10"
 IP_B = "198.51.100.20"
 
 
-def _config(prefix: str, **extra: Any) -> SecurityConfig:
+def _config(prefix: str, **extra: object) -> SecurityConfig:
     return SecurityConfig(
         enable_redis=True, redis_url=REDIS_URL, redis_prefix=prefix, **extra
     )
@@ -181,9 +180,11 @@ async def test_managers_on_the_same_connection_settings_share_one_client() -> No
     builds: list[str] = []
     real = redis_handler_module._build_redis_client
 
-    def counting(*args: Any, **kwargs: Any) -> Any:
-        builds.append(args[0])
-        return real(*args, **kwargs)
+    def counting(
+        url: str, max_connections: int, pool_timeout: float, **connection_kwargs: object
+    ) -> Redis:
+        builds.append(url)
+        return real(url, max_connections, pool_timeout, **connection_kwargs)
 
     with patch.object(redis_handler_module, "_build_redis_client", counting):
         await app_a.initialize()

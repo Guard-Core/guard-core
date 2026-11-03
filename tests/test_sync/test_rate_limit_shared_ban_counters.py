@@ -6,9 +6,11 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from guard_core.sync.handlers.redis_handler import RedisManager
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from tests.test_sync.conftest import (
     REDIS_URL,
     MockGuardResponse,
@@ -66,7 +68,7 @@ class _Worker:
 
         self.check.ip_ban_manager = Mock(_ban_ip_escalating=record_ban)
 
-    def violate(self) -> Any:
+    def violate(self) -> GuardResponse | None:
         request = SyncMockGuardRequest(path="/x", client_host=IP)
         request.state.client_ip = IP
         request.state.route_config = None
@@ -132,11 +134,11 @@ def test_the_ban_clears_the_violations_on_the_handler_that_counted_them(
     real_record = module.record_shared_violation
     real_forget = module.forget_shared_violations
 
-    def record(handler: Any, ip: str) -> int:
+    def record(handler: SyncRedisHandlerProtocol, ip: str) -> int:
         counted_on.append(handler)
         return real_record(handler, ip)
 
-    def forget(handler: Any, ip: str) -> None:
+    def forget(handler: SyncRedisHandlerProtocol, ip: str) -> None:
         forgotten_on.append(handler)
         real_forget(handler, ip)
 
@@ -146,7 +148,7 @@ def test_the_ban_clears_the_violations_on_the_handler_that_counted_them(
     handler_reads: list[Any] = []
     real_read = worker.check._shared_redis
 
-    def read_handler() -> Any:
+    def read_handler() -> SyncRedisHandlerProtocol | None:
         handler_reads.append(None)
         return real_read()
 

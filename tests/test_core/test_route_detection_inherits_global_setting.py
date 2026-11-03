@@ -1,7 +1,6 @@
-from typing import Any
-
 import pytest
 
+from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.decorators import SecurityDecorator, get_route_id
 from guard_core.decorators.route_config import RouteConfig
 from guard_core.models import SecurityConfig
@@ -19,7 +18,7 @@ def _config(detection: bool) -> SecurityConfig:
     )
 
 
-async def _status(pipeline: Any, route_id: str) -> int | None:
+async def _status(pipeline: SecurityCheckPipeline, route_id: str) -> int | None:
     response = await send_request(pipeline, route_id, ip="203.0.113.80", path=SQLI_PATH)
     return None if response is None else response.status_code
 

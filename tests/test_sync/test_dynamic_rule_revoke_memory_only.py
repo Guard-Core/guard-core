@@ -1,6 +1,6 @@
 import time
 from collections.abc import Generator
-from typing import Any
+from contextlib import AbstractContextManager
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,7 +26,7 @@ def redis_fleet() -> Generator[Fleet, None]:
     _close_fleet(opened)
 
 
-def _failing_write(fleet: Fleet) -> Any:
+def _failing_write(fleet: Fleet) -> AbstractContextManager[object]:
     return patch.object(
         fleet.redis,
         "write_ban_extending_only",

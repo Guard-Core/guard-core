@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -12,6 +11,7 @@ from guard_core.sync.core.checks.endpoint_limit_keys import (
 )
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 
 def _identity(handler: object, **params: str) -> RouteIdentity:
@@ -77,7 +77,7 @@ def config() -> SyncSecurityConfig:
     return SyncSecurityConfig(enable_redis=False, passive_mode=False)
 
 
-def _check(config: SyncSecurityConfig, resolver: Any) -> RateLimitCheck:
+def _check(config: SyncSecurityConfig, resolver: object) -> RateLimitCheck:
     middleware = Mock()
     middleware.config = config
     middleware.resolve_route = resolver
@@ -86,7 +86,7 @@ def _check(config: SyncSecurityConfig, resolver: Any) -> RateLimitCheck:
     return RateLimitCheck(middleware)
 
 
-def _request(path: str, identity: RouteIdentity | None) -> Any:
+def _request(path: str, identity: RouteIdentity | None) -> Mock:
     request = Mock()
     request.url_path = path
     request.state = Mock(spec=["guard_route_identity"])
@@ -146,7 +146,7 @@ def test_pipeline_needs_route_identity_follows_its_checks(
     assert pipeline.needs_route_identity is True
 
 
-def _enforced_keys(check: RateLimitCheck, request: Any) -> list[str]:
+def _enforced_keys(check: RateLimitCheck, request: SyncGuardRequest) -> list[str]:
     return [plan.tier.bucket for plan in check._endpoint_plans(request)]
 
 
@@ -192,7 +192,7 @@ def test_other_ids_do_not_borrow_a_concrete_id_key(
 class _PlainCheck(SecurityCheck):
     check_name = "plain"
 
-    def check(self, request: Any) -> None:
+    def check(self, request: object) -> None:
         return None
 
 

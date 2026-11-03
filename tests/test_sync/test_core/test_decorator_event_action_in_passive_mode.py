@@ -1,8 +1,10 @@
+from collections.abc import Callable
 from typing import Any
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync.decorators import SecurityDecorator
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
 
@@ -10,11 +12,11 @@ class _RecordingAgent:
     def __init__(self) -> None:
         self.events: list[Any] = []
 
-    def send_event(self, event: Any) -> None:
+    def send_event(self, event: object) -> None:
         self.events.append(event)
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -53,7 +55,7 @@ CASES: list[tuple[str, Any, dict[str, str], int]] = [
 )
 def test_the_decorator_event_reports_whether_the_request_was_blocked(
     event_type: str,
-    make: Any,
+    make: Callable[[SecurityDecorator], object],
     headers: dict[str, str],
     requests: int,
     passive: bool,

@@ -18,7 +18,7 @@ def reset_singleton() -> Iterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _rules(**overrides: Any) -> DynamicRules:
+def _rules(**overrides: object) -> DynamicRules:
     base: dict[str, Any] = {
         "rule_id": "R",
         "version": 1,
@@ -29,7 +29,7 @@ def _rules(**overrides: Any) -> DynamicRules:
 
 
 def _manager(
-    **config_kwargs: Any,
+    **config_kwargs: object,
 ) -> tuple[DynamicRuleManager, SyncSecurityConfig, Any]:
     settings: dict[str, Any] = {
         "enable_redis": False,
@@ -56,7 +56,7 @@ def _poll(manager: DynamicRuleManager, rules: DynamicRules) -> None:
     manager.update_rules()
 
 
-def _event_types(send_event: Any) -> list[tuple[str, str]]:
+def _event_types(send_event: MagicMock) -> list[tuple[str, str]]:
     return [
         (call.args[0].event_type, call.args[0].action_taken)
         for call in send_event.call_args_list

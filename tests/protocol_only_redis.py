@@ -1,8 +1,7 @@
 import os
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from typing import Any
 
 from typing_extensions import get_protocol_members
 
@@ -24,8 +23,10 @@ class ProtocolOnlyHandler:
         for name in MEMBERS - {"config"}:
             setattr(self, name, self._recording(name, getattr(inner, name)))
 
-    def _recording(self, name: str, method: Any) -> Any:
-        def call(*args: Any, **kwargs: Any) -> Any:
+    def _recording(
+        self, name: str, method: Callable[..., object]
+    ) -> Callable[..., object]:
+        def call(*args: object, **kwargs: object) -> object:
             self.used.add(name)
             return method(*args, **kwargs)
 
@@ -34,18 +35,20 @@ class ProtocolOnlyHandler:
 
 @asynccontextmanager
 async def protocol_only_handler(
-    prefix: str = "wp69", **config: Any
+    prefix: str = "wp69", **config: object
 ) -> AsyncIterator[ProtocolOnlyHandler]:
     manager = RedisManager(
-        SecurityConfig(
-            enable_redis=True,
-            redis_url=REDIS_URL,
-            redis_prefix=f"{prefix}:{uuid.uuid4().hex}:",
-            enable_rate_limiting=True,
-            enable_ip_banning=True,
-            enable_penetration_detection=True,
-            whitelist=["127.0.0.1"],
-            **config,
+        SecurityConfig.model_validate(
+            {
+                "enable_redis": True,
+                "redis_url": REDIS_URL,
+                "redis_prefix": f"{prefix}:{uuid.uuid4().hex}:",
+                "enable_rate_limiting": True,
+                "enable_ip_banning": True,
+                "enable_penetration_detection": True,
+                "whitelist": ["127.0.0.1"],
+                **config,
+            }
         )
     )
     await manager.initialize()

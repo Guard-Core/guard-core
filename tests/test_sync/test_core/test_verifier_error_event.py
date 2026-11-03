@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -7,6 +8,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync.core.events.event_types import EventFilter
 from guard_core.sync.core.events.middleware_events import SecurityEventBus
+from guard_core.sync.decorators import SecurityDecorator
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
 _REQUESTS = 5
@@ -16,10 +18,10 @@ class _RecordingAgent:
     def __init__(self) -> None:
         self.events: list[Any] = []
 
-    def send_event(self, event: Any) -> None:
+    def send_event(self, event: object) -> None:
         self.events.append(event)
 
-    def initialize_redis(self, redis_handler: Any) -> None:
+    def initialize_redis(self, redis_handler: object) -> None:
         return None
 
     def send_metric(self, metric: object) -> None:
@@ -44,7 +46,7 @@ class _RecordingAgent:
         return True
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
@@ -56,11 +58,13 @@ def _config(**overrides: Any) -> SyncSecurityConfig:
     )
 
 
-def _raising(request: Any, credential: str) -> bool:
+def _raising(request: object, credential: str) -> bool:
     raise RuntimeError(f"auth backend down for {credential}")
 
 
-def _wired(config: SyncSecurityConfig, make: Any) -> tuple[Any, Any, str, Any]:
+def _wired(
+    config: SyncSecurityConfig, make: Callable[[SecurityDecorator], object]
+) -> tuple[Any, Any, str, Any]:
     pipeline, middleware, route_id = build_route_pipeline(config, make)
     agent = _RecordingAgent()
     middleware.guard_decorator.initialize_agent(agent)
@@ -91,7 +95,7 @@ def _wired(config: SyncSecurityConfig, make: Any) -> tuple[Any, Any, str, Any]:
     ],
 )
 def test_a_verifier_outage_is_reported_as_a_verifier_error_not_an_attack(
-    make: Any,
+    make: Callable[[SecurityDecorator], object],
     headers: dict[str, str],
     secret: str,
     auth_type: str,

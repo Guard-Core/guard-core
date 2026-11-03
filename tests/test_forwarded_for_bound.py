@@ -2,9 +2,11 @@
 entries, bounded before any entry is parsed (a 16 KiB header holds about 2,000)."""
 
 import random
-from types import SimpleNamespace
-from typing import Any
+from collections.abc import Sequence
+from ipaddress import IPv4Address, IPv6Address
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from guard_core._utils import ip_extraction
 from guard_core._utils.ip_extraction import (
@@ -54,7 +56,9 @@ def old_display(value: str) -> str:
     return ",".join(displayed)
 
 
-def old_claims(config: Any, forwarded_for: str, route_whitelist: Any) -> bool:
+def old_claims(
+    config: SecurityConfig, forwarded_for: str, route_whitelist: Sequence[str] | None
+) -> bool:
     for entry in forwarded_for.split(","):
         address = ip_extraction._peer_address_for_matching(
             _strip_forwarded_entry_port(entry.strip())
@@ -74,11 +78,11 @@ def old_claims(config: Any, forwarded_for: str, route_whitelist: Any) -> bool:
     return False
 
 
-def _check() -> Any:
+def _check() -> IpSecurityCheck:
     config = SecurityConfig(
         enable_redis=False, trusted_proxies=PROXIES, whitelist=WHITELIST
     )
-    return SimpleNamespace(config=config)
+    return IpSecurityCheck(MagicMock(config=config))
 
 
 def test_entries_are_bounded_before_parsing_and_the_rest_is_counted() -> None:
@@ -92,11 +96,13 @@ def test_entries_are_bounded_before_parsing_and_the_rest_is_counted() -> None:
     )
 
 
-def test_a_long_header_parses_at_most_the_bound(monkeypatch: Any) -> None:
+def test_a_long_header_parses_at_most_the_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: list[str] = []
     original = ip_extraction._peer_address_for_matching
 
-    def counting(value: str, nat64: Nat64Table) -> Any:
+    def counting(value: str, nat64: Nat64Table) -> IPv4Address | IPv6Address | None:
         calls.append(value)
         return original(value, nat64)
 

@@ -1,9 +1,13 @@
 import asyncio
 import os
-from typing import Any
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 import pytest
+
+if TYPE_CHECKING:
+    from testcontainers.core.container import DockerContainer
 
 pytestmark = [
     pytest.mark.integration,
@@ -15,7 +19,7 @@ pytestmark = [
 
 
 @pytest.fixture(scope="module")
-def jaeger_container() -> Any:
+def jaeger_container() -> Iterator["DockerContainer"]:
     from testcontainers.core.container import DockerContainer
     from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 
@@ -33,14 +37,14 @@ def jaeger_container() -> Any:
 
 
 @pytest.fixture
-def jaeger_otlp_endpoint(jaeger_container: Any) -> str:
+def jaeger_otlp_endpoint(jaeger_container: "DockerContainer") -> str:
     host = jaeger_container.get_container_host_ip()
     port = jaeger_container.get_exposed_port(4318)
     return f"http://{host}:{port}"
 
 
 @pytest.fixture
-def jaeger_ui_url(jaeger_container: Any) -> str:
+def jaeger_ui_url(jaeger_container: "DockerContainer") -> str:
     host = jaeger_container.get_container_host_ip()
     port = jaeger_container.get_exposed_port(16686)
     return f"http://{host}:{port}"

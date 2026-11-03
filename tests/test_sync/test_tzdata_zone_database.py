@@ -1,7 +1,7 @@
 import re
 import zoneinfo
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock
@@ -46,7 +46,7 @@ def test_a_named_zone_resolves_without_the_system_zone_database() -> None:
 def test_a_time_window_with_a_zone_works_without_the_system_zone_database() -> None:
     seen: list[Any] = []
 
-    def now(zone: Any) -> datetime:
+    def now(zone: tzinfo | None) -> datetime:
         seen.append(zone)
         return datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc).astimezone(zone)
 

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from ipaddress import ip_network
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, Protocol
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -34,6 +34,7 @@ from guard_core.sync.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_manager_for,
 )
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.geo_fixture import country_database_bytes
 from tests.test_sync.conftest import SyncMockGuardRequest, suite_redis_prefix
@@ -63,7 +64,7 @@ def _fake_download_body(
     sink.write(country_database_bytes("XX"))
 
 
-def _start_app(prefix: str, database_path: Path, **settings: Any) -> _App:
+def _start_app(prefix: str, database_path: Path, **settings: object) -> _App:
     geo = IPInfoManager(token="token-shared", db_path=database_path)
     config = SyncSecurityConfig(
         enable_redis=True,
@@ -124,8 +125,15 @@ def _keys(prefix: str) -> set[str]:
         close_redis_client(client)
 
 
-def _prefix_of(manager: Any) -> str:
-    return str(manager.redis_handler.config.redis_prefix)
+class _HasRedisHandler(Protocol):
+    @property
+    def redis_handler(self) -> SyncRedisHandlerProtocol | None: ...
+
+
+def _prefix_of(manager: _HasRedisHandler) -> str:
+    handler = manager.redis_handler
+    assert handler is not None
+    return str(handler.config.redis_prefix)
 
 
 def test_custom_patterns_of_each_app_land_under_its_own_prefix(

@@ -1,6 +1,7 @@
 import asyncio
 import ipaddress
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import AbstractContextManager
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -18,7 +19,8 @@ from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
-from guard_core.protocols.agent_protocol import JsonValue
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol, JsonValue
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
 from tests.fake_agent import mock_agent
@@ -41,13 +43,13 @@ class _Agent:
     def __init__(self) -> None:
         self.events: list[Any] = []
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         self.events.append(event)
 
-    async def send_metric(self, metric: Any) -> None:
+    async def send_metric(self, metric: object) -> None:
         return None
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(self, redis_handler: object) -> None:
         return None
 
     async def start(self) -> None:
@@ -59,7 +61,7 @@ class _Agent:
     async def flush_buffer(self) -> None:
         return None
 
-    async def get_dynamic_rules(self) -> Any | None:
+    async def get_dynamic_rules(self) -> None:
         return None
 
     async def health_check(self) -> bool:
@@ -76,7 +78,7 @@ def reset_singleton() -> Iterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     fields: dict[str, Any] = {
         "enable_redis": False,
         "enable_agent": True,
@@ -89,7 +91,7 @@ def _config(**overrides: Any) -> SecurityConfig:
     return SecurityConfig(**fields)
 
 
-def _rules(**overrides: Any) -> DynamicRules:
+def _rules(**overrides: object) -> DynamicRules:
     fields: dict[str, Any] = {
         "rule_id": RULE_ID,
         "version": 1,
@@ -114,34 +116,41 @@ async def _apply(
 
 
 def _pipeline(
-    config: SecurityConfig, geo: Any = None
-) -> tuple[SecurityCheckPipeline, Any]:
+    config: SecurityConfig, geo: object = None
+) -> tuple[SecurityCheckPipeline, MagicMock]:
     middleware = build_middleware(config, SecurityDecorator(config), geo)
     return build_default_pipeline(middleware), middleware
 
 
 async def _run(
-    config: SecurityConfig, request: MockGuardRequest, geo: Any = None
-) -> Any:
+    config: SecurityConfig, request: MockGuardRequest, geo: object = None
+) -> MagicMock:
     pipeline, middleware = _pipeline(config, geo)
     await pipeline.execute(request)
     return middleware
 
 
-def _bus_events(middleware: Any, event_type: str) -> list[dict[str, Any]]:
+def _bus_events(middleware: MagicMock, event_type: str) -> list[dict[str, Any]]:
     calls = middleware.event_bus.send_middleware_event.call_args_list
     return [call.kwargs for call in calls if call.kwargs["event_type"] == event_type]
 
 
-def _attr(fields: Any) -> dict[str, Any]:
+def _attr(fields: Mapping[str, object]) -> dict[str, Any]:
     return {key: value for key, value in fields.items() if key.startswith("matched_")}
 
 
-def _request(ip: str = RULE_IP, path: str = "/x", **kwargs: Any) -> MockGuardRequest:
-    return MockGuardRequest(path=path, client_host=ip, **kwargs)
+def _request(
+    ip: str = RULE_IP,
+    path: str = "/x",
+    headers: dict[str, str] | None = None,
+    query_params: dict[str, str] | None = None,
+) -> MockGuardRequest:
+    return MockGuardRequest(
+        path=path, client_host=ip, headers=headers, query_params=query_params
+    )
 
 
-async def _one(middleware: Any, event_type: str) -> dict[str, Any]:
+async def _one(middleware: MagicMock, event_type: str) -> dict[str, Any]:
     [event] = _bus_events(middleware, event_type)
     return event
 
@@ -262,7 +271,7 @@ async def test_a_deny_under_a_static_allow_list_is_not_the_rules() -> None:
     assert _attr(event) == {}
 
 
-def _aws_cloud() -> Any:
+def _aws_cloud() -> AbstractContextManager[object]:
     return patch.multiple(
         cloud_handler,
         is_cloud_ip=MagicMock(return_value=True),
@@ -555,7 +564,7 @@ async def test_an_allowed_request_never_builds_the_view(
     assert reads == []
 
 
-def _detection_config(**overrides: Any) -> SecurityConfig:
+def _detection_config(**overrides: object) -> SecurityConfig:
     return _config(enable_penetration_detection=True, **overrides)
 
 
@@ -698,7 +707,7 @@ async def test_a_static_user_agent_block_without_any_rule_carries_nothing() -> N
     assert _attr(await _one(middleware, "user_agent_blocked")) == {}
 
 
-def _gcp_ranges() -> Any:
+def _gcp_ranges() -> AbstractContextManager[object]:
     central = ipaddress.ip_network("34.100.0.0/24")
     europe = ipaddress.ip_network("35.200.0.0/24")
     return patch.multiple(
@@ -714,7 +723,9 @@ CENTRAL_IP = "34.100.0.5"
 EUROPE_IP = "35.200.0.5"
 
 
-async def _gcp_events(static: set[str], rule: set[str], ip: str) -> Any:
+async def _gcp_events(
+    static: set[str], rule: set[str], ip: str
+) -> list[dict[str, object]]:
     config = _config(block_cloud_providers=static or None)
     await _apply(config, _rules(blocked_cloud_providers=rule))
     with _gcp_ranges():
@@ -759,7 +770,7 @@ async def test_a_region_both_sources_carve_out_stays_free() -> None:
 
 
 def _route_blocks(selector: str) -> Callable[[SecurityDecorator], Any]:
-    def apply(decorator: SecurityDecorator) -> Any:
+    def apply(decorator: SecurityDecorator) -> object:
         return decorator.block_clouds([selector])
 
     return apply
@@ -866,7 +877,7 @@ def _count_view_reads(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     def counting(name: str) -> Callable[..., Any]:
         original = getattr(RuleAttribution, name)
 
-        def read(*args: Any, **kwargs: Any) -> Any:
+        def read(*args: object, **kwargs: object) -> object:
             reads.append(name)
             return original(*args, **kwargs)
 
@@ -874,9 +885,9 @@ def _count_view_reads(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     for name in _VIEW_READERS:
         monkeypatch.setattr(RuleAttribution, name, counting(name))
-    held_stamp = ip_security_module.cached_ban_stamp
+    held_stamp: Callable[..., object] = ip_security_module.cached_ban_stamp
 
-    def read_held_stamp(*args: Any, **kwargs: Any) -> Any:
+    def read_held_stamp(*args: object, **kwargs: object) -> object:
         reads.append("cached_ban_stamp")
         return held_stamp(*args, **kwargs)
 
@@ -884,15 +895,17 @@ def _count_view_reads(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return reads
 
 
-def _real_bus(config: SecurityConfig, middleware: Any, agent: Any) -> None:
+def _real_bus(
+    config: SecurityConfig, middleware: MagicMock, agent: AgentHandlerProtocol | None
+) -> None:
     from guard_core.core.events.middleware_events import SecurityEventBus
 
     middleware.event_bus = SecurityEventBus(agent, config)
 
 
 async def _blocked_without_a_consumer(
-    config: SecurityConfig, request: MockGuardRequest, geo: Any = None
-) -> Any:
+    config: SecurityConfig, request: MockGuardRequest, geo: object = None
+) -> GuardResponse | None:
     pipeline, middleware = _pipeline(config, geo)
     _real_bus(config, middleware, None)
     return await pipeline.execute(request)

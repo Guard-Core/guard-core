@@ -1,4 +1,4 @@
-from typing import Any
+from collections.abc import Awaitable, Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from guard_core.core.checks.implementations.authentication import AuthenticationCheck
@@ -47,22 +47,24 @@ def _make_middleware(
 
 def _make_request_with_route_config(
     route_config: RouteConfig,
-    **kwargs: Any,
+    headers: dict[str, str] | None = None,
 ) -> MockGuardRequest:
-    req = MockGuardRequest(**kwargs)
+    req = MockGuardRequest(headers=headers)
     req.state.route_config = route_config
     return req
 
 
-def _verifier_returning(principal: Any) -> Any:
-    def verifier(request: Any, credential: str) -> Any:
+def _verifier_returning(principal: object) -> Callable[[object, str], object]:
+    def verifier(request: object, credential: str) -> object:
         return principal
 
     return verifier
 
 
-def _async_verifier_returning(principal: Any) -> Any:
-    async def verifier(request: Any, credential: str) -> Any:
+def _async_verifier_returning(
+    principal: object,
+) -> Callable[[object, str], Awaitable[object]]:
+    async def verifier(request: object, credential: str) -> object:
         return principal
 
     return verifier
@@ -103,7 +105,7 @@ async def test_verifier_denial_rejected() -> None:
 
 
 async def test_verifier_raises_exception_fail_closed() -> None:
-    def verifier(_request: Any, _credential: str) -> Any:
+    def verifier(_request: object, _credential: str) -> object:
         raise RuntimeError("jwt decode failed")
 
     mw = _deny_response_mw()
@@ -319,5 +321,5 @@ async def test_passive_mode_denial_does_not_block() -> None:
     assert result is None
 
 
-def request_state_auth_principal(req: MockGuardRequest) -> Any:
+def request_state_auth_principal(req: MockGuardRequest) -> object:
     return req.state.auth_principal

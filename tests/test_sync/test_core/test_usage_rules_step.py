@@ -2,12 +2,13 @@ import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, cast, overload
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
+from guard_core.protocols.request_protocol import GuardRequestHeaders
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.behavioral import _throttle
 from guard_core.sync.core.behavioral.context import BehavioralContext
@@ -21,6 +22,7 @@ from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers._behavior_throttle import bucket_key, usage_hits_key
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from guard_core.sync.handlers.redis_handler import redis_handler
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from tests.test_sync.conftest import MockGuardResponse, MockGuardResponseFactory
 
 _IP = "203.0.113.77"
@@ -32,13 +34,23 @@ class _Request:
         self, method: str = "POST", headers: dict[str, str] | None = None
     ) -> None:
         self.method = method
-        self.headers = headers or {}
+        self.headers: GuardRequestHeaders = headers or {}
         self.url_path = "/api/reports"
+        self.url_scheme = "https"
+        self.url_full = "https://test/api/reports"
         self.client_host = _IP
+        self.query_params: dict[str, str] = {}
+        self.scope: dict[str, object] = {}
         self.state = SimpleNamespace(guard_route_id=_ENDPOINT)
 
+    def url_replace_scheme(self, scheme: str) -> str:
+        return f"{scheme}://test/api/reports"
 
-def _request(method: str = "POST", headers: dict[str, str] | None = None) -> Any:
+    def body(self) -> bytes:
+        return b""
+
+
+def _request(method: str = "POST", headers: dict[str, str] | None = None) -> _Request:
     return _Request(method, headers)
 
 
@@ -65,7 +77,9 @@ class _Middleware:
 
 
 class _AnsweringMiddleware(_Middleware):
-    def create_error_response(self, status_code: int, default_message: str) -> Any:
+    def create_error_response(
+        self, status_code: int, default_message: str
+    ) -> GuardResponse:
         return self._factory.create_error_response(status_code, default_message)
 
 
@@ -74,7 +88,7 @@ class _Blocker(SecurityCheck):
     def check_name(self) -> str:
         return "ip_security"
 
-    def check(self, request: Any) -> GuardResponse | None:
+    def check(self, request: object) -> GuardResponse | None:
         return MockGuardResponse("blocked", 403)
 
 
@@ -108,7 +122,7 @@ class _App:
         self.pipeline = SecurityCheckPipeline(checks)
         self.route_config = route_config
 
-    def serve(self, request: Any = None) -> Any:
+    def serve(self, request: SyncGuardRequest | None = None) -> GuardResponse | None:
         request = request or _request()
         refused = self.pipeline.execute(request)
         if refused is None:
@@ -116,12 +130,12 @@ class _App:
             self.adapter_response_phase(request)
         return refused
 
-    def adapter_usage_call(self, request: Any) -> Any:
+    def adapter_usage_call(self, request: SyncGuardRequest) -> object:
         if self.route_config is None or not self.route_config.behavior_rules:
             return None
         return self.processor.process_usage_rules(request, _IP, self.route_config)
 
-    def adapter_response_phase(self, request: Any) -> None:
+    def adapter_response_phase(self, request: SyncGuardRequest) -> None:
         rules = [
             BehaviorRule(cfg.rule_type, cfg.threshold, cfg.window, action=cfg.action)
             for cfg in self.config.global_behavior_rules
@@ -143,13 +157,13 @@ class _App:
         return len(self.tracker.usage_counts.get(key, {}).get(_IP, []))
 
 
-def _rule(action: str = "throttle", **fields: Any) -> BehaviorRuleConfig:
+def _rule(action: str = "throttle", **fields: object) -> BehaviorRuleConfig:
     return BehaviorRuleConfig(
         rule_type="usage", threshold=1, window=60, action=action, **fields
     )
 
 
-def _config(**fields: Any) -> SyncSecurityConfig:
+def _config(**fields: object) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -182,6 +196,7 @@ def test_refusal_carries_retry_after_and_the_body_of_the_error_response() -> Non
     app = _App(_config(global_behavior_rules=(_rule(),)))
     app.serve()
     refused = app.serve()
+    assert refused is not None
     assert refused.status_code == 429
     assert refused.body == b"Too many requests"
     assert 0 < int(refused.headers["Retry-After"]) <= 60
@@ -210,7 +225,7 @@ class _PassCheck(SecurityCheck):
     def check_name(self) -> str:
         return "suspicious_activity"
 
-    def check(self, request: Any) -> GuardResponse | None:
+    def check(self, request: object) -> GuardResponse | None:
         return None
 
 
@@ -231,10 +246,25 @@ class _PairIteratingHeaders:
     def __init__(self, pairs: dict[str, str]) -> None:
         self._pairs = pairs
 
+    def __getitem__(self, name: str) -> str:
+        return self._pairs[name]
+
+    def __contains__(self, name: str) -> bool:
+        return name in self._pairs
+
+    def items(self) -> Iterator[tuple[str, str]]:
+        return iter(self._pairs.items())
+
     def keys(self) -> list[str]:
         return list(self._pairs)
 
-    def get(self, name: str, default: str | None = None) -> str | None:
+    @overload
+    def get(self, name: str, /) -> str | None: ...
+
+    @overload
+    def get(self, name: str, default: str, /) -> str: ...
+
+    def get(self, name: str, default: str | None = None, /) -> str | None:
         return self._pairs.get(name, default)
 
     def __iter__(self) -> Iterator[tuple[str, str]]:

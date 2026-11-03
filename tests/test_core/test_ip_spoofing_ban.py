@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,7 +22,7 @@ def clear_untrusted_peer_activity() -> Generator[None, None, None]:
     ip_extraction._untrusted_peers.clear()
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: object) -> SecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -36,7 +37,7 @@ def _config(**overrides: Any) -> SecurityConfig:
 
 async def _send(
     config: SecurityConfig, peer: str, forwarded_for_values: list[str]
-) -> Any:
+) -> MagicMock:
     pipeline, middleware, route_id = build_route_pipeline(
         config, lambda d: d.max_request_size(10**6)
     )

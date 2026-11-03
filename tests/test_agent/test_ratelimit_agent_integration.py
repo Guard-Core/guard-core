@@ -7,6 +7,7 @@ import pytest
 
 from guard_core.handlers.ratelimit_handler import RateLimitManager, RateLimitTier
 from guard_core.models import SecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from tests.conftest import MockGuardRequest
 
 
@@ -15,6 +16,7 @@ class _FakeErrorResponse:
         self.status_code = status_code
         self.message = message
         self.headers: dict[str, str] = {}
+        self.body: bytes | None = None
 
 
 @pytest.fixture(autouse=True)
@@ -124,7 +126,7 @@ async def test_check_rate_limit_agent_event_called() -> None:
 
     mock_request = MockGuardRequest(path="/api/endpoint", method="GET")
 
-    async def mock_error_response(status_code: int, message: str) -> Any:
+    async def mock_error_response(status_code: int, message: str) -> GuardResponse:
         return _FakeErrorResponse(status_code, message)
 
     with (
@@ -179,10 +181,12 @@ async def test_check_rate_limit_redis_path_with_agent() -> None:
         def __init__(self) -> None:
             self.evalsha = AsyncMock(return_value=[1, 14, 60])
 
-        async def __aenter__(self) -> Any:
+        async def __aenter__(self) -> "MockRedisConnection":
             return self
 
-        async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
+        async def __aexit__(
+            self, exc_type: object, exc_val: object, exc_tb: object
+        ) -> None:
             return None
 
     mock_redis = AsyncMock()
@@ -192,7 +196,7 @@ async def test_check_rate_limit_redis_path_with_agent() -> None:
 
     mock_request = MockGuardRequest(path="/api/test", method="POST")
 
-    async def mock_error_response(status_code: int, message: str) -> Any:
+    async def mock_error_response(status_code: int, message: str) -> GuardResponse:
         return _FakeErrorResponse(status_code, message)
 
     with patch(
@@ -266,7 +270,7 @@ async def test_handle_rate_limit_exceeded_uses_the_passed_configs_sensitive_sets
 
     mock_request = MockGuardRequest(path="/api/endpoint", method="GET")
 
-    async def mock_error_response(status_code: int, message: str) -> Any:
+    async def mock_error_response(status_code: int, message: str) -> GuardResponse:
         return _FakeErrorResponse(status_code, message)
 
     with patch(

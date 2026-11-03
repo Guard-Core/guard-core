@@ -1,6 +1,6 @@
 import random
 import re
-from typing import Any
+from collections.abc import Iterable
 
 import pytest
 
@@ -32,17 +32,20 @@ def _long_tail_rows() -> list[tuple[str, str]]:
     return rows
 
 
-def _names(nodes: Any) -> list[str]:
+def _names(nodes: Iterable[tuple[object, object]]) -> list[str]:
     """Every string a literal-only alternation can match, from the parsed pattern."""
     results = [""]
     for operation, argument in nodes:
         kind = str(operation)
         if kind == "LITERAL":
+            assert isinstance(argument, int)
             results = [text + chr(argument) for text in results]
         elif kind == "SUBPATTERN":
+            assert isinstance(argument, tuple)
             options = _names(argument[3])
             results = [text + option for text in results for option in options]
         elif kind == "BRANCH":
+            assert isinstance(argument, tuple)
             options = [name for branch in argument[1] for name in _names(branch)]
             results = [text + option for text in results for option in options]
         else:

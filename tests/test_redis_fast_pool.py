@@ -5,11 +5,12 @@ import time
 import warnings
 from collections.abc import AsyncGenerator
 from types import ModuleType
-from typing import Any
+from typing import NoReturn
 
 import pytest
 import redis.asyncio.connection as redis_connection_module
 from redis.asyncio import ConnectionPool, Redis
+from redis.asyncio.connection import AbstractConnection
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from guard_core.handlers import _redis_fast_pool
@@ -29,14 +30,16 @@ async def client() -> AsyncGenerator[Redis, None]:
     await close_redis_client(built)
 
 
-async def _hold_all(pool: Any) -> list[Any]:
+async def _hold_all(pool: ConnectionPool) -> list[AbstractConnection]:
     return [await pool.get_connection() for _ in range(POOL_SIZE)]
 
 
-async def _timed_acquire(pool: Any) -> tuple[Any, float]:
+async def _timed_acquire(
+    pool: ConnectionPool,
+) -> tuple[AbstractConnection | RedisConnectionError, float]:
     started = time.monotonic()
     try:
-        outcome: Any = await pool.get_connection()
+        outcome: AbstractConnection | RedisConnectionError = await pool.get_connection()
     except RedisConnectionError as error:
         outcome = error
     return outcome, time.monotonic() - started
@@ -46,7 +49,7 @@ class _ForbiddenCondition:
     async def __aenter__(self) -> None:
         raise AssertionError("the fast path must not touch the condition")
 
-    async def __aexit__(self, *exc_info: Any) -> None:
+    async def __aexit__(self, *_exc_info: object) -> None:
         return None
 
 
@@ -67,9 +70,9 @@ async def test_the_fast_path_records_no_wait_sample_and_the_slow_path_one(
 ) -> None:
     samples: list[float] = []
 
-    async def record(**sample: Any) -> None:
-        assert sample["pool_name"] == "test-pool"
-        samples.append(sample["duration_seconds"])
+    async def record(*, pool_name: str, duration_seconds: float) -> None:
+        assert pool_name == "test-pool"
+        samples.append(duration_seconds)
 
     monkeypatch.setattr(
         _redis_fast_pool, "_WAIT_RECORDER", (record, lambda pool: "test-pool")
@@ -96,7 +99,7 @@ async def test_n_plus_k_concurrent_acquires_each_get_a_connection_or_the_error(
 ) -> None:
     pool = client.connection_pool
 
-    async def one() -> tuple[Any, float]:
+    async def one() -> tuple[AbstractConnection | RedisConnectionError, float]:
         outcome, elapsed = await _timed_acquire(pool)
         if not isinstance(outcome, Exception):
             await asyncio.sleep(0.2)
@@ -208,7 +211,7 @@ async def test_a_failure_after_the_wake_is_raised_not_retried(
     waiter = asyncio.create_task(_timed_acquire(pool))
     await asyncio.sleep(0.05)
 
-    async def refuse(*_args: Any, **_kwargs: Any) -> None:
+    async def refuse(*_args: object, **_kwargs: object) -> NoReturn:
         raise RedisConnectionError("refused")
 
     monkeypatch.setattr(ConnectionPool, "get_connection", refuse)
@@ -238,7 +241,7 @@ async def test_a_redis_without_a_wait_recorder_still_waits_and_acquires(
 def test_the_wait_recorder_is_absent_when_redis_py_has_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def refuse(name: str) -> Any:
+    def refuse(name: str) -> NoReturn:
         raise ImportError(name)
 
     assert (

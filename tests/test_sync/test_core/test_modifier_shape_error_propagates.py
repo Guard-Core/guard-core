@@ -3,6 +3,7 @@ from typing import Any, cast
 
 import pytest
 
+from guard_core._security_config_fields import CustomResponseModifier
 from guard_core.exceptions import CallableShapeError
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
@@ -12,7 +13,7 @@ from guard_core.sync.core.responses.factory import ErrorResponseFactory
 
 
 class _Metrics:
-    def collect_request_metrics(self, *args: Any, **kwargs: Any) -> None:
+    def collect_request_metrics(self, *args: object, **kwargs: object) -> None:
         return None
 
 
@@ -36,7 +37,7 @@ class _StreamedResponse:
         return self._body[:max_bytes]
 
 
-def _process(modifier: Any) -> GuardResponse:
+def _process(modifier: CustomResponseModifier) -> GuardResponse:
     config = SyncSecurityConfig(enable_redis=False)
     config.custom_response_modifier = modifier
     factory = ErrorResponseFactory(
@@ -56,7 +57,7 @@ def _process(modifier: Any) -> GuardResponse:
 
 
 def test_a_marked_modifier_that_raises_a_shape_error_is_not_swallowed() -> None:
-    def modifier(response: Any) -> Any:
+    def modifier(response: GuardResponse) -> GuardResponse:
         raise CallableShapeError("custom_response_modifier")
 
     with pytest.raises(CallableShapeError):

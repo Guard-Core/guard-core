@@ -21,7 +21,7 @@ def reset_singleton() -> Iterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _snapshot_rules(**overrides: Any) -> DynamicRules:
+def _snapshot_rules(**overrides: object) -> DynamicRules:
     base: dict[str, Any] = {
         "rule_id": "stored",
         "version": 3,

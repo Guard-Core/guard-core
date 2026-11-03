@@ -1,8 +1,7 @@
 import re
 import time
-from collections.abc import AsyncGenerator, Iterator
+from collections.abc import AsyncGenerator, Callable, Iterator
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -19,6 +18,7 @@ from guard_core.handlers.suspatterns_handler import (
     sus_patterns_handler,
 )
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 
 _DOLLAR_ROW = re.compile(_GLUED_DOLLAR_SUBSTITUTION_CANDIDATE_RE)
 _CANDIDATES = 30
@@ -61,9 +61,11 @@ async def test_candidate_loop_ends_the_scan_once_the_budget_is_spent() -> None:
     manager = SusPatternsManager()
     manager.configure(SecurityConfig(enable_redis=False))
     judged = {"count": 0}
-    real_build = regex_module._build_regex_threat
+    real_build: Callable[..., dict[str, JsonValue] | None] = (
+        regex_module._build_regex_threat
+    )
 
-    def counting_build(*args: Any, **kwargs: Any) -> Any:
+    def counting_build(*args: object, **kwargs: object) -> dict[str, JsonValue] | None:
         judged["count"] += 1
         return real_build(*args, **kwargs)
 
@@ -88,9 +90,11 @@ async def test_pattern_loop_reports_a_spent_candidate_loop_as_incomplete() -> No
     manager = SusPatternsManager()
     manager.configure(SecurityConfig(enable_redis=False))
     judged = {"count": 0}
-    real_build = regex_module._build_regex_threat
+    real_build: Callable[..., dict[str, JsonValue] | None] = (
+        regex_module._build_regex_threat
+    )
 
-    def counting_build(*args: Any, **kwargs: Any) -> Any:
+    def counting_build(*args: object, **kwargs: object) -> dict[str, JsonValue] | None:
         judged["count"] += 1
         return real_build(*args, **kwargs)
 
@@ -106,7 +110,7 @@ async def test_pattern_loop_reports_a_spent_candidate_loop_as_incomplete() -> No
 
 
 async def test_fallback_check_ends_in_the_budget_outcome() -> None:
-    async def spent(*args: Any, **kwargs: Any) -> tuple[None, bool]:
+    async def spent(*args: object, **kwargs: object) -> tuple[None, bool]:
         raise ScanBudgetSpent
 
     with patch.object(sus_patterns_handler, "_check_regex_pattern", spent):

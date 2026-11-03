@@ -20,6 +20,7 @@ from guard_core.sync.handlers.ratelimit_handler import (
     rate_limit_handler,
 )
 from guard_core.sync.handlers.redis_handler import RedisManager
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from tests.test_sync.conftest import (
     REDIS_URL,
     MockGuardResponse,
@@ -43,7 +44,7 @@ INSIDE = "198.51.100.10"
 OUTSIDE = "203.0.113.10"
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
+def _config(**overrides: object) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
@@ -74,7 +75,9 @@ def redis() -> Generator[RedisManager, None]:
         ratelimit_handler.clear_by_ip_strikes()
 
 
-def _middleware(config: SyncSecurityConfig, redis: Any) -> MagicMock:
+def _middleware(
+    config: SyncSecurityConfig, redis: SyncRedisHandlerProtocol
+) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = logging.getLogger("test_review_fixes")
@@ -101,7 +104,7 @@ def _detect(
         threat_scores={"xss": 1.0},
     )
 
-    def fake(*_args: Any, **_kwargs: Any) -> DetectionResult:
+    def fake(*_args: object, **_kwargs: object) -> DetectionResult:
         return result
 
     monkeypatch.setattr(f"{DETECT}.get_cached_detection_result", fake)
@@ -231,7 +234,7 @@ def test_the_rate_limit_feed_never_records_detection_strikes(
     calls = {"count": 0}
     real = ratelimit_handler.record_shared_violation
 
-    def flaky(handler: Any, ip: str) -> int:
+    def flaky(handler: SyncRedisHandlerProtocol, ip: str) -> int:
         calls["count"] += 1
         if calls["count"] == 2:
             raise RuntimeError("redis hiccup")
@@ -257,7 +260,7 @@ def test_keys_returns_a_key_once_when_scan_yields_it_twice(
 ) -> None:
     manager = RedisManager(SyncSecurityConfig(enable_redis=True))
 
-    def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
+    def scan_iter(*_args: object, **_kwargs: object) -> object:
         for key in ("p:a", "p:b", "p:a", "p:c", "p:b"):
             yield str(key)
 

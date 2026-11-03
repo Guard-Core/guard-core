@@ -6,6 +6,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers.cloud_handler import cloud_handler
+from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
 AWS_RANGE = ipaddress.ip_network("198.51.100.0/24")
@@ -13,7 +14,7 @@ GCP_RANGE = ipaddress.ip_network("203.0.113.0/24")
 CLIENT = "198.51.100.77"
 
 
-def _config(**settings: Any) -> SyncSecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -24,9 +25,13 @@ def _config(**settings: Any) -> SyncSecurityConfig:
 
 
 def _initializer(
-    config: SyncSecurityConfig, decorator: SecurityDecorator, **kw: Any
+    config: SyncSecurityConfig,
+    decorator: SecurityDecorator,
+    agent_handler: SyncAgentHandlerProtocol | None = None,
 ) -> HandlerInitializer:
-    return HandlerInitializer(config=config, guard_decorator=decorator, **kw)
+    return HandlerInitializer(
+        config=config, guard_decorator=decorator, agent_handler=agent_handler
+    )
 
 
 def test_a_route_only_block_clouds_loads_its_ranges_and_blocks() -> None:

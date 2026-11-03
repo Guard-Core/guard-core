@@ -50,7 +50,9 @@ def test_loopback_connect_is_allowed() -> None:
         (socket.AF_INET6, ("2001:db8::1", 443, 0, 0), False),
     ],
 )
-def test_is_allowed_decision(family: int, address: object, allowed: bool) -> None:
+def test_is_allowed_decision(
+    family: int, address: tuple[object, ...] | str | bytes, allowed: bool
+) -> None:
     assert network_guard.is_allowed(family, address) is allowed
 
 

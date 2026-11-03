@@ -1,7 +1,6 @@
 import asyncio
 import time
 import uuid
-from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -9,7 +8,7 @@ from redis.asyncio import Redis
 from redis.exceptions import ConnectionError
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.handlers.redis_handler import redis_handler
+from guard_core.handlers.redis_handler import RedisManager, redis_handler
 from guard_core.models import SecurityConfig
 from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
 
@@ -51,7 +50,7 @@ async def test_redis_error_handling(security_config_redis: SecurityConfig) -> No
     handler = redis_handler(security_config_redis)
     await handler.initialize()
 
-    async def _fail_operation(conn: Any) -> None:
+    async def _fail_operation(conn: Redis) -> None:
         raise ConnectionError("Test connection error")
 
     with pytest.raises(GuardRedisError) as exc_info:
@@ -302,7 +301,7 @@ async def test_count_sliding_window_hits_disabled_redis_returns_zero(
 
 @pytest.mark.asyncio
 async def test_count_sliding_window_hits_returns_zero_when_the_operation_fails(
-    security_config_redis: SecurityConfig, monkeypatch: Any
+    security_config_redis: SecurityConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     handler = redis_handler(security_config_redis)
     await handler.initialize()
@@ -318,12 +317,12 @@ async def test_count_sliding_window_hits_returns_zero_when_the_operation_fails(
 
 @pytest.mark.asyncio
 async def test_redis_connection_context_get_error(
-    security_config_redis: SecurityConfig, monkeypatch: Any
+    security_config_redis: SecurityConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     handler = redis_handler(security_config_redis)
     await handler.initialize()
 
-    async def mock_get(*args: Any, **kwargs: Any) -> None:
+    async def mock_get(*_args: object, **_kwargs: object) -> None:
         raise ConnectionError("Test connection error on get")
 
     with pytest.raises(GuardRedisError) as exc_info:
@@ -426,7 +425,7 @@ async def test_safe_operation_redis_disabled(security_config: SecurityConfig) ->
 
 @pytest.mark.asyncio
 async def test_connection_context_redis_none(
-    security_config_redis: SecurityConfig, monkeypatch: Any
+    security_config_redis: SecurityConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     handler = redis_handler(security_config_redis)
 
@@ -667,7 +666,7 @@ _NS = "sliding_window_test"
 
 
 async def _indexed_hits(
-    handler: Any, index: str, max_members: int, hits: dict[str, list[float]]
+    handler: RedisManager, index: str, max_members: int, hits: dict[str, list[float]]
 ) -> None:
     for key, timestamps in hits.items():
         for timestamp in timestamps:
@@ -676,7 +675,7 @@ async def _indexed_hits(
             )
 
 
-async def _index_members(handler: Any, index: str) -> set[str]:
+async def _index_members(handler: RedisManager, index: str) -> set[str]:
     prefix = f"{handler.config.redis_prefix}{_NS}:"
     async with handler.get_connection() as conn:
         members = await conn.smembers(f"{prefix}{index}")

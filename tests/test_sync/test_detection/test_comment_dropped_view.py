@@ -1,10 +1,10 @@
 import json
-from typing import Any
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
+from guard_core.sync.handlers._suspatterns_enhanced import _DetectionState
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -118,9 +118,15 @@ def test_the_semantic_analyzer_sees_both_views(
     seen: list[str] = []
     original = SusPatternsManager._check_semantic_threats
 
-    def spy(self: Any, content: str, **kwargs: Any) -> Any:
+    def spy(
+        self: SusPatternsManager,
+        content: str,
+        *,
+        state: _DetectionState | None = None,
+        raw_content: str | None = None,
+    ) -> tuple[list[dict], float]:
         seen.append(content)
-        return original(self, content, **kwargs)
+        return original(self, content, state=state, raw_content=raw_content)
 
     monkeypatch.setattr(SusPatternsManager, "_check_semantic_threats", spy)
 

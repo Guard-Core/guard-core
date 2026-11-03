@@ -21,8 +21,8 @@ from tests.conftest import REDIS_URL, MockGuardRequest
 from tests.ipban_redis_fake import fake_ban_redis
 
 
-def _scan_iter_of(keys: list[str]) -> Any:
-    async def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
+def _scan_iter_of(keys: list[str]) -> object:
+    async def scan_iter(*_args: object, **_kwargs: object) -> object:
         for key in keys:
             yield str(key)
 

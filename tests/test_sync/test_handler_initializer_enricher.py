@@ -28,7 +28,7 @@ class _FakeAgent:
     def flush_buffer(self) -> None:
         return None
 
-    def get_dynamic_rules(self) -> Any | None:
+    def get_dynamic_rules(self) -> None:
         return None
 
     def health_check(self) -> bool:

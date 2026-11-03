@@ -3,7 +3,6 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -50,7 +49,7 @@ from guard_core.sync.detection_engine._redos_unreachable_terminator import (
     _quantifier_at_allows_zero,
     _skip_quantifier_at,
 )
-from guard_core.sync.detection_engine.compiler import PatternCompiler
+from guard_core.sync.detection_engine.compiler import PatternCompiler, _MatchWorkWrapper
 from guard_core.sync.handlers.suspatterns_handler import (
     _PATTERN_SCAN_WINDOW_MATCHERS,
     _SCAN_WINDOW_PATTERNS,
@@ -928,7 +927,7 @@ def test_custom_pattern_routed_through_pool_path() -> None:
         pattern: str | re.Pattern,
         timeout: float | None = None,
         inline_safe: bool = False,
-        worker_wrapper: Any = None,
+        worker_wrapper: _MatchWorkWrapper | None = None,
         outcome: list[str] | None = None,
     ) -> Callable[[str], list[re.Match]]:
         captured.append(inline_safe)
@@ -959,7 +958,7 @@ def test_built_in_pattern_routed_through_inline_safe_path() -> None:
         pattern: str | re.Pattern,
         timeout: float | None = None,
         inline_safe: bool = False,
-        worker_wrapper: Any = None,
+        worker_wrapper: _MatchWorkWrapper | None = None,
         outcome: list[str] | None = None,
     ) -> Callable[[str], list[re.Match]]:
         captured.append(inline_safe)

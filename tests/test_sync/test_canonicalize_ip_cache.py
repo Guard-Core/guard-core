@@ -1,4 +1,4 @@
-from typing import Any
+from ipaddress import IPv4Address, IPv6Address
 
 import pytest
 
@@ -10,7 +10,7 @@ def _count_parses(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     parsed: list[str] = []
     real_ip_address = ip_extraction.ip_address
 
-    def counting(value: Any) -> Any:
+    def counting(value: str) -> IPv4Address | IPv6Address:
         parsed.append(value)
         return real_ip_address(value)
 
