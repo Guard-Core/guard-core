@@ -186,3 +186,25 @@ def test_the_lazy_hook_answers_again_without_building_twice_and_dir_lists_it() -
     assert {"SyncSecurityConfig", "SyncGuardRequest"} <= set(models.__dir__())
     with pytest.raises(AttributeError):
         models.__getattr__(_UNUSABLE_NAME + " ")
+
+
+def test_the_parametrized_class_builds_its_schema_on_its_first_instance() -> None:
+    code = (
+        "import guard_core.models as m\n"
+        "from guard_core.models import SecurityConfig\n"
+        "sync = m.SyncSecurityConfig\n"
+        "before = sync.__pydantic_complete__\n"
+        "config = sync(enable_redis=False, rate_limit=7)\n"
+        "print(before, sync.__pydantic_complete__, config.rate_limit,\n"
+        "      sync.model_config == SecurityConfig.model_config,\n"
+        "      'defer_build' in SecurityConfig.model_config)\n"
+    )
+
+    assert _fresh(code) == "False True 7 True False"
+
+
+def test_the_deferred_class_still_refuses_what_the_base_refuses() -> None:
+    sync = models.SyncSecurityConfig
+
+    with pytest.raises(ValueError, match="rate_limit"):
+        sync(enable_redis=False, rate_limit="many")
