@@ -2,7 +2,7 @@
   "suite": "xss",
   "kind": "detect",
   "spec_version": "4.1.0",
-  "engine_version": "4.4.0",
+  "engine_version": "5.0.0",
   "cases": [
     {
       "id": "xss_script_alert",

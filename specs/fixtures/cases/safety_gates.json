@@ -2,7 +2,7 @@
   "suite": "safety_gates",
   "kind": "pattern_safety",
   "spec_version": "4.1.0",
-  "engine_version": "4.4.0",
+  "engine_version": "5.0.0",
   "cases": [
     {
       "id": "safety_test_strings_safe_01",
@@ -1380,10 +1380,10 @@
         "reason_class": "over_budget"
       },
       "reference": {
-        "extrapolated_seconds": 843.456,
+        "extrapolated_seconds": 673.415,
         "budget_seconds": 0.05,
-        "margin": 16869.1,
-        "load_average_at_generation": 6.3
+        "margin": 13468.3,
+        "load_average_at_generation": 18.5
       }
     },
     {
@@ -1430,12 +1430,12 @@
         "reason_class": "probe_string_timeout"
       },
       "reference": {
-        "observed_cpu_seconds": 0.279,
+        "observed_cpu_seconds": 0.294,
         "threshold_seconds": 0.05,
         "kill_seconds": 2.0,
-        "margin_over_threshold": 5.6,
-        "margin_under_kill": 7.2,
-        "load_average_at_generation": 6.3
+        "margin_over_threshold": 5.9,
+        "margin_under_kill": 6.8,
+        "load_average_at_generation": 18.5
       }
     }
   ]
