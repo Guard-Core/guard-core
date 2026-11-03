@@ -19,7 +19,7 @@ from guard_core._security_headers_record_validation import (
 )
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
-from guard_core.sync.handlers.redis_handler import scan_unlink
+from guard_core.sync.handlers._redis_scan_unlink import scan_unlink
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 

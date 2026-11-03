@@ -18,7 +18,7 @@ from guard_core.handlers._ipban_events import IpBanEventMixin
 from guard_core.handlers._ipban_lookup import IpBanLookupMixin
 from guard_core.handlers._ipban_recidive import IpBanRecidiveMixin
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
-from guard_core.handlers.redis_handler import scan_unlink
+from guard_core.handlers._redis_scan_unlink import scan_unlink
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.utils import _canonicalize_ip

@@ -18,7 +18,7 @@ from guard_core._security_headers_record_validation import (
     validate_cached_hsts,
 )
 from guard_core._utils.logging_utils import _sanitize_for_log
-from guard_core.handlers.redis_handler import scan_unlink
+from guard_core.handlers._redis_scan_unlink import scan_unlink
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
