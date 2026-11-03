@@ -46,6 +46,7 @@ lock:
 upgrade:
 	@uv lock --upgrade
 	@uv lock --directory tools/semgrep --upgrade
+	@curl --fail --silent --show-error --location https://semgrep.dev/c/auto --output tools/semgrep/rules.yaml
 	@uv sync --all-extras
 	@$(CLEAN_CACHES)
 
@@ -158,7 +159,10 @@ deptry:
 semgrep:
 	@echo "Running Semgrep static analysis..."
 	@echo ''
-	@uv run --project tools/semgrep --locked semgrep --config=auto guard_core
+	@report="$$(mktemp)"; \
+	uv run --project tools/semgrep --locked semgrep --config tools/semgrep/rules.yaml --metrics=off --disable-version-check --json --quiet --output "$$report" guard_core \
+		&& uv run --project tools/semgrep --locked python tools/semgrep/check_findings.py "$$report"; \
+	status=$$?; rm -f "$$report"; exit $$status
 	@$(CLEAN_CACHES)
 
 

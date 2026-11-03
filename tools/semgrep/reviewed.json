@@ -1,0 +1,420 @@
+{
+  "reviewed": [
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/__init__.py",
+      "code": "import_module(module_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/_lazy_patterns.py",
+      "code": "importlib.import_module(self._module)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/core/__init__.py",
+      "code": "import_module(module_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/core/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/core/checks/__init__.py",
+      "code": "import_module(f\"{__name__}.{module_name}\")",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/core/checks/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/core/checks/implementations/__init__.py",
+      "code": "import_module(f\"{__name__}.{module_name}\")",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/core/checks/implementations/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/core/events/__init__.py",
+      "code": "import_module(module_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/core/events/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/core/validation/__init__.py",
+      "code": "import_module(module_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/core/validation/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/handlers/__init__.py",
+      "code": "import_module(module_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/handlers/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/__init__.py",
+      "code": "import_module(module_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/core/__init__.py",
+      "code": "import_module(module_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/core/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/core/checks/__init__.py",
+      "code": "import_module(f\"{__name__}.{module_name}\")",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/core/checks/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/core/checks/implementations/__init__.py",
+      "code": "import_module(f\"{__name__}.{module_name}\")",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/core/checks/implementations/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/core/events/__init__.py",
+      "code": "import_module(module_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/core/events/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/core/validation/__init__.py",
+      "code": "import_module(module_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/core/validation/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/handlers/__init__.py",
+      "code": "import_module(module_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.audit.non-literal-import.non-literal-import",
+      "path": "guard_core/sync/handlers/__init__.py",
+      "code": "import_module(submodule_name)",
+      "count": 1,
+      "reason": "Lazy loader (module __getattr__ or lazy pattern holder). The name is looked up in a fixed table in this file, or must resolve with find_spec as a submodule of this same package, so a caller cannot make it import outside the package.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.dangerous-globals-use.dangerous-globals-use",
+      "path": "guard_core/models.py",
+      "code": "globals()[name]",
+      "count": 1,
+      "reason": "Lazy SyncSecurityConfig build in models.__getattr__: the name must be in the fixed _LAZY_NAMES set (checked just above) and globals() is only updated under _build_lock.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/core/checks/_rate_limit_ban_first.py",
+      "code": "hashlib.sha1( BAN_FIRST_RATE_LIMIT_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/core/checks/_rate_limit_ban_first.py",
+      "code": "hashlib.sha1( BAN_RATE_STRIKE_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/handlers/_redis_ban_strike.py",
+      "code": "hashlib.sha1( BAN_CHECK_AND_RECORD_STRIKE_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/handlers/redis_handler.py",
+      "code": "hashlib.sha1( EXTEND_ONLY_BAN_WRITE_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/handlers/redis_handler.py",
+      "code": "hashlib.sha1( FORGET_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/handlers/redis_handler.py",
+      "code": "hashlib.sha1( PURGE_OWNED_BAN_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/handlers/redis_handler.py",
+      "code": "hashlib.sha1( READ_DETECTION_CATEGORIES_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/handlers/redis_handler.py",
+      "code": "hashlib.sha1( RECORD_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/handlers/redis_handler.py",
+      "code": "hashlib.sha1( SLIDING_WINDOW_HIT_REFUSAL_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/handlers/redis_handler.py",
+      "code": "hashlib.sha1( SLIDING_WINDOW_HIT_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/handlers/redis_handler.py",
+      "code": "hashlib.sha1( SUM_INDEXED_WINDOW_HITS_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/sync/core/checks/_rate_limit_ban_first.py",
+      "code": "hashlib.sha1( BAN_FIRST_RATE_LIMIT_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/sync/core/checks/_rate_limit_ban_first.py",
+      "code": "hashlib.sha1( BAN_RATE_STRIKE_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/sync/handlers/_redis_ban_strike.py",
+      "code": "hashlib.sha1( BAN_CHECK_AND_RECORD_STRIKE_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/sync/handlers/redis_handler.py",
+      "code": "hashlib.sha1( EXTEND_ONLY_BAN_WRITE_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/sync/handlers/redis_handler.py",
+      "code": "hashlib.sha1( FORGET_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/sync/handlers/redis_handler.py",
+      "code": "hashlib.sha1( PURGE_OWNED_BAN_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/sync/handlers/redis_handler.py",
+      "code": "hashlib.sha1( READ_DETECTION_CATEGORIES_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/sync/handlers/redis_handler.py",
+      "code": "hashlib.sha1( RECORD_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/sync/handlers/redis_handler.py",
+      "code": "hashlib.sha1( SLIDING_WINDOW_HIT_REFUSAL_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/sync/handlers/redis_handler.py",
+      "code": "hashlib.sha1( SLIDING_WINDOW_HIT_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    },
+    {
+      "rule": "python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1",
+      "path": "guard_core/sync/handlers/redis_handler.py",
+      "code": "hashlib.sha1( SUM_INDEXED_WINDOW_HITS_SCRIPT.encode(), usedforsecurity=False )",
+      "count": 1,
+      "reason": "The digest is the SHA1 of a Lua script that Redis EVALSHA addresses by (Redis defines script identity as SHA1); it protects nothing and the call passes usedforsecurity=False. The rule matches hashlib.sha1(...) with no exclusion for that argument.",
+      "expires": "2026-12-15"
+    }
+  ]
+}
