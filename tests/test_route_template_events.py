@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -124,7 +123,7 @@ def test_event_fields_carry_the_normalised_template_only_when_there_is_one() -> 
     assert route_template_event_fields(request.state) == {}
 
 
-def _middleware(lookup: Any) -> MagicMock:
+def _middleware(lookup: object) -> MagicMock:
     middleware = MagicMock()
     middleware.config = SecurityConfig(enable_redis=False)
     middleware.logger = MagicMock()
