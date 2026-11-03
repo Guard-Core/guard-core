@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -11,7 +10,7 @@ _REAL_REDIS_MANAGER_INITIALIZE = RedisManager.initialize
 
 
 @pytest.fixture(autouse=True)
-def patch_security_event() -> Any:
+def patch_security_event() -> object:
     with patch(
         "guard_core.handlers.redis_handler.SecurityEvent", create=True
     ) as mock_event:
@@ -278,7 +277,7 @@ async def test_safe_operation_failure_with_agent() -> None:
     mock_agent = AsyncMock()
     manager.agent_handler = mock_agent
 
-    async def failing_func(conn: Any) -> None:
+    async def failing_func(conn: object) -> None:
         raise Exception("Operation failed")
 
     failing_func.__name__ = "failing_func"
@@ -302,7 +301,7 @@ async def test_safe_operation_error_inside_context() -> None:
     mock_redis = AsyncMock()
     manager._redis = mock_redis
 
-    async def failing_operation(conn: Any) -> None:
+    async def failing_operation(conn: object) -> None:
         raise ValueError("Operation error inside context")
 
     failing_operation.__name__ = "failing_operation"
