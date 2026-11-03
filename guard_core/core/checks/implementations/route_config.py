@@ -1,5 +1,3 @@
-from typing import TYPE_CHECKING
-
 from guard_core._utils.route_gate import (
     ROUTE_TEMPLATE_STATE_ATTR,
     record_route_template,
@@ -12,9 +10,6 @@ from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import extract_client_ip, log_activity
 
-if TYPE_CHECKING:
-    from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
-
 UNRESOLVED_ROUTE_REASON = (
     "Route resolution failed; per-route decorator config could not be applied"
 )
@@ -22,12 +17,6 @@ UNRESOLVED_ROUTE_REASON = (
 
 class RouteConfigCheck(SecurityCheck):
     enforced_on_excluded_paths = True
-
-    def __init__(self, middleware: "GuardMiddlewareProtocol") -> None:
-        super().__init__(middleware)
-        # the instance slot `check` is filled now so the first request only swaps
-        # its value: the instance dict keeps one layout for every request
-        object.__setattr__(self, "check", self.check)
 
     @property
     def check_name(self) -> str:
@@ -95,16 +84,19 @@ class RouteConfigCheck(SecurityCheck):
         return self.config.enable_cors and is_preflight(request.method, request.headers)
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:
+        # The first request warns once, then moves this instance to the class that
+        # serves every later request with no per-request test of what is now known.
         warn_unmatched_exclude_paths(self.middleware, self.config)
-        steady = (
-            self._check_and_record_template
+        self.__class__ = (
+            _TemplateRecordingRouteConfigCheck
             if callable(getattr(self.middleware, "route_template", None))
-            else self._check_route_config
+            else _PlainRouteConfigCheck
         )
-        object.__setattr__(self, "check", steady)
-        return await steady(request)
+        return await self.check(request)
 
-    async def _check_route_config(self, request: GuardRequest) -> GuardResponse | None:
+
+class _PlainRouteConfigCheck(RouteConfigCheck):
+    async def check(self, request: GuardRequest) -> GuardResponse | None:
         route_config = self.middleware.route_resolver.get_route_config(request)
         state = request.state
         state.route_config = route_config
@@ -119,9 +111,9 @@ class RouteConfigCheck(SecurityCheck):
             return await self._handle_unresolved_route(request)
         return None
 
-    async def _check_and_record_template(
-        self, request: GuardRequest
-    ) -> GuardResponse | None:
+
+class _TemplateRecordingRouteConfigCheck(RouteConfigCheck):
+    async def check(self, request: GuardRequest) -> GuardResponse | None:
         route_config = self.middleware.route_resolver.get_route_config(request)
         state = request.state
         state.route_config = route_config
