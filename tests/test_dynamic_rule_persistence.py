@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
 import pytest
 from guard_agent.models import DynamicRules as AgentDynamicRules
@@ -24,7 +23,7 @@ from guard_core.handlers._dynamic_rule_persistence import (
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import DynamicRules, SecurityConfig
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_URL, suite_redis_prefix
 
 MANAGER_LOGGER = "guard_core.handlers.dynamic_rule"
 
@@ -178,7 +177,7 @@ async def test_restart_with_saas_down_hydrates_last_known_rules_from_redis() -> 
 
 @pytest.mark.asyncio
 async def test_restart_hydrates_from_real_redis_snapshot() -> None:
-    prefix = f"guard-core-dynamic-rules-{uuid4().hex}:"
+    prefix = suite_redis_prefix("guard-core-dynamic-rules")
     store_config = SecurityConfig(
         enable_redis=True, redis_url=REDIS_URL, redis_prefix=prefix
     )

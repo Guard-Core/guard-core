@@ -1,4 +1,3 @@
-import uuid
 from collections.abc import Generator
 from typing import Any
 
@@ -8,7 +7,11 @@ from pydantic import ValidationError
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from guard_core.sync.handlers.redis_handler import RedisManager
-from tests.test_sync.conftest import REDIS_URL, MockGuardResponse
+from tests.test_sync.conftest import (
+    REDIS_URL,
+    MockGuardResponse,
+    suite_redis_prefix,
+)
 
 POOL_SIZE = 3
 
@@ -21,7 +24,7 @@ def _config(**settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
-        "redis_prefix": f"test:wp3:{uuid.uuid4().hex}:",
+        "redis_prefix": suite_redis_prefix("wp3"),
         "redis_max_connections": POOL_SIZE,
         "rate_limit": 1000,
         "rate_limit_window": 60,

@@ -327,7 +327,7 @@ def test_three_apps_each_keep_their_own_managers_after_a_collection(
     apps: tuple[_App, _App],
 ) -> None:
     app_a, app_b = apps
-    app_c = _start_app(f"c{uuid.uuid4().hex[:8]}:", app_a.geo.db_path)
+    app_c = _start_app(suite_redis_prefix("c"), app_a.geo.db_path)
     try:
         for app in (app_a, app_b, app_c):
             DynamicRuleManager(app.config).initialize_redis(app.redis)

@@ -1,5 +1,4 @@
 import logging
-import uuid
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -18,7 +17,12 @@ from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.ratelimit_handler import RateLimitManager, rate_limit_handler
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL, MockGuardRequest, MockGuardResponse
+from tests.conftest import (
+    REDIS_URL,
+    MockGuardRequest,
+    MockGuardResponse,
+    suite_redis_prefix,
+)
 
 DETECT = "guard_core.core.checks.implementations.suspicious_activity"
 
@@ -40,7 +44,7 @@ def _config(**overrides: Any) -> SecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
-        "redis_prefix": f"test:wp3fu:review:{uuid.uuid4().hex}:",
+        "redis_prefix": suite_redis_prefix("wp3fu:review"),
         "enable_penetration_detection": True,
         "enable_ip_banning": True,
         "auto_ban_threshold": 100,

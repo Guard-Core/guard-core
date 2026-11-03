@@ -1,6 +1,5 @@
 import asyncio
 import time
-import uuid
 from collections import Counter
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -12,7 +11,12 @@ from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL, MockGuardRequest, MockGuardResponse
+from tests.conftest import (
+    REDIS_URL,
+    MockGuardRequest,
+    MockGuardResponse,
+    suite_redis_prefix,
+)
 
 POOL_SIZE = 3
 
@@ -25,7 +29,7 @@ def _config(**settings: Any) -> SecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
-        "redis_prefix": f"test:wp3:{uuid.uuid4().hex}:",
+        "redis_prefix": suite_redis_prefix("wp3"),
         "redis_max_connections": POOL_SIZE,
         "rate_limit": 1000,
         "rate_limit_window": 60,

@@ -19,7 +19,7 @@ from guard_core.sync.handlers._behavior_throttle import ThrottleCheck, _with_cor
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from guard_core.sync.handlers.ratelimit_handler import record_shared_violation
 from guard_core.sync.handlers.redis_handler import RedisManager
-from tests.test_sync.conftest import REDIS_URL, MockGuardResponse
+from tests.test_sync.conftest import REDIS_URL, MockGuardResponse, suite_redis_prefix
 from tests.test_sync.engine_redis_commands import (
     engine_commands_sent,
     engine_redis_url,
@@ -35,7 +35,7 @@ def _config(**overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": engine_redis_url(REDIS_URL),
-        "redis_prefix": f"test:wp3fu:readers:{uuid.uuid4().hex}:",
+        "redis_prefix": suite_redis_prefix("wp3fu:readers"),
         "enable_penetration_detection": True,
         "enable_ip_banning": True,
         "auto_ban_threshold": 1000,

@@ -1,6 +1,5 @@
 import gc
 import time
-import uuid
 import weakref
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -12,6 +11,7 @@ from redis.asyncio import Redis
 from guard_core.handlers import redis_handler as redis_handler_module
 from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.models import SecurityConfig
+from tests.conftest import suite_redis_prefix
 from tests.protocol_only_redis import REDIS_URL
 
 IP_A = "198.51.100.10"
@@ -25,7 +25,7 @@ def _config(prefix: str, **extra: Any) -> SecurityConfig:
 
 
 def _prefix(tag: str) -> str:
-    return f"wp74{tag}:{uuid.uuid4().hex}:"
+    return suite_redis_prefix(f"wp74{tag}")
 
 
 @pytest.fixture

@@ -1,5 +1,4 @@
 import logging
-import uuid
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock, Mock
@@ -12,7 +11,7 @@ from guard_core.sync.core.checks.implementations.suspicious_activity import (
 )
 from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.handlers.redis_handler import RedisManager
-from tests.test_sync.conftest import REDIS_URL
+from tests.test_sync.conftest import REDIS_URL, suite_redis_prefix
 from tests.test_sync.engine_redis_commands import (
     engine_commands_sent,
     engine_redis_url,
@@ -29,7 +28,7 @@ def _config(redis: bool = True, **overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": redis,
         "redis_url": engine_redis_url(REDIS_URL),
-        "redis_prefix": f"test:wp3fu:detect:{uuid.uuid4().hex}:",
+        "redis_prefix": suite_redis_prefix("wp3fu:detect"),
         "enable_penetration_detection": True,
         "enable_ip_banning": True,
         "auto_ban_threshold": THRESHOLD,

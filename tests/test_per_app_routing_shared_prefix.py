@@ -276,10 +276,12 @@ async def test_a_hand_built_pipeline_without_config_still_sets_its_apps_scope() 
 async def test_the_split_warning_fires_with_a_redis_url_and_enable_redis_left_default(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    prefix = suite_redis_prefix("wp136-default")
+
     def build(url: str) -> HandlerInitializer:
         config = SecurityConfig(
             redis_url=url,
-            redis_prefix=suite_redis_prefix("wp136-default"),
+            redis_prefix=prefix,
             enable_agent=False,
         )
         assert "enable_redis" not in config.model_fields_set

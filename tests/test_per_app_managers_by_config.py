@@ -25,7 +25,7 @@ from guard_core.handlers.security_headers_handler import security_headers_manage
 from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
-from tests.conftest import MockGuardRequest
+from tests.conftest import MockGuardRequest, suite_redis_prefix
 from tests.protocol_only_redis import REDIS_URL
 
 _LOOKUP_FUNCTIONS = frozenset(
@@ -124,7 +124,7 @@ async def test_a_no_redis_app_does_not_move_the_prefix_the_default_serves() -> N
 
 
 async def test_the_managers_of_a_no_redis_app_live_as_long_as_the_app() -> None:
-    config_a, config_c = _config(f"a{uuid.uuid4().hex[:8]}:"), _config()
+    config_a, config_c = _config(suite_redis_prefix("a")), _config()
     _bind(config_a, RedisManager(config_a))
     managers = _bind(config_c)
     refs = {kind: weakref.ref(manager) for kind, manager in managers.items()}
