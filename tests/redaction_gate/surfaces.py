@@ -1,16 +1,26 @@
 import json
 from collections.abc import Callable
+from types import ModuleType
 from typing import Any
 from urllib.parse import quote
 
+import tests.test_sensitive_data_invariant as INV_ASYNC
+import tests.test_sync.test_sensitive_data_invariant as INV_SYNC
+from tests.conftest import MockGuardRequest
 from tests.redaction_gate.axes import EXCLUDED_HEADER_NAME
+from tests.test_sync.conftest import SyncMockGuardRequest
 
 
-def _request_cls(mod: Any) -> Any:
-    return getattr(mod, "MockGuardRequest", None) or mod.SyncMockGuardRequest
+def _request_cls(
+    mod: ModuleType,
+) -> type[MockGuardRequest] | type[SyncMockGuardRequest]:
+    request_cls: type[MockGuardRequest] | type[SyncMockGuardRequest] = (
+        getattr(mod, "MockGuardRequest", None) or mod.SyncMockGuardRequest
+    )
+    return request_cls
 
 
-def _plain_body_request(mod: Any, body: bytes, content_type: str) -> Any:
+def _plain_body_request(mod: ModuleType, body: bytes, content_type: str) -> object:
     return _request_cls(mod)(
         method="POST",
         client_host="127.0.0.1",
@@ -19,7 +29,7 @@ def _plain_body_request(mod: Any, body: bytes, content_type: str) -> Any:
     )
 
 
-def _multipart_filename_request(mod: Any, blob: str) -> Any:
+def _multipart_filename_request(mod: ModuleType, blob: str) -> object:
     builder = getattr(mod, "_multipart_filename_body_request", None)
     if builder is not None:
         return builder("upload", blob)
@@ -30,7 +40,7 @@ def _multipart_filename_request(mod: Any, blob: str) -> Any:
     return _plain_body_request(mod, body, mod._CONTENT_TYPE_MULTIPART)
 
 
-def _multipart_filename_and_text_request(mod: Any, blob: str) -> Any:
+def _multipart_filename_and_text_request(mod: ModuleType, blob: str) -> object:
     body = (
         f'--B0\r\nContent-Disposition: form-data; name="upload"; filename="{blob}"'
         f"\r\n\r\n{blob}\r\n--B0--\r\n"
@@ -45,23 +55,23 @@ def _json_array_body(blob: str, wrap_levels: int) -> bytes:
     return json.dumps(node).encode()
 
 
-def _json_deep_request(mod: Any, blob: str) -> Any:
+def _json_deep_request(mod: ModuleType, blob: str) -> object:
     depth = max(1, mod._json_depth_cap_value() - 1)
     return mod._json_body_request(
         mod._nested_wrapper_body(depth, "wrapper", {"note": blob})
     )
 
 
-def _json_array_deep_request(mod: Any, blob: str) -> Any:
+def _json_array_deep_request(mod: ModuleType, blob: str) -> object:
     depth = max(1, mod._json_depth_cap_value() - 3)
     return mod._json_body_request(_json_array_body(blob, depth))
 
 
-def _json_in_query_pct_encoded_request(mod: Any, blob: str) -> Any:
+def _json_in_query_pct_encoded_request(mod: ModuleType, blob: str) -> object:
     return mod._query_request("data", quote(json.dumps({"note": blob}), safe=""))
 
 
-_SURFACE_BUILDERS: dict[str, Callable[[Any, str], Any]] = {
+_SURFACE_BUILDERS: dict[str, Callable[[ModuleType, str], object]] = {
     "header": lambda mod, blob: mod._header_request("X-Session", blob),
     "cookie_header": lambda mod, blob: mod._header_request("Cookie", blob),
     "excluded_header": lambda mod, blob: mod._header_request(
@@ -100,9 +110,21 @@ _SURFACE_BUILDERS: dict[str, Callable[[Any, str], Any]] = {
 }
 
 
-def build_request_for_surface(mod: Any, surface: str, blob: str) -> Any:
+def _build_request_for_surface(mod: ModuleType, surface: str, blob: str) -> object:
     try:
         builder = _SURFACE_BUILDERS[surface]
     except KeyError as exc:
         raise ValueError(f"unknown surface {surface!r}") from exc
     return builder(mod, blob)
+
+
+def build_async_request_for_surface(surface: str, blob: str) -> MockGuardRequest:
+    request = _build_request_for_surface(INV_ASYNC, surface, blob)
+    assert isinstance(request, MockGuardRequest)
+    return request
+
+
+def build_sync_request_for_surface(surface: str, blob: str) -> SyncMockGuardRequest:
+    request = _build_request_for_surface(INV_SYNC, surface, blob)
+    assert isinstance(request, SyncMockGuardRequest)
+    return request

@@ -1,6 +1,7 @@
 import logging
 import threading
 from collections.abc import Generator
+from types import TracebackType
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -16,6 +17,7 @@ class _FakeErrorResponse:
         self.status_code = status_code
         self.message = message
         self.headers: dict[str, str] = {}
+        self.body: bytes | None = None
 
 
 @pytest.fixture(autouse=True)
@@ -122,7 +124,7 @@ def test_check_rate_limit_agent_event_called() -> None:
 
     mock_request = SyncMockGuardRequest(path="/api/endpoint", method="GET")
 
-    def mock_error_response(status_code: int, message: str) -> Any:
+    def mock_error_response(status_code: int, message: str) -> _FakeErrorResponse:
         return _FakeErrorResponse(status_code, message)
 
     with (
@@ -172,10 +174,15 @@ def test_check_rate_limit_redis_path_with_agent() -> None:
         def __init__(self) -> None:
             self.evalsha = MagicMock(return_value=[1, 14, 60])
 
-        def __enter__(self) -> Any:
+        def __enter__(self) -> "MockRedisConnection":
             return self
 
-        def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
+        def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_val: BaseException | None,
+            exc_tb: TracebackType | None,
+        ) -> None:
             return None
 
     mock_redis = MagicMock()
@@ -185,7 +192,7 @@ def test_check_rate_limit_redis_path_with_agent() -> None:
 
     mock_request = SyncMockGuardRequest(path="/api/test", method="POST")
 
-    def mock_error_response(status_code: int, message: str) -> Any:
+    def mock_error_response(status_code: int, message: str) -> _FakeErrorResponse:
         return _FakeErrorResponse(status_code, message)
 
     with patch("guard_core.sync.handlers.ratelimit_handler.log_activity"):
@@ -254,7 +261,7 @@ def test_handle_rate_limit_exceeded_uses_the_passed_configs_sensitive_sets() -> 
 
     mock_request = SyncMockGuardRequest(path="/api/endpoint", method="GET")
 
-    def mock_error_response(status_code: int, message: str) -> Any:
+    def mock_error_response(status_code: int, message: str) -> _FakeErrorResponse:
         return _FakeErrorResponse(status_code, message)
 
     with patch(

@@ -167,8 +167,9 @@ def variant_for_surface(surface: str) -> str:
     return "excluded_header" if surface == "excluded_header" else "default"
 
 
-def axis_value_str(axis: str, value: Any) -> str:
+def axis_value_str(axis: str, value: str | tuple[int, str]) -> str:
     if axis == "pct":
+        assert isinstance(value, tuple)
         rounds, target = value
         return f"{rounds}-{target}"
     return str(value)

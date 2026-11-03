@@ -6,12 +6,12 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterator, Sequence
 from contextlib import contextmanager
 from importlib.machinery import ModuleSpec
 from pathlib import Path
-from types import FrameType
-from typing import Any, cast
+from types import FrameType, ModuleType
+from typing import Any, Protocol, TypeVar, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,6 +19,7 @@ from guard_agent.models import AgentConfig, SecurityEvent, SecurityMetric
 from pytest import TempPathFactory
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.request_protocol import RequestState
 from guard_core.sync._utils import body_reader
 from guard_core.sync._utils import detection_scan as _detection_scan_module
 from guard_core.sync._utils import ip_extraction as _ip_extraction_module
@@ -129,7 +130,7 @@ def _restore_detection_singleton(snapshot: _DetectionSingletonSnapshot) -> None:
     SusPatternsManager._sensitive_body_fields_union = saved_sensitive_body_fields_union
 
 
-def _restore_submodule_identity(module: Any) -> None:
+def _restore_submodule_identity(module: ModuleType) -> None:
     """Undo a test that reimported a submodule (`sys.modules.pop` + fresh
     `import_module`/`reload`), which rebinds the module as a *package*
     attribute but leaves the old, still-imported package attribute pointing
@@ -154,13 +155,13 @@ def _guard_core_logger_names() -> list[str]:
 
 
 @pytest.fixture(autouse=True)
-def _close_engine_command_monitors() -> Any:
+def _close_engine_command_monitors() -> Iterator[None]:
     yield
     unwatch_all_engine_commands()
 
 
 @pytest.fixture(autouse=True)
-def _isolate_guard_core_logger_levels() -> Any:
+def _isolate_guard_core_logger_levels() -> Iterator[None]:
     original_root_level = logging.getLogger().level
     original_levels = {
         name: logging.getLogger(name).level for name in _guard_core_logger_names()
@@ -172,7 +173,7 @@ def _isolate_guard_core_logger_levels() -> Any:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_event_handler_modules() -> Any:
+def _isolate_event_handler_modules() -> Iterator[None]:
     yield
     _restore_submodule_identity(_otel_handler_module)
     _restore_submodule_identity(_logfire_handler_module)
@@ -306,21 +307,29 @@ def _reset_security_headers_manager() -> None:
 
 class MockState:
     def __init__(self) -> None:
-        self._attrs: dict[str, Any] = {}
+        self._attrs: dict[str, object] = {}
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         if name == "_attrs":
             return super().__getattribute__(name)
         return self._attrs.get(name)
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: object) -> None:
         if name == "_attrs":
             super().__setattr__(name, value)
         else:
             self._attrs[name] = value
 
 
-def declare_route(request: Any, template: str) -> Any:
+class _HasRequestState(Protocol):
+    @property
+    def state(self) -> RequestState: ...
+
+
+_R = TypeVar("_R", bound=_HasRequestState)
+
+
+def declare_route(request: _R, template: str) -> _R:
     request.state.guard_route_template = template
     return request
 
@@ -898,7 +907,10 @@ class _GuardAgentImportFinder:
         self.violations: list[str] = []
 
     def find_spec(
-        self, fullname: str, path: Any, target: Any = None
+        self,
+        fullname: str,
+        path: Sequence[str] | None,
+        target: ModuleType | None = None,
     ) -> ModuleSpec | None:
         if fullname == "guard_agent" or fullname.startswith("guard_agent."):
             caller = _calling_module_name(sys._getframe(1))

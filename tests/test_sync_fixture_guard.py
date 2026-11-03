@@ -1,8 +1,7 @@
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -39,11 +38,12 @@ def _run_all(order: list[str], *extra: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _async_conftest_plugin(config: pytest.Config) -> Any:
+def _async_conftest_plugin(config: pytest.Config) -> ModuleType:
     return next(
         plugin
         for plugin in config.pluginmanager.get_plugins()
-        if Path(getattr(plugin, "__file__", "") or "").resolve()
+        if isinstance(plugin, ModuleType)
+        and Path(getattr(plugin, "__file__", "") or "").resolve()
         == ROOT / "tests" / "conftest.py"
     )
 

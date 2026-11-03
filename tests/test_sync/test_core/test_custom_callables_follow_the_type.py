@@ -1,7 +1,7 @@
 import functools
 import inspect
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -18,6 +18,7 @@ from guard_core.sync.core.checks.implementations.custom_request import (
 )
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.core.responses.factory import ErrorResponseFactory
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from tests.test_sync.conftest import MockGuardResponse, SyncMockGuardRequest
 
 
@@ -41,75 +42,81 @@ def _sync_decorator_around_async(
     function: Callable[..., Any],
 ) -> Callable[..., Any]:
     @functools.wraps(function)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
+    def wrapper(*args: object, **kwargs: object) -> object:
         return function(*args, **kwargs)
 
     return wrapper
 
 
-async def _async_check(request: Any) -> Any:
+async def _async_check(request: SyncGuardRequest) -> GuardResponse | None:
     return _blocked()
 
 
-async def _async_modifier(response: Any) -> Any:
+async def _async_modifier(response: GuardResponse) -> GuardResponse:
     return _modified()
 
 
-def _sync_check(request: Any) -> Any:
+def _sync_check(request: SyncGuardRequest) -> GuardResponse | None:
     return _blocked()
 
 
-def _sync_modifier(response: Any) -> Any:
+def _sync_modifier(response: GuardResponse) -> GuardResponse:
     return _modified()
 
 
-async def _async_check_with_extra(extra: int, request: Any) -> Any:
+async def _async_check_with_extra(
+    extra: int, request: SyncGuardRequest
+) -> GuardResponse | None:
     return _blocked()
 
 
-async def _async_modifier_with_extra(extra: int, response: Any) -> Any:
+async def _async_modifier_with_extra(
+    extra: int, response: GuardResponse
+) -> GuardResponse:
     return _modified()
 
 
-def _sync_check_with_extra(extra: int, request: Any) -> Any:
+def _sync_check_with_extra(
+    extra: int, request: SyncGuardRequest
+) -> GuardResponse | None:
     return _blocked()
 
 
-def _sync_modifier_with_extra(extra: int, response: Any) -> Any:
+def _sync_modifier_with_extra(extra: int, response: GuardResponse) -> GuardResponse:
     return _modified()
 
 
 class _AsyncCallCheck:
-    async def __call__(self, request: Any) -> Any:
+    async def __call__(self, request: SyncGuardRequest) -> GuardResponse | None:
         return _blocked()
 
 
 class _AsyncCallModifier:
-    async def __call__(self, response: Any) -> Any:
+    async def __call__(self, response: GuardResponse) -> GuardResponse:
         return _modified()
 
 
 class _SyncCallCheck:
-    def __call__(self, request: Any) -> Any:
+    def __call__(self, request: SyncGuardRequest) -> GuardResponse | None:
         return _blocked()
 
 
 class _SyncCallModifier:
-    def __call__(self, response: Any) -> Any:
+    def __call__(self, response: GuardResponse) -> GuardResponse:
         return _modified()
 
 
 class _Methods:
-    async def async_check(self, request: Any) -> Any:
+    async def async_check(self, request: SyncGuardRequest) -> GuardResponse | None:
         return _blocked()
 
-    async def async_modifier(self, response: Any) -> Any:
+    async def async_modifier(self, response: GuardResponse) -> GuardResponse:
         return _modified()
 
-    def sync_check(self, request: Any) -> Any:
+    def sync_check(self, request: SyncGuardRequest) -> GuardResponse | None:
         return _blocked()
 
-    def sync_modifier(self, response: Any) -> Any:
+    def sync_modifier(self, response: GuardResponse) -> GuardResponse:
         return _modified()
 
 
@@ -167,7 +174,7 @@ def _factory(modifier: Callable[..., Any] | None) -> ErrorResponseFactory:
     )
 
 
-def _response() -> Any:
+def _response() -> GuardResponse:
     return MockGuardResponse("body", 200, {"Content-Length": "4"})
 
 
@@ -200,7 +207,7 @@ def test_a_check_set_to_async_after_start_fails_at_the_next_request() -> None:
 def test_a_sync_decorator_around_an_async_check_fails_on_the_first_result() -> None:
     coroutines: list[Any] = []
 
-    def check_returning_a_coroutine(request: Any) -> Any:
+    def check_returning_a_coroutine(request: SyncGuardRequest) -> object:
         coroutine = _async_check(request)
         coroutines.append(coroutine)
         return coroutine
@@ -257,7 +264,7 @@ def test_a_sync_decorator_around_an_async_modifier_fails_on_the_first_result(
 ) -> None:
     coroutines: list[Any] = []
 
-    def modifier_returning_a_coroutine(response: Any) -> Any:
+    def modifier_returning_a_coroutine(response: GuardResponse) -> object:
         coroutine = _async_modifier(response)
         coroutines.append(coroutine)
         return coroutine
@@ -284,7 +291,7 @@ def test_a_sync_modifier_is_verified_once_then_called_directly() -> None:
 
 
 def test_a_modifier_that_raises_still_returns_the_unmodified_response() -> None:
-    def broken(response: Any) -> Any:
+    def broken(response: GuardResponse) -> GuardResponse:
         raise RuntimeError("boom")
 
     response = _response()
@@ -316,7 +323,7 @@ def test_a_slot_adopted_by_another_thread_meanwhile_keeps_the_new_callable() -> 
 
 def test_an_awaitable_that_is_not_a_coroutine_fails_on_the_first_result() -> None:
     class Pending:
-        def __await__(self) -> Any:
+        def __await__(self) -> Generator[None, None, None]:
             yield
 
     check = CustomRequestCheck(_middleware(lambda request: Pending()))

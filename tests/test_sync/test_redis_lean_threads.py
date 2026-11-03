@@ -1,5 +1,4 @@
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -105,9 +104,9 @@ def test_a_connection_the_pool_hands_out_without_unread_replies_is_used() -> Non
 
 class _Listener:
     def __init__(self) -> None:
-        self.events: list[Any] = []
+        self.events: list[object] = []
 
-    def listen(self, event: Any) -> None:
+    def listen(self, event: object) -> None:
         self.events.append(event)
 
 

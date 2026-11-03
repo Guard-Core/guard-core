@@ -8,11 +8,11 @@ import sys
 import threading
 import time
 import weakref
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Callable, Generator, Iterator, Sequence
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 import OpenSSL.SSL
 import pytest
@@ -191,6 +191,17 @@ def test_the_setup_worker_of_an_abandoned_tunnel_ends_soon_after_the_caller_give
     assert _setup_workers() == []
 
 
+_AddressInfo = Sequence[
+    tuple[
+        socket.AddressFamily,
+        socket.SocketKind,
+        int,
+        str,
+        tuple[str, int] | tuple[str, int, int, int] | tuple[int, bytes],
+    ]
+]
+
+
 @contextmanager
 def _blackhole_addresses(
     monkeypatch: pytest.MonkeyPatch, addresses: list[str]
@@ -199,7 +210,9 @@ def _blackhole_addresses(
     real_connect = socket.socket.connect
     test_is_over = threading.Event()
 
-    def getaddrinfo(host: Any, port: Any, *args: Any, **kwargs: Any) -> Any:
+    def getaddrinfo(
+        host: str, port: int | str, *args: int, **kwargs: int
+    ) -> _AddressInfo:
         if host != UNRESOLVABLE:
             return real_getaddrinfo(host, port, *args, **kwargs)
         return [
@@ -207,7 +220,7 @@ def _blackhole_addresses(
             for address in addresses
         ]
 
-    def connect(sock: socket.socket, address: Any) -> None:
+    def connect(sock: socket.socket, address: tuple[str, int]) -> None:
         if address[0] not in addresses:
             return real_connect(sock, address)
         test_is_over.wait(sock.gettimeout() or 0)
@@ -247,7 +260,9 @@ def test_the_second_address_is_tried_when_the_first_refuses(
     with trickling_server(gap=0.01, pieces=3) as server:
         served_port = int(_port(server))
 
-        def getaddrinfo(host: Any, port: Any, *args: Any, **kwargs: Any) -> Any:
+        def getaddrinfo(
+            host: str, port: int | str, *args: int, **kwargs: int
+        ) -> _AddressInfo:
             if host != UNRESOLVABLE:
                 return real_getaddrinfo(host, port, *args, **kwargs)
             return [
@@ -274,7 +289,7 @@ class _StubResolver:
     def __init__(self) -> None:
         self.released = threading.Event()
 
-    def lookup(self, host: Any, *args: Any, **kwargs: Any) -> Any:
+    def lookup(self, host: str, *args: int, **kwargs: int) -> NoReturn:
         self.released.wait(DNS_STALL)
         raise socket.gaierror(socket.EAI_NONAME, "the stalled resolver gave up")
 
@@ -289,7 +304,7 @@ def silent_resolver(
     if request.param == "patched":
         real_getaddrinfo = socket.getaddrinfo
 
-        def getaddrinfo(host: Any, *args: Any, **kwargs: Any) -> Any:
+        def getaddrinfo(host: str, *args: int, **kwargs: int) -> _AddressInfo:
             if host == "127.0.0.1":
                 return real_getaddrinfo(host, *args, **kwargs)
             return resolver.lookup(host)
@@ -408,7 +423,7 @@ def socket_closes(
     foreign: list[str] = []
     init, close = socket.socket.__init__, socket.socket.close
 
-    def tracking_init(sock: socket.socket, *args: Any, **kwargs: Any) -> None:
+    def tracking_init(sock: socket.socket, *args: int, **kwargs: int) -> None:
         init(sock, *args, **kwargs)
         created_by[sock] = threading.current_thread().name
 
@@ -429,8 +444,10 @@ UNWIND_SECONDS = 0.3
 def _make_the_setup_worker_unwind_slowly(monkeypatch: pytest.MonkeyPatch) -> None:
     """The worker still holds its socket when urllib3's error path closes it."""
 
-    def slowly(connect: Callable[[Any], None]) -> Callable[[Any], None]:
-        def connecting(connection: Any) -> None:
+    def slowly(
+        connect: Callable[[HTTPConnection], None],
+    ) -> Callable[[HTTPConnection], None]:
+        def connecting(connection: HTTPConnection) -> None:
             try:
                 connect(connection)
             finally:
@@ -558,8 +575,8 @@ def test_every_wrapper_type_yields_its_one_os_socket_to_the_cut(
     cut.stop()
 
 
-def _wrapped_in(levels: int, stack: ExitStack) -> Any:
-    wrapper: Any = _pair(stack)
+def _wrapped_in(levels: int, stack: ExitStack) -> socket.socket | SimpleNamespace:
+    wrapper: socket.socket | SimpleNamespace = _pair(stack)
     for _ in range(levels):
         wrapper = SimpleNamespace(socket=wrapper)
     return wrapper
@@ -618,9 +635,9 @@ def test_a_peer_that_resets_after_the_tunnel_is_up_leaves_no_unclosed_ssl_socket
     monkeypatch.setattr(
         sys, "unraisablehook", lambda args: unraisable.append(str(args.exc_value))
     )
-    real_wrap = ssl_wrap_socket
+    real_wrap: Callable[..., object] = ssl_wrap_socket
 
-    def wrap_after_the_reset_arrived(*args: Any, **kwargs: Any) -> Any:
+    def wrap_after_the_reset_arrived(*args: object, **kwargs: object) -> object:
         time.sleep(0.3)
         return real_wrap(*args, **kwargs)
 
@@ -645,12 +662,16 @@ def test_after_the_cut_a_tunnel_that_ends_by_eof_never_reaches_the_tls_wrap(
 ) -> None:
     wraps: list[object] = []
     created: list[object] = []
-    real_create = cast(Any, ssl.SSLSocket)._create.__func__
+    real_create: Callable[..., ssl.SSLSocket] = cast(
+        Any, ssl.SSLSocket
+    )._create.__func__
 
-    def spy_wrap(*args: Any, **kwargs: Any) -> None:
+    def spy_wrap(*args: object, **kwargs: object) -> None:
         wraps.append(args)
 
-    def spy_create(cls: Any, *args: Any, **kwargs: Any) -> Any:
+    def spy_create(
+        cls: type[ssl.SSLSocket], *args: object, **kwargs: object
+    ) -> ssl.SSLSocket:
         created.append(args)
         return real_create(cls, *args, **kwargs)
 

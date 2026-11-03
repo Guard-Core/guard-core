@@ -126,10 +126,6 @@ select = [
     "ANN401",
 ]
 
-[tool.ruff.lint.per-file-ignores]
-".unasync_check_tmp_*/**" = ["ANN401"]  # the generated test_sync copy that unasync.py --check lints stands for tests/**; goes with it, LEDGER 6.563
-"tests/**" = ["ANN401"]  # tests keep Any inside fakes (D-177); not yet removed, LEDGER 6.563
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

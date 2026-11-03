@@ -1,4 +1,4 @@
-from typing import Any
+from collections.abc import Coroutine
 from unittest.mock import MagicMock, patch
 
 from guard_core.models import SyncSecurityConfig
@@ -6,6 +6,7 @@ from guard_core.sync.core.checks.implementations.authentication import (
     AuthenticationCheck,
 )
 from guard_core.sync.decorators.base import RouteConfig
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from tests.test_sync.conftest import MockGuardResponse, SyncMockGuardRequest
 
 _IMPL = "guard_core.sync.core.checks.implementations"
@@ -30,10 +31,12 @@ def _make_middleware(
 
 
 def test_async_verifier_in_sync_rejected_fail_closed() -> None:
-    captured: list[Any] = []
+    captured: list[Coroutine[object, object, dict[str, str]]] = []
 
-    def verifier(_request: Any, _credential: str) -> Any:
-        async def _coro() -> Any:
+    def verifier(
+        _request: SyncGuardRequest, _credential: str
+    ) -> Coroutine[object, object, dict[str, str]]:
+        async def _coro() -> dict[str, str]:
             return {"user": "x"}
 
         coro = _coro()

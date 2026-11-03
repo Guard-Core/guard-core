@@ -1,7 +1,7 @@
 import time
 import uuid
 from collections import Counter
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -20,12 +20,16 @@ def _error_response(status_code: int, message: str) -> MockGuardResponse:
     return MockGuardResponse(message, status_code)
 
 
+_Setting = bool | int | float | str
+_StackFactory = Callable[..., tuple[RateLimitManager, RedisManager]]
+
+
 @pytest.fixture
-def stack_factory() -> Generator[Any, None]:
+def stack_factory() -> Generator[_StackFactory, None]:
     opened: list[RedisManager] = []
 
-    def make(**settings: Any) -> tuple[RateLimitManager, RedisManager]:
-        defaults: dict[str, Any] = {
+    def make(**settings: _Setting) -> tuple[RateLimitManager, RedisManager]:
+        defaults: dict[str, _Setting] = {
             "enable_redis": True,
             "redis_url": REDIS_URL,
             "redis_prefix": f"test:wp3:{uuid.uuid4().hex}:",
@@ -60,7 +64,7 @@ def _release(redis: RedisManager, held: list[Any]) -> None:
 
 
 def test_a_burst_above_the_pool_waits_instead_of_failing(
-    stack_factory: Any,
+    stack_factory: _StackFactory,
 ) -> None:
     manager, _ = stack_factory()
 
@@ -80,7 +84,7 @@ def test_a_burst_above_the_pool_waits_instead_of_failing(
 
 
 def test_an_exhausted_pool_fails_closed_after_the_pool_timeout(
-    stack_factory: Any,
+    stack_factory: _StackFactory,
 ) -> None:
     manager, redis = stack_factory(redis_pool_timeout=0.3)
     held = _hold_every_connection(redis)
@@ -97,7 +101,7 @@ def test_an_exhausted_pool_fails_closed_after_the_pool_timeout(
 
 
 def test_an_exhausted_pool_uses_the_memory_window_when_failing_open(
-    stack_factory: Any,
+    stack_factory: _StackFactory,
 ) -> None:
     manager, redis = stack_factory(
         redis_pool_timeout=0.2, redis_fail_open=True, rate_limit=1

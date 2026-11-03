@@ -14,10 +14,13 @@ from guard_core.sync.core.responses import reads_response_body
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.core.responses.factory import ErrorResponseFactory
 from guard_core.sync.core.responses.modifier_view import _reported_refusals
-from guard_core.sync.handlers.behavior_handler import BehaviorTracker
+from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
+from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from tests.test_sync.conftest import MockGuardResponseFactory, SyncMockGuardRequest
 
 _CAP = 2048
+_ConfigOverride = bool | int | tuple[BehaviorRuleConfig, ...]
 
 
 class _Streamed:
@@ -50,9 +53,9 @@ def _fresh_sampling() -> None:
 
 
 def _factory(
-    modifier: Callable[[Any], Any] | None,
-    agent_handler: Any | None = None,
-    **config_overrides: Any,
+    modifier: Callable[[GuardResponse], object] | None,
+    agent_handler: SyncAgentHandlerProtocol | None = None,
+    **config_overrides: _ConfigOverride,
 ) -> ErrorResponseFactory:
     config = SyncSecurityConfig(enable_redis=False, **config_overrides)
     config.custom_response_modifier = cast(Any, modifier)
@@ -68,11 +71,11 @@ def _factory(
 
 
 def _apply(
-    modifier: Callable[[Any], Any],
+    modifier: Callable[[GuardResponse], object],
     response: _Streamed,
     method: str = "GET",
-    agent_handler: Any | None = None,
-    **config_overrides: Any,
+    agent_handler: SyncAgentHandlerProtocol | None = None,
+    **config_overrides: _ConfigOverride,
 ) -> object:
     factory = _factory(modifier, agent_handler, **config_overrides)
     return factory.apply_modifier(
@@ -80,8 +83,8 @@ def _apply(
     )
 
 
-def _reading(calls: list[Any]) -> Callable[[Any], Any]:
-    def modifier(response: Any) -> Any:
+def _reading(calls: list[Any]) -> Callable[[GuardResponse], GuardResponse]:
+    def modifier(response: GuardResponse) -> GuardResponse:
         calls.append(1)
         response.headers[f"X-Call-{len(calls)}"] = "1"
         try:
@@ -104,7 +107,7 @@ def test_body_access_reads_the_bounded_prefix_once_inside_one_call() -> None:
 
 
 def test_header_only_modifier_never_reads_ahead() -> None:
-    def modifier(response: Any) -> Any:
+    def modifier(response: GuardResponse) -> GuardResponse:
         response.headers["X-Only"] = "1"
         return response
 
@@ -151,7 +154,7 @@ def test_refused_body_raises_the_dedicated_error_and_keeps_header_edits(
 
 
 def test_a_second_refused_access_does_not_read_or_report_again() -> None:
-    def modifier(response: Any) -> Any:
+    def modifier(response: GuardResponse) -> GuardResponse:
         for _ in range(2):
             try:
                 _ = response.body
@@ -169,7 +172,7 @@ def test_a_second_refused_access_does_not_read_or_report_again() -> None:
 def test_a_raising_modifier_commits_its_earlier_writes_and_logs(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    def modifier(response: Any) -> Any:
+    def modifier(response: GuardResponse) -> GuardResponse:
         response.headers["X-Before"] = "1"
         _ = response.body
         raise RuntimeError("boom")
@@ -193,7 +196,7 @@ def test_marked_modifier_is_called_once_like_every_sync_modifier() -> None:
 def test_another_returned_response_is_returned() -> None:
     other = _Streamed(b"other")
 
-    def modifier(response: Any) -> Any:
+    def modifier(response: GuardResponse) -> object:
         response.headers["X-On-Original"] = "1"
         return other
 
@@ -219,7 +222,10 @@ def test_one_prefetch_serves_the_return_pattern_scan_and_the_modifier() -> None:
     matched: list[bool | None] = []
 
     def process_global(
-        request: Any, response: Any, client_ip: str, _rule_list: Any
+        request: SyncGuardRequest,
+        response: GuardResponse,
+        client_ip: str,
+        _rule_list: list[BehaviorRule],
     ) -> None:
         matched.append(tracker._check_response_pattern(response, "needle"))
 
@@ -259,7 +265,7 @@ def test_a_false_or_non_bool_capability_takes_the_bounded_path(flag: object) -> 
 def test_a_lazy_view_forwards_other_attributes_to_the_real_response() -> None:
     seen: list[Any] = []
 
-    def modifier(response: Any) -> Any:
+    def modifier(response: GuardResponse) -> GuardResponse:
         seen.append(response.status_code)
         return response
 

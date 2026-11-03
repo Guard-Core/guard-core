@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import ModuleType
 from typing import Any, cast
 
 import pytest
@@ -21,7 +22,10 @@ from tests.redaction_gate.capture import (
     reset_case_state,
     scan_all_channels,
 )
-from tests.redaction_gate.surfaces import build_request_for_surface
+from tests.redaction_gate.surfaces import (
+    build_async_request_for_surface,
+    build_sync_request_for_surface,
+)
 
 
 @dataclass
@@ -53,7 +57,7 @@ def is_unassigned_token_case(axes: dict[str, Any]) -> bool:
     )
 
 
-def build_module_variants(mod: Any) -> dict[str, tuple[Any, Any, Any]]:
+def build_module_variants(mod: ModuleType) -> dict[str, tuple[Any, Any, Any]]:
     variants: dict[str, tuple[Any, Any, Any]] = {
         "default": (mod._CONFIG, mod._MIDDLEWARE, mod._PIPELINE)
     }
@@ -106,19 +110,19 @@ async def run_grammar_case(
 
     blob = build_blob(axes, secret)
 
-    async_detect_req = build_request_for_surface(INV_ASYNC, surface, blob)
-    sync_detect_req = build_request_for_surface(INV_SYNC, surface, blob)
+    async_detect_req = build_async_request_for_surface(surface, blob)
+    sync_detect_req = build_sync_request_for_surface(surface, blob)
     detection_async = await INV_ASYNC.detect_penetration_attempt(
         async_detect_req, async_cfg
     )
     detection_sync = INV_SYNC.detect_penetration_attempt(sync_detect_req, sync_cfg)
 
-    async_pipe_req = build_request_for_surface(INV_ASYNC, surface, blob)
+    async_pipe_req = build_async_request_for_surface(surface, blob)
     async_pipe_req.state.client_ip = next_client_ip()
     async_pipe_req.state.route_config = None
     pipeline_response_async = await async_pipeline.execute(async_pipe_req)
 
-    sync_pipe_req = build_request_for_surface(INV_SYNC, surface, blob)
+    sync_pipe_req = build_sync_request_for_surface(surface, blob)
     sync_pipe_req.state.client_ip = next_client_ip()
     sync_pipe_req.state.route_config = None
     pipeline_response_sync = sync_pipeline.execute(sync_pipe_req)
@@ -149,7 +153,9 @@ async def run_grammar_case(
     )
 
 
-async def run_fixed_case_async(case: Any, capture: CaptureHandler) -> CaseResult:
+async def run_fixed_case_async(
+    case: INV_ASYNC.Case, capture: CaptureHandler
+) -> CaseResult:
     secret = f"SECRET-fixedA-{case.id}"
     reset_case_state(INV_ASYNC)
     capture.clear()
@@ -228,7 +234,7 @@ async def run_fixed_case_async(case: Any, capture: CaptureHandler) -> CaseResult
     )
 
 
-def run_fixed_case_sync(case: Any, capture: CaptureHandler) -> CaseResult:
+def run_fixed_case_sync(case: INV_SYNC.Case, capture: CaptureHandler) -> CaseResult:
     secret = f"SECRET-fixedS-{case.id}"
     reset_case_state(INV_SYNC)
     capture.clear()
@@ -306,7 +312,7 @@ def run_fixed_case_sync(case: Any, capture: CaptureHandler) -> CaseResult:
 
 
 async def run_component_scenario_async(
-    scenario: Any, capture: CaptureHandler, tmp_dir: Path
+    scenario: INV_ASYNC.ComponentScenario, capture: CaptureHandler, tmp_dir: Path
 ) -> CaseResult:
     secret = f"SECRET-componentA-{scenario.id}"
     reset_case_state(INV_ASYNC)
@@ -340,7 +346,7 @@ async def run_component_scenario_async(
 
 
 def run_component_scenario_sync(
-    scenario: Any, capture: CaptureHandler, tmp_dir: Path
+    scenario: INV_SYNC.ComponentScenario, capture: CaptureHandler, tmp_dir: Path
 ) -> CaseResult:
     secret = f"SECRET-componentS-{scenario.id}"
     reset_case_state(INV_SYNC)

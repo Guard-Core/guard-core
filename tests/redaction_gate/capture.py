@@ -1,6 +1,6 @@
 import logging
 from contextlib import ExitStack
-from typing import Any
+from types import ModuleType
 from unittest.mock import patch
 
 import tests.test_sensitive_data_invariant as INV_ASYNC
@@ -35,7 +35,7 @@ class FakeCaplog:
         return self._handler.text()
 
 
-def reset_case_state(mod: Any) -> None:
+def reset_case_state(mod: ModuleType) -> None:
     mod._ON_BLOCK_CALLS.clear()
     mod._ON_ERROR_CALLS.clear()
     mod._LOGFIRE_CALLS.clear()
@@ -56,7 +56,7 @@ def _snippet(dump: str, secret: str, radius: int = 60) -> str:
     return dump[start:end]
 
 
-def scan_all_channels(mod: Any, secret: str) -> list[tuple[str, str]]:
+def scan_all_channels(mod: ModuleType, secret: str) -> list[tuple[str, str]]:
     leaks: list[tuple[str, str]] = []
     events_dump = mod._events_dump(mod._AGENT_RECORDER.events)
     if secret in events_dump:

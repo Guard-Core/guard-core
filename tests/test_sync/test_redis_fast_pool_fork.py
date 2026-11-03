@@ -4,7 +4,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Generator
-from typing import Any
+from contextlib import AbstractContextManager
 
 import pytest
 from redis import Redis
@@ -29,7 +29,7 @@ def client() -> Generator[Redis, None]:
     built.close()
 
 
-def _fork_warning() -> Any:
+def _fork_warning() -> AbstractContextManager[object]:
     if sys.version_info >= (3, 12):
         return pytest.warns(DeprecationWarning, match="multi-threaded")
     return contextlib.nullcontext()
@@ -62,7 +62,9 @@ def _run_in_forked_child(body: Callable[[], int]) -> int:
 
 
 @contextlib.contextmanager
-def _thread_holding(lock: Any) -> Generator[None, None, None]:
+def _thread_holding(
+    lock: AbstractContextManager[object],
+) -> Generator[None, None, None]:
     held, done = threading.Event(), threading.Event()
 
     def hold() -> None:
@@ -83,7 +85,7 @@ def _thread_holding(lock: Any) -> Generator[None, None, None]:
 def test_a_child_forked_while_a_thread_holds_the_condition_still_times_out(
     client: Redis,
 ) -> None:
-    pool: Any = client.connection_pool
+    pool = client.connection_pool
     pool.release(pool.get_connection())
 
     def exhaust_then_ask_again() -> int:
@@ -104,7 +106,7 @@ def test_a_child_forked_while_a_thread_holds_the_condition_still_times_out(
 def test_a_child_forked_while_a_thread_waits_starts_without_waiters(
     client: Redis,
 ) -> None:
-    pool: Any = client.connection_pool
+    pool = client.connection_pool
     held = pool.get_connection()
     waiting = threading.Thread(target=lambda: pool.get_connection(), daemon=True)
     waiting.start()

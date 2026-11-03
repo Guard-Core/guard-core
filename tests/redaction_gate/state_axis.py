@@ -1,7 +1,13 @@
-from typing import Any
+from types import ModuleType
+from typing import Any, TypeVar
 
 import tests.test_sensitive_data_invariant as INV_ASYNC
 import tests.test_sync.test_sensitive_data_invariant as INV_SYNC
+from guard_core.core.checks.pipeline import SecurityCheckPipeline
+from guard_core.sync.core.checks.pipeline import (
+    SecurityCheckPipeline as SyncSecurityCheckPipeline,
+)
+from tests.conftest import MockGuardRequest
 from tests.redaction_gate.axes import BASELINE_AXES
 from tests.redaction_gate.blob import build_blob
 from tests.redaction_gate.capture import (
@@ -10,7 +16,11 @@ from tests.redaction_gate.capture import (
     scan_all_channels,
 )
 from tests.redaction_gate.runner import CaseResult, classify, next_client_ip
-from tests.redaction_gate.surfaces import build_request_for_surface
+from tests.redaction_gate.surfaces import (
+    build_async_request_for_surface,
+    build_sync_request_for_surface,
+)
+from tests.test_sync.conftest import SyncMockGuardRequest
 
 STATES = [
     "rate_limited",
@@ -23,6 +33,8 @@ STATES = [
 ]
 
 STATE_SURFACES = ["header", "query_param", "json_shallow"]
+
+_RequestT = TypeVar("_RequestT", MockGuardRequest, SyncMockGuardRequest)
 
 _TIME_RESTRICTIONS = {"start": "00:00", "end": "00:01", "timezone": "UTC"}
 
@@ -40,29 +52,29 @@ def _log_line_leak(capture: CaptureHandler, secret: str) -> list[tuple[str, str]
     return [("log_line", line)]
 
 
-def _build_rate_limited(mod: Any) -> tuple[Any, Any]:
+def _build_rate_limited(mod: ModuleType) -> tuple[Any, Any]:
     config = mod._scenario_config(
         enable_rate_limiting=True, rate_limit=1, rate_limit_window=60
     )
     return config, mod._scenario_middleware(config)
 
 
-def _build_banned(mod: Any) -> tuple[Any, Any]:
+def _build_banned(mod: ModuleType) -> tuple[Any, Any]:
     config = mod._scenario_config()
     return config, mod._scenario_middleware(config)
 
 
-def _build_emergency(mod: Any) -> tuple[Any, Any]:
+def _build_emergency(mod: ModuleType) -> tuple[Any, Any]:
     config = mod._scenario_config(emergency_mode=True, emergency_whitelist=[])
     return config, mod._scenario_middleware(config)
 
 
-def _build_cloud_blocked(mod: Any) -> tuple[Any, Any]:
+def _build_cloud_blocked(mod: ModuleType) -> tuple[Any, Any]:
     config = mod._scenario_config(block_cloud_providers=frozenset({"AWS"}))
     return config, mod._scenario_middleware(config)
 
 
-def _build_country_blocked(mod: Any) -> tuple[Any, Any]:
+def _build_country_blocked(mod: ModuleType) -> tuple[Any, Any]:
     geo_ip_handler = mod.MagicMock()
     geo_ip_handler.get_country = mod.MagicMock(return_value="XX")
     config = mod._scenario_config(
@@ -71,12 +83,12 @@ def _build_country_blocked(mod: Any) -> tuple[Any, Any]:
     return config, mod._scenario_middleware(config, geo_ip_handler=geo_ip_handler)
 
 
-def _build_time_window(mod: Any) -> tuple[Any, Any]:
+def _build_time_window(mod: ModuleType) -> tuple[Any, Any]:
     config = mod._scenario_config()
     return config, mod._scenario_middleware(config)
 
 
-def _build_request_logged(mod: Any) -> tuple[Any, Any]:
+def _build_request_logged(mod: ModuleType) -> tuple[Any, Any]:
     config = mod._scenario_config(log_request_level="INFO")
     return config, mod._scenario_middleware(config)
 
@@ -92,17 +104,26 @@ _STATE_BUILDERS = {
 }
 
 
-def _patch_time_window_check(pipeline: Any, mod: Any, *, is_sync: bool) -> None:
+def _patch_time_window_check(
+    pipeline: SecurityCheckPipeline | SyncSecurityCheckPipeline,
+    mod: ModuleType,
+    *,
+    is_sync: bool,
+) -> None:
     time_window_check = next(
         c for c in pipeline.checks if c.check_name == "time_window"
     )
     if is_sync:
-        time_window_check._check_time_window = lambda _time_restrictions: False
+        vars(time_window_check)["_check_time_window"] = lambda _time_restrictions: False
     else:
-        time_window_check._check_time_window = mod.AsyncMock(return_value=False)
+        vars(time_window_check)["_check_time_window"] = mod.AsyncMock(
+            return_value=False
+        )
 
 
-def build_state_variant(mod: Any, state: str, *, is_sync: bool) -> tuple[Any, Any, Any]:
+def build_state_variant(
+    mod: ModuleType, state: str, *, is_sync: bool
+) -> tuple[Any, Any, SecurityCheckPipeline | SyncSecurityCheckPipeline]:
     builder = _STATE_BUILDERS.get(state)
     if builder is None:
         raise ValueError(f"unknown state {state!r}")
@@ -113,11 +134,9 @@ def build_state_variant(mod: Any, state: str, *, is_sync: bool) -> tuple[Any, An
     return config, middleware, pipeline
 
 
-def _request_for_case(
-    mod: Any, state: str, surface: str, secret: str, client_ip: str
-) -> Any:
-    blob = build_blob(BASELINE_AXES, secret)
-    request = build_request_for_surface(mod, surface, blob)
+def _prepare_request_for_case(
+    request: _RequestT, mod: ModuleType, state: str, client_ip: str
+) -> _RequestT:
     request.state.client_ip = client_ip
     request.state.route_config = None
     if state == "time_window":
@@ -128,7 +147,7 @@ def _request_for_case(
 
 
 async def run_state_case_async(
-    state: str, surface: str, pipeline: Any, capture: CaptureHandler
+    state: str, surface: str, pipeline: SecurityCheckPipeline, capture: CaptureHandler
 ) -> CaseResult:
     mod = INV_ASYNC
     secret = f"SECRET-state.{state}.{surface}"
@@ -144,7 +163,10 @@ async def run_state_case_async(
     elif state == "banned":
         await mod.ip_ban_manager.ban_ip(client_ip, 300, "state_axis")
 
-    request = _request_for_case(mod, state, surface, secret, client_ip)
+    blob = build_blob(BASELINE_AXES, secret)
+    request = _prepare_request_for_case(
+        build_async_request_for_surface(surface, blob), mod, state, client_ip
+    )
     await pipeline.execute(request)
 
     leaks = _log_line_leak(capture, secret)
@@ -163,7 +185,10 @@ async def run_state_case_async(
 
 
 def run_state_case_sync(
-    state: str, surface: str, pipeline: Any, capture: CaptureHandler
+    state: str,
+    surface: str,
+    pipeline: SyncSecurityCheckPipeline,
+    capture: CaptureHandler,
 ) -> CaseResult:
     mod = INV_SYNC
     secret = f"SECRET-state.{state}.{surface}"
@@ -179,7 +204,10 @@ def run_state_case_sync(
     elif state == "banned":
         mod.ip_ban_manager.ban_ip(client_ip, 300, "state_axis")
 
-    request = _request_for_case(mod, state, surface, secret, client_ip)
+    blob = build_blob(BASELINE_AXES, secret)
+    request = _prepare_request_for_case(
+        build_sync_request_for_surface(surface, blob), mod, state, client_ip
+    )
     pipeline.execute(request)
 
     leaks = _log_line_leak(capture, secret)
@@ -210,6 +238,8 @@ async def run_state_phase(capture: CaptureHandler) -> list[CaseResult]:
         sync_config, sync_middleware, sync_pipeline = build_state_variant(
             INV_SYNC, state, is_sync=True
         )
+        assert isinstance(async_pipeline, SecurityCheckPipeline)
+        assert isinstance(sync_pipeline, SyncSecurityCheckPipeline)
         cloud_patches = []
         if state == "cloud_blocked":
             for is_sync, target in _CLOUD_HANDLER_PATCH_TARGETS.items():

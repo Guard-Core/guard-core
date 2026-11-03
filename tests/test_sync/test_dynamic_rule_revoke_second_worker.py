@@ -4,7 +4,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Generator
-from typing import Any
+from typing import IO, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -93,7 +93,7 @@ class SecondWorker:
         )
         assert self._stdout().readline().strip() == "ready"
 
-    def _stdout(self) -> Any:
+    def _stdout(self) -> IO[str]:
         assert self.process.stdout is not None
         return self.process.stdout
 
@@ -133,7 +133,7 @@ def redis_fleet() -> Generator[Fleet, None]:
 
 
 @pytest.fixture
-def second_worker(redis_fleet: Fleet) -> Any:
+def second_worker(redis_fleet: Fleet) -> Generator[SecondWorker]:
     assert redis_fleet.redis is not None
     worker = SecondWorker(redis_fleet.redis.config.redis_prefix)
     yield worker

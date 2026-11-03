@@ -3,7 +3,7 @@ import logging
 import socket
 import threading
 import time
-from typing import Any, cast
+from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -54,8 +54,8 @@ def _honest(body: bytes) -> SyncMockGuardRequest:
     )
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
-    values: dict[str, Any] = {"enable_redis": False, "rate_limit": 10000}
+def _config(**overrides: object) -> SyncSecurityConfig:
+    values: dict[str, object] = {"enable_redis": False, "rate_limit": 10000}
     values.update(overrides)
     return SyncSecurityConfig(**values)
 
@@ -151,7 +151,7 @@ def test_a_slot_is_released_after_a_stall_a_failure_and_a_success() -> None:
     config = _config(sync_body_read_max_concurrent=1, body_read_timeout=0.2)
 
     class _Outcome(SyncMockGuardRequest):
-        def __init__(self, outcome: Any) -> None:
+        def __init__(self, outcome: bytes | Exception) -> None:
             super().__init__(method="POST", path="/x", headers={"content-length": "4"})
             self.outcome = outcome
 
@@ -160,7 +160,7 @@ def test_a_slot_is_released_after_a_stall_a_failure_and_a_success() -> None:
         ) -> bytes:
             if isinstance(self.outcome, Exception):
                 raise self.outcome
-            return cast(bytes, self.outcome)
+            return self.outcome
 
     with pytest.raises(BodyReadStalledError):
         _read_capped_body_or_raise(_Outcome(BodyReadStalledError()), config)
