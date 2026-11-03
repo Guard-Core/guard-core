@@ -1,7 +1,6 @@
 import logging
 from collections.abc import Awaitable, Callable
 
-from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import (
     PROCESS_OVERRIDE,
     PULLED_OVERRIDES,
@@ -260,7 +259,7 @@ class ErrorResponseFactory:
             manager._override.set_at,
             manager._override_epoch,
             manager.redis_handler is None,
-            redis_is_configured(config),
+            bool(config.enable_redis and config.redis_url),
             bool(PULLED_OVERRIDES and manager.pulled_override_for(config) is not None),
         ) == (0.0, 0.0, PROCESS_OVERRIDE.reset_epoch, True, False, False)
         override = manager._override if quiet else manager.resolve_override()

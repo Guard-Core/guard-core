@@ -87,10 +87,10 @@ class PerApp(Generic[_T]):
 
     def for_app(self, config: object) -> _T:
         try:
-            tables = config.__dict__.get(_HELD_ATTRIBUTE)
-        except AttributeError:
-            tables = None
-        held = tables.get(self._kind) if tables else None
+            # Indexing, not .get(): this runs on the response path of every request.
+            held = config.__dict__[_HELD_ATTRIBUTE][self._kind]
+        except (AttributeError, KeyError):
+            held = None
         if held is not None and isinstance(held, self._table_type):
             return held
         with self._lock:

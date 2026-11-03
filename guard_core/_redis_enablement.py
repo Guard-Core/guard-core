@@ -47,4 +47,5 @@ def configured_redis_url(config: RedisFieldsConfig) -> str | None:
 
 
 def redis_is_configured(config: RedisFieldsConfig) -> bool:
-    return configured_redis_url(config) is not None
+    # Same rule as configured_redis_url, inline: this runs on every response.
+    return bool(config.enable_redis and config.redis_url)

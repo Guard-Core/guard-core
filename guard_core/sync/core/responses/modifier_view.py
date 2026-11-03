@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from collections.abc import Callable, Iterable, Iterator, MutableMapping
 from enum import Enum
@@ -23,6 +24,8 @@ _ModifierResult = TypeVar("_ModifierResult")
 READS_BODY_MARKER = "__guard_core_reads_response_body__"
 _BODY_NOT_YET_AVAILABLE = "the first call of a modifier that is replayed with the body"
 _BODYLESS_STATUSES = frozenset({204, 304})
+# not str.isdigit(), which is also true for superscripts and digits int() rejects
+_ASCII_DIGITS = re.compile(r"[0-9]+")
 _REFUSAL_REPORT_SECONDS = 60
 _REFUSAL_REPORT_MAX_REASONS = 64
 _reported_refusals: PerApp[RefusalReports] = PerApp("refusals", RefusalReports)
@@ -99,36 +102,32 @@ class RecordingHeaders(MutableMapping[str, str]):
 
     def __init__(self, real: GuardResponseHeaders) -> None:
         self._real = real
+        self._multi_valued = callable(getattr(real, "append", None))
         self._undo: list[tuple[str, _HeaderUndo]] = []
 
     def __getitem__(self, key: str) -> str:
         return self._real[key]
 
-    def _note_every_value(self) -> bool:
-        """Headers that can hold several values of one name (Starlette's
-        ``MutableHeaders``) are undone from a full snapshot: ``real[key]`` is one
-        value of N."""
-        real = self._real
-        if not _is_appendable(real):
-            return False
-        self._undo += [("", list(real.items()))]
-        return True
-
     def __setitem__(self, key: str, value: str) -> None:
         real = self._real
-        if self._note_every_value():
-            real[key] = value
-            return
-        try:
-            previous: _HeaderUndo = real[key]
-        except KeyError:
-            previous = _ABSENT
-        self._undo += [(key, previous)]
+        if self._multi_valued and _is_appendable(real):
+            # Headers that can hold several values of one name (Starlette's
+            # ``MutableHeaders``) are undone from a full snapshot: ``real[key]`` is
+            # one value of N.
+            self._undo += [("", list(real.items()))]
+        else:
+            try:
+                previous: _HeaderUndo = real[key]
+            except KeyError:
+                previous = _ABSENT
+            self._undo += [(key, previous)]
         real[key] = value
 
     def __delitem__(self, key: str) -> None:
         real = self._real
-        if not self._note_every_value():
+        if self._multi_valued and _is_appendable(real):
+            self._undo += [("", list(real.items()))]
+        else:
             self._undo += [(key, real[key])]
         del real[key]
 
@@ -159,8 +158,10 @@ class RecordingHeaders(MutableMapping[str, str]):
         real = self._real
         for key, previous in reversed(self._undo):
             if previous is _ABSENT:
-                if key in real:
+                try:
                     del real[key]
+                except KeyError:
+                    pass
             elif isinstance(previous, list):
                 _restore_items(real, previous)
             else:
@@ -201,6 +202,7 @@ class ModifierResponseView:
         state = self.__dict__
         state["_real"] = real
         state["_refusal"] = refusal
+        state["_declared"] = None
         state["_gate_args"] = gate_args
         state["_attribute_undo"] = []
         state["body_requested"] = False
@@ -214,7 +216,7 @@ class ModifierResponseView:
         """The gate's reason to refuse the body, asked at most once per view."""
         state = self.__dict__
         if state["_refusal"] is None and state["_gate_args"] is not None:
-            state["_refusal"] = body_gate_refusal(*state["_gate_args"])
+            state["_refusal"], state["_declared"] = body_gate(*state["_gate_args"])
             state["_gate_args"] = None
         refusal: str | None = state["_refusal"]
         return refusal
@@ -228,7 +230,7 @@ class ModifierResponseView:
         # must never answer.
         state["body_requested"] = True
         if state["_refusal"] is None and state["_gate_args"] is not None:
-            state["_refusal"] = body_gate_refusal(*state["_gate_args"])
+            state["_refusal"], state["_declared"] = body_gate(*state["_gate_args"])
             state["_gate_args"] = None
         raise ResponseBodyUnavailableError(state["_refusal"] or _BODY_NOT_YET_AVAILABLE)
 
@@ -268,14 +270,14 @@ def _header_value(headers: GuardResponseHeaders, name: str, cased: str) -> str |
     return None
 
 
-def _is_ascii_digits(value: str) -> bool:
-    # str.isdigit() is also true for superscripts and other digits int() rejects
-    return value.isascii() and value.isdigit()
-
-
 def declared_content_length(response: GuardResponse) -> int | None:
-    declared = _header_value(response.headers, "content-length", "Content-Length")
-    if declared is None or not _is_ascii_digits(declared.strip()):
+    headers = response.headers
+    declared = headers.get("content-length")
+    if declared is None:
+        declared = _header_value(headers, "content-length", "Content-Length")
+        if declared is None:
+            return None
+    if _ASCII_DIGITS.fullmatch(declared.strip()) is None:
         return None
     return int(declared)
 
@@ -291,20 +293,21 @@ def _plain_dict_gate_headers(
     )
 
 
-def body_gate_refusal(
+def body_gate(
     response: GuardResponse, method: str, max_bytes: int
-) -> str | None:
-    """Why ``.body`` must not be offered for this response, or None when it may.
+) -> tuple[str | None, int | None]:
+    """Why ``.body`` must not be offered for this response (None when it may) and,
+    when it may, the declared Content-Length.
 
     ``method`` is the request method in upper case (the request protocol).
     Header lookups use ``.get`` once: every adapter's headers are
     case-insensitive; only a plain ``dict`` gets the casing fallback.
     """
     if method == "HEAD":
-        return "a HEAD response has no body"
+        return "a HEAD response has no body", None
     status = response.status_code
     if status < 200 or status in _BODYLESS_STATUSES:
-        return f"a {status} response has no body"
+        return f"a {status} response has no body", None
     headers = response.headers
     content_type = headers.get("content-type")
     declared = headers.get("content-length")
@@ -313,14 +316,20 @@ def body_gate_refusal(
             headers, content_type, declared
         )
     if content_type and content_type.lower().lstrip().startswith("text/event-stream"):
-        return "text/event-stream has no end"
-    if declared is None:
-        return "the response declares no Content-Length"
-    if not _is_ascii_digits(declared):
-        return "the response declares no Content-Length"
-    if int(declared) > max_bytes:
-        return f"the declared Content-Length {declared} is over {max_bytes} bytes"
-    return None
+        return "text/event-stream has no end", None
+    if declared is None or _ASCII_DIGITS.fullmatch(declared) is None:
+        return "the response declares no Content-Length", None
+    length = int(declared)
+    if length > max_bytes:
+        return f"the declared Content-Length {declared} is over {max_bytes} bytes", None
+    return None, length
+
+
+def body_gate_refusal(
+    response: GuardResponse, method: str, max_bytes: int
+) -> str | None:
+    """The refusal reason of ``body_gate``, or None when ``.body`` may be offered."""
+    return body_gate(response, method, max_bytes)[0]
 
 
 def report_body_refused(

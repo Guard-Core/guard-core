@@ -9,8 +9,7 @@ from guard_core.sync._utils.response_prefetch import (
 )
 from guard_core.sync.core.responses.modifier_view import (
     ModifierResponseView,
-    body_gate_refusal,
-    declared_content_length,
+    body_gate,
     report_body_refused,
 )
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
@@ -27,13 +26,13 @@ def _load_bounded_body(view: ModifierResponseView) -> bytes | None:
     state = view.__dict__
     response, method, cap = state["_gate_args"]
     config, prefetch, logger, agent_handler, request = state["_lazy"]
-    refusal = body_gate_refusal(response, method, cap)
+    refusal, declared = body_gate(response, method, cap)
     body = None
     if refusal is None:
         body = (prefetch or ResponseBodyPrefetch(response)).read(
             cap, config.body_read_timeout
         )
-        if body is None or len(body) != declared_content_length(response):
+        if body is None or len(body) != declared:
             body, refusal = None, _PREFETCH_INCOMPLETE
     if body is not None:
         state["body"] = body

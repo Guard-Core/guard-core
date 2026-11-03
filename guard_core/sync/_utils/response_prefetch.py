@@ -1,9 +1,9 @@
 from contextvars import ContextVar
+from functools import partial
 from typing import Protocol, TypeGuard, runtime_checkable
 
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.body_reader import _safe_read
-from guard_core.sync._utils.capability import has_callable
 
 
 @runtime_checkable
@@ -14,7 +14,8 @@ class _BoundedResponseBodyReader(Protocol):
 def _reads_body_prefix(
     response: GuardResponse,
 ) -> TypeGuard[_BoundedResponseBodyReader]:
-    return has_callable(response, "read_body_prefix")
+    # has_callable inline: this runs on every response that reads a body prefix.
+    return callable(getattr(response, "read_body_prefix", None))
 
 
 class ResponseBodyPrefetch:
@@ -53,7 +54,7 @@ class ResponseBodyPrefetch:
             self.failed = True
             return
         prefix: object = _safe_read(
-            lambda: response.read_body_prefix(max_bytes), timeout
+            partial(response.read_body_prefix, max_bytes), timeout
         )
         if not isinstance(prefix, bytes):
             self.failed = True

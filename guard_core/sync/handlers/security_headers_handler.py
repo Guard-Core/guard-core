@@ -204,12 +204,20 @@ class SecurityHeadersManager(
             return {}
 
         cache_key = self._generate_cache_key(request_path, config, override)
-        cached = self.headers_cache.get(cache_key)
-        if isinstance(cached, dict):
+        cached = self._cached_headers(cache_key)
+        if cached is not None:
             return cached
         return self._build_headers_and_announce(
             request_path, config, cache_key, override
         )
+
+    def _cached_headers(self, cache_key: str) -> dict[str, str] | None:
+        try:
+            # Indexing, not .get(): the same lookup in about half the calls.
+            cached = self.headers_cache[cache_key]
+        except KeyError:
+            return None
+        return cached if isinstance(cached, dict) else None
 
     def _get_global_headers(self, request_path: str | None) -> dict[str, str]:
         if not self.enabled:

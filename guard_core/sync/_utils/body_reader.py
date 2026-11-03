@@ -108,6 +108,8 @@ def _safe_read(
     max_concurrent: int | None = None,
 ) -> bytes | None:
     try:
+        if max_concurrent is None:
+            return reader()
         with _body_read_slot(max_concurrent, timeout):
             return reader()
     except Exception:

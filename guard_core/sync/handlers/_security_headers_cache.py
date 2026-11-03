@@ -41,6 +41,7 @@ class SecurityHeadersCacheMixin:
     _startup_hash: str | None
     _redis_initialized: bool
     _headers_json_memo: tuple[object, str] | None = None
+    _config_key_memo: tuple[str, str] | None = None
 
     @abstractmethod
     def _pull_override(self) -> None: ...
@@ -60,10 +61,7 @@ class SecurityHeadersCacheMixin:
     @abstractmethod
     def _validate_header_value(self, value: str) -> str: ...
 
-    def _security_headers_json(self, headers: object) -> str:
-        memo = self._headers_json_memo
-        if memo is not None and memo[0] == headers:
-            return memo[1]
+    def _serialize_and_memoize_security_headers(self, headers: object) -> str:
         content = json.dumps(headers, sort_keys=True, default=str)
         try:
             self._headers_json_memo = (copy.deepcopy(headers), content)
@@ -78,11 +76,23 @@ class SecurityHeadersCacheMixin:
         override: OverrideRecord | None = None,
     ) -> str:
         if config is not None:
-            content = self._security_headers_json(config.security_headers)
+            headers = config.security_headers
+            memo = self._headers_json_memo
+            content = (
+                memo[1]
+                if memo is not None and memo[0] == headers
+                else self._serialize_and_memoize_security_headers(headers)
+            )
             current = self._current_override() if override is None else override
             if current.keys:
                 content += override_fingerprint(current.keys)
-            return f"cfg_{hashlib.sha256(content.encode()).hexdigest()[:32]}"
+            # The key is a pure function of the content: hash it once per content.
+            hashed = self._config_key_memo
+            if hashed is not None and hashed[0] == content:
+                return hashed[1]
+            key = f"cfg_{hashlib.sha256(content.encode()).hexdigest()[:32]}"
+            self._config_key_memo = (content, key)
+            return key
         if not request_path:
             return "default"
         normalized = request_path.lower().strip("/")
