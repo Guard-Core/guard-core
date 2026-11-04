@@ -25,6 +25,7 @@ from guard_core.sync.core.initialization._route_misconfiguration_reports import 
 from guard_core.sync.core.initialization._whitelist_strikes import (
     reset_startup_whitelist_strikes,
 )
+from guard_core.sync.handlers._background_stop import stop_task_on_its_own_loop
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
@@ -109,6 +110,9 @@ class _HandlerInitializerStepsMixin(
         if self.redis_handler is None:
             raise RuntimeError("This step needs a redis_handler and none is set")
         return self.redis_handler
+
+    def _stop_lazy_init(self) -> None:
+        stop_task_on_its_own_loop(self._lazy_init_task)
 
     def _run_lazy_init(self) -> None:
         with in_app_scope(app_scope_of(self.config)):

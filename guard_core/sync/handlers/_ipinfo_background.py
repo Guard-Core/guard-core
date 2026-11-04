@@ -50,13 +50,16 @@ class IpInfoBackgroundMixin:
     def _stop_background_load(self) -> None:
         return None
 
+    def _wait_for_load(self, load: threading.Thread) -> None:
+        load.join()
+
     _last_load_error: str | None = None
 
     def ensure_database_loaded(self) -> None:
         if self.reader is not None:
             return
         if not self._is_backing_off():
-            self._start_or_join_load(self._initialize_database).join()
+            self._wait_for_load(self._start_or_join_load(self._initialize_database))
         self._raise_last_load_error()
 
     def _raise_last_load_error(self) -> None:

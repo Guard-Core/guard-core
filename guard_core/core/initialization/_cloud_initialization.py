@@ -6,6 +6,7 @@ from guard_core._security_config_cloud_store_validators import (
 )
 from guard_core._utils.capability import has_callables
 from guard_core._utils.geo_member_call import settle_geo_member_call
+from guard_core.handlers._background_stop import stop_before_redis_closes
 from guard_core.protocols.cloud_ip_store_protocol import CloudIpStoreProtocol
 
 if TYPE_CHECKING:
@@ -34,6 +35,8 @@ class CloudInitializationMixin:
     _lazy_init_task: "asyncio.Task[None] | None" = None
 
     async def _run_lazy_init(self) -> None: ...
+
+    async def _stop_lazy_init(self) -> None: ...
 
     def _cloud_providers_to_load(self) -> frozenset[str]:
         providers = set(self.config.block_cloud_providers or ())
@@ -66,6 +69,7 @@ class CloudInitializationMixin:
         from guard_core.handlers.cloud_handler import cloud_handler_for
 
         if self.config.lazy_init:
+            stop_before_redis_closes(redis_handler, self._stop_lazy_init)
             self._lazy_init_task = asyncio.create_task(self._run_lazy_init())
             return
         if providers := self._cloud_providers_to_load():

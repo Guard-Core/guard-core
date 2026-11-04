@@ -53,6 +53,7 @@ SKIP_SRC = {
 }
 
 SKIP_TESTS = {
+    "test_redis_close_stops_background_tasks.py",
     "test_redis_close_stops_geo_load.py",
     "test_redis_abandoned_client.py",
     "test_redis_loop_change.py",
@@ -404,6 +405,20 @@ _SYNC_CURRENT_SCOPE_REPLACEMENT = (
     "    return _PROCESS_SCOPE\n"
 )
 
+_ASYNC_STOP_TASK_SRC = (
+    "async def stop_task_on_its_own_loop(task: asyncio.Task[None] | None) -> None:\n"
+    "    if task is None or task.done() or task.get_loop() is not "
+    "asyncio.get_running_loop():\n"
+    "        return\n"
+    "    task.cancel()\n"
+    "    await asyncio.gather(task, return_exceptions=True)\n"
+)
+
+_SYNC_STOP_TASK_REPLACEMENT = (
+    "def stop_task_on_its_own_loop(task: threading.Thread | None) -> None:\n"
+    "    return None\n"
+)
+
 _ASYNC_YIELD_SRC = (
     "async def _yield_to_event_loop() -> None:\n    await asyncio.sleep(0)\n"
 )
@@ -434,8 +449,21 @@ _ASYNC_START_OR_JOIN_LOAD_SRC = (
     "            or self._load_loop is not asyncio.get_running_loop()\n"
     "        ):\n"
     "            return\n"
+    "        self._load_stopped_by_close = task\n"
     "        task.cancel()\n"
     "        await asyncio.gather(task, return_exceptions=True)\n"
+    "\n"
+    '    _load_stopped_by_close: "asyncio.Task[None] | None" = None\n'
+    "\n"
+    '    async def _wait_for_load(self, load: "asyncio.Task[None]") -> None:\n'
+    "        try:\n"
+    "            await asyncio.shield(load)\n"
+    "        except asyncio.CancelledError:\n"
+    "            # shield cancels its outer future with the inner task; a\n"
+    "            # waiter whose own task is not being cancelled sees a failed load.\n"
+    "            if load is not self._load_stopped_by_close or not load.cancelled():\n"
+    "                raise\n"
+    '            self._last_load_error = "GeoIP load stopped because Redis closed"\n'
 )
 
 _SYNC_START_OR_JOIN_LOAD_REPLACEMENT = (
@@ -455,6 +483,9 @@ _SYNC_START_OR_JOIN_LOAD_REPLACEMENT = (
     "\n"
     "    def _stop_background_load(self) -> None:\n"
     "        return None\n"
+    "\n"
+    "    def _wait_for_load(self, load: threading.Thread) -> None:\n"
+    "        load.join()\n"
 )
 
 _ASYNC_DOWNLOAD_BODY_SRC = (
@@ -558,6 +589,7 @@ SUBS: list[tuple[str, str]] = [
         re.escape(_ASYNC_START_OR_JOIN_LOAD_SRC),
         _SYNC_START_OR_JOIN_LOAD_REPLACEMENT.replace("\\", "\\\\"),
     ),
+    (re.escape(_ASYNC_STOP_TASK_SRC), _SYNC_STOP_TASK_REPLACEMENT),
     (r"await asyncio\.shield\((.+)\)$", r"\1.join()"),
     (re.escape(_ASYNC_YIELD_SRC), _SYNC_YIELD_REPLACEMENT),
     (
