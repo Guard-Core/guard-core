@@ -130,7 +130,7 @@ def communicate_until_stalled(
             return None
 
 
-class _ThreadHeartbeatFile:
+class _ThreadScratchFile:
     def __init__(self) -> None:
         self.handle: IO[bytes] = tempfile.TemporaryFile()
 
@@ -141,19 +141,24 @@ class _ThreadHeartbeatFile:
 _thread_state = threading.local()
 
 
-def _heartbeat_file() -> "IO[bytes]":
-    # One anonymous file per thread, emptied before each child: creating and
-    # unlinking a fresh one costs more parent CPU than the spawn's own pipes.
-    owner: _ThreadHeartbeatFile | None = getattr(_thread_state, "heartbeats", None)
+def _scratch_file(slot: str) -> "IO[bytes]":
+    # One anonymous file per thread and slot, emptied before each child: creating
+    # and unlinking a fresh one costs more parent CPU than the spawn's own pipes.
+    owner: _ThreadScratchFile | None = getattr(_thread_state, slot, None)
     if owner is None:
-        owner = _thread_state.heartbeats = _ThreadHeartbeatFile()
+        owner = _ThreadScratchFile()
+        setattr(_thread_state, slot, owner)
     owner.handle.seek(0)
     owner.handle.truncate()
     return owner.handle
 
 
-def _payload_file(files: contextlib.ExitStack, encoded: bytes) -> "IO[bytes]":
-    handle = files.enter_context(tempfile.TemporaryFile())
+def _heartbeat_file() -> "IO[bytes]":
+    return _scratch_file("heartbeats")
+
+
+def _payload_file(encoded: bytes) -> "IO[bytes]":
+    handle = _scratch_file("payloads")
     handle.write(encoded)
     handle.seek(0)
     return handle
@@ -185,9 +190,7 @@ def run_limited_child(
     by_pipe = len(encoded) <= PIPE_PAYLOAD_LIMIT_BYTES
     with contextlib.ExitStack() as files:
         heartbeats = _heartbeat_file()
-        stdin = (
-            _payload_pipe(files, encoded) if by_pipe else _payload_file(files, encoded)
-        )
+        stdin = _payload_pipe(files, encoded) if by_pipe else _payload_file(encoded)
         process = subprocess.Popen(
             [sys.executable, "-S", "-I", "-c", script],
             stdin=stdin,

@@ -2,7 +2,9 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import IO
 
@@ -199,10 +201,18 @@ def test_a_host_without_ps_leaves_the_state_unknown(
 _READ_PAYLOAD_LENGTH = "import sys; print(len(sys.stdin.read()))"
 
 
+def _run_in_a_fresh_thread(work: Callable[[], None]) -> None:
+    # the scratch files are per thread, so a fresh thread starts with none
+    worker = threading.Thread(target=work)
+    worker.start()
+    worker.join(timeout=60)
+    assert not worker.is_alive()
+
+
 def _files_opened_by_one_call(
     monkeypatch: pytest.MonkeyPatch, payload: str, script: str
 ) -> tuple[int, "limited_child.ChildResult | None"]:
-    limited_child.run_limited_child("pass", "", 30.0)
+    results: list[limited_child.ChildResult | None] = []
     opened: list[IO[bytes]] = []
     real = limited_child.tempfile.TemporaryFile
 
@@ -211,9 +221,41 @@ def _files_opened_by_one_call(
         opened.append(handle)
         return handle
 
-    monkeypatch.setattr(limited_child.tempfile, "TemporaryFile", counting)
-    result = limited_child.run_limited_child(script, payload, 30.0)
-    return len(opened), result
+    def work() -> None:
+        limited_child.run_limited_child("pass", "", 30.0)
+        opened.clear()
+        monkeypatch.setattr(limited_child.tempfile, "TemporaryFile", counting)
+        results.append(limited_child.run_limited_child(script, payload, 30.0))
+
+    _run_in_a_fresh_thread(work)
+    return len(opened), results[0]
+
+
+def test_a_second_large_payload_in_one_thread_opens_no_new_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    outcomes: list[tuple[int, str]] = []
+    opened: list[IO[bytes]] = []
+    real = limited_child.tempfile.TemporaryFile
+
+    def counting() -> IO[bytes]:
+        handle: IO[bytes] = real()
+        opened.append(handle)
+        return handle
+
+    def work() -> None:
+        limited_child.run_limited_child("pass", "x" * (1 << 16), 30.0)
+        monkeypatch.setattr(limited_child.tempfile, "TemporaryFile", counting)
+        for size in (1 << 15, 4097, 1 << 16):
+            result = limited_child.run_limited_child(
+                _READ_PAYLOAD_LENGTH, "x" * size, 30.0
+            )
+            assert result is not None
+            outcomes.append((size, result.stdout.strip()))
+
+    _run_in_a_fresh_thread(work)
+    assert outcomes == [(size, str(size)) for size in (1 << 15, 4097, 1 << 16)]
+    assert opened == []
 
 
 @pytest.mark.parametrize("size", [0, 1, 512, 4096])
@@ -279,8 +321,6 @@ def test_a_child_reads_only_its_own_stderr_though_the_heartbeat_file_is_reused()
 
 
 def test_each_thread_keeps_its_own_heartbeat_file() -> None:
-    import threading
-
     files: list[IO[bytes]] = []
     done = threading.Barrier(2)
 
