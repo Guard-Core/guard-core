@@ -62,6 +62,16 @@ async def test_a_path_no_route_serves_is_answered_404() -> None:
     assert response.status_code == 404
 
 
+async def test_a_middleware_with_no_template_lookup_still_answers_404() -> None:
+    mw = _middleware({"/ok"})
+    del mw.route_template
+
+    response = await _check(mw, MockGuardRequest(path="/nope"))
+
+    assert response is not None
+    assert response.status_code == 404
+
+
 async def test_a_wrong_method_on_a_served_path_is_answered_405() -> None:
     response = await _check(
         _middleware({"/ok"}), MockGuardRequest(path="/ok", method="POST")

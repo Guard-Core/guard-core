@@ -415,3 +415,15 @@ def test_endpoint_rate_limit_key_problems_imports_from_both_packages() -> None:
     assert async_form({"/a/../b": (5, 60)}) == sync_form({"/a/../b": (5, 60)})
     assert "endpoint_rate_limit_key_problems" in guard_core.__all__
     assert "endpoint_rate_limit_key_problems" in guard_core.sync.__all__
+
+
+@pytest.mark.parametrize(
+    "package", ["guard_core.protocols", "guard_core.sync.protocols"]
+)
+def test_a_protocols_package_lists_every_lazy_name_before_it_is_loaded(
+    package: str,
+) -> None:
+    module = importlib.import_module(package)
+
+    assert set(module.__all__) <= set(dir(module))
+    assert dir(module) == sorted(dir(module))

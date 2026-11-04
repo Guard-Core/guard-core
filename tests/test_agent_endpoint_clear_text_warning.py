@@ -57,3 +57,20 @@ def test_an_unparseable_endpoint_does_not_raise_from_the_warning() -> None:
     )
 
     warn_agent_endpoint_in_clear(config)
+
+
+def test_the_helper_called_directly_with_the_agent_off_does_not_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from guard_core._security_config_field_validators import (
+        warn_agent_endpoint_in_clear,
+    )
+
+    config = SecurityConfig.model_construct(
+        enable_agent=False, agent_endpoint="http://api.example.com"
+    )
+
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        warn_agent_endpoint_in_clear(config)
+
+    assert "travel unencrypted" not in caplog.text

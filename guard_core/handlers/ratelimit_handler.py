@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, NamedTuple, TypedDict
 
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
-from guard_core._redis_exceptions import NoScriptError, RedisError
+from guard_core._redis_exceptions import RedisError
 from guard_core._tracking_caps import (
     _MAX_TRACKED_RATE_LIMIT_KEYS as _MAX_TRACKED_RATE_LIMIT_KEYS,
 )
@@ -31,6 +31,9 @@ from guard_core.handlers._ratelimit_pipeline_fallback import (
     _retry_after_seconds as _retry_after_seconds,
 )
 from guard_core.handlers._ratelimit_pipeline_fallback import pipeline_blocked_tier
+from guard_core.handlers._ratelimit_script import _evalsha_tiers as _evalsha_tiers
+from guard_core.handlers._ratelimit_script import _Reply
+from guard_core.handlers._ratelimit_script import _script_arguments as _script_arguments
 from guard_core.handlers.redis_handler import scan_unlink_through_new_client
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol as _Agent
@@ -49,7 +52,6 @@ if TYPE_CHECKING:
 
 # The Lua script returns integers, a redis client without decode_responses returns
 # bytes, one with it returns str: all three reach int() below.
-_Reply = Sequence[str | bytes | int | float]
 _by_ip_logger = logging.getLogger("guard_core.handlers.ratelimit")
 _RATE_LIMIT_HANDLER_NAME = "rate_limit"
 _redis_fail_open_warned = False
@@ -123,34 +125,11 @@ def _tier_key(client_ip: str, kind: str, bucket: str) -> str:
     return client_ip
 
 
-def _script_arguments(tiers: Sequence[RateLimitTier]) -> list[int]:
-    return [value for tier in tiers for value in (tier.limit, tier.window)]
-
-
 def _verdict_from_script_result(result: _Reply) -> RateLimitVerdict:
     tier_number, count, retry_after = (int(value) for value in result)
     if tier_number == 0:
         return _ALLOWED
     return RateLimitVerdict(tier_number - 1, count + 1, retry_after)
-
-
-async def _evalsha_tiers(
-    conn: "Redis",
-    logger: logging.Logger,
-    script_sha: str,
-    keys: list[str],
-    tiers: Sequence[RateLimitTier],
-    on_script_reloaded: Callable[[], Awaitable[None]] | None,
-) -> tuple[_Reply, str]:
-    arguments = _script_arguments(tiers)
-    try:
-        return await conn.evalsha(script_sha, len(keys), *keys, *arguments), script_sha
-    except NoScriptError:
-        script_sha = await conn.script_load(RATE_LIMIT_SCRIPT)
-        logger.info("Rate limit Lua script reloaded after NOSCRIPT")
-        if on_script_reloaded is not None:
-            await on_script_reloaded()
-        return await conn.evalsha(script_sha, len(keys), *keys, *arguments), script_sha
 
 
 async def _pipeline_tiers_verdict(
