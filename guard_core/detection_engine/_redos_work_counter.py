@@ -10,6 +10,10 @@
 # host that can count: the table below is empty until a host has measured one.
 WORK_UNIT_SECONDS = 5.1e-11
 
+# x86_64 has no calibrated unit (D-261): over 24 measured builds the window between the
+# slowest safe row and the fastest mirror row is 3.7% wide (5.5307e-11 to 5.7337e-11
+# seconds per instruction), so no single unit keeps the 5% margin on both sides. An
+# architecture gets an entry only once its measured window is wide enough for it.
 LINUX_UNIT_SECONDS: dict[str, float] = {}
 
 _WORK_COUNTER_TEMPLATE = """\
