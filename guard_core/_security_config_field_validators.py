@@ -719,10 +719,10 @@ _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 def warn_agent_endpoint_in_clear(config: "SecurityConfig[RequestT]") -> None:
     """The API key and the payload signature travel to ``agent_endpoint``: over
     plain ``http://`` to a host that is not this machine, they travel in clear."""
-    from urllib.parse import urlsplit
-
     if not config.__dict__["enable_agent"]:
         return
+    from urllib.parse import urlsplit
+
     try:
         parts = urlsplit(config.__dict__["agent_endpoint"])
         host = parts.hostname or ""

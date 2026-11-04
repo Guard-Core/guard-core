@@ -405,12 +405,19 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def validate_agent_config(self) -> Self:
-        require_agent_config(self)
+        values = self.__dict__
+        if (
+            values["enable_agent"]
+            or values["enable_dynamic_rules"]
+            or values["enable_enrichment"]
+        ):
+            require_agent_config(self)
         return self
 
     @model_validator(mode="after")
     def warn_agent_endpoint_in_clear_text(self) -> Self:
-        warn_agent_endpoint_in_clear(self)
+        if self.__dict__["enable_agent"]:
+            warn_agent_endpoint_in_clear(self)
         return self
 
     @model_validator(mode="after")
@@ -623,7 +630,16 @@ def __getattr__(name: str) -> object:
 
     with _build_lock:
         if name not in globals():
-            parametrized = SecurityConfig[SyncGuardRequest]
+            # defer_build: pydantic builds the parametrized class's validator on its
+            # first instance, not here (about 5 ms of an import of the sync tree,
+            # LEDGER 6.333); the key is taken off again so the class reports the
+            # configuration of SecurityConfig.
+            SecurityConfig.model_config["defer_build"] = True
+            try:
+                parametrized = SecurityConfig[SyncGuardRequest]
+            finally:
+                del SecurityConfig.model_config["defer_build"]
+            parametrized.model_config.pop("defer_build", None)
             globals().update(
                 {
                     "SyncSecurityConfig": parametrized,
