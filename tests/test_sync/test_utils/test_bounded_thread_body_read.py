@@ -15,7 +15,11 @@ from guard_core.exceptions import (
 )
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync import utils
-from guard_core.sync._utils.body_reader import _read_capped_body_or_raise
+from guard_core.sync._utils.body_reader import (
+    _body_read_slot,
+    _read_capped_body_or_raise,
+    _read_under_slot,
+)
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -236,6 +240,13 @@ def test_a_raising_reader_degrades_to_none() -> None:
     result = utils._safe_read(_raise, timeout=1.0, max_concurrent=22)
 
     assert result is None
+
+
+def test_an_unbounded_slot_runs_the_read_and_holds_no_semaphore() -> None:
+    with _body_read_slot(None, 0.0):
+        pass
+
+    assert _read_under_slot(lambda: b"unbounded", 0.0, None) == b"unbounded"
 
 
 def test_the_response_side_reader_runs_on_the_calling_thread() -> None:

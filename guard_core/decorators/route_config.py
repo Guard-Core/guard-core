@@ -235,11 +235,11 @@ def _refusing_an_invalid_window(
         *args: _Arguments.args,
         **kwargs: _Arguments.kwargs,
     ) -> _Result:
-        from guard_core.decorators._route_arguments import time_restriction_problems
+        from guard_core.decorators import _route_arguments
 
         before = dict(self)
         result = method(self, *args, **kwargs)
-        problems = time_restriction_problems(self) if self else []
+        problems = _route_arguments.time_restriction_problems(self) if self else []
         if problems:
             dict.clear(self)
             dict.update(self, before)
@@ -449,11 +449,9 @@ class RouteConfig:
 
     def __setattr__(self, name: str, value: object) -> None:
         if name == "time_restrictions" and value:  # empty means no restriction
-            from guard_core.decorators._route_arguments import (
-                time_restriction_problems,
-            )
+            from guard_core.decorators import _route_arguments
 
-            problems = time_restriction_problems(value)
+            problems = _route_arguments.time_restriction_problems(value)
             if problems:
                 raise ValueError(" ".join(problems))
         self.store_attribute(name, value)
