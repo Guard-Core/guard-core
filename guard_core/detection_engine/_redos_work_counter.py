@@ -7,14 +7,18 @@
 # perf_event_open counter of its own user-space instructions when the kernel allows it
 # (perf_event_paranoid and the container's seccomp profile often refuse), and only on an
 # architecture whose seconds per instruction was calibrated with the D-122 band on a
-# host that can count: the table below is empty until a host has measured one.
+# host that can count: the table below holds only the architectures that were measured.
 WORK_UNIT_SECONDS = 5.3034e-11
 
 # x86_64 has no calibrated unit (D-261): over 24 measured builds the window between the
 # slowest safe row and the fastest mirror row is 3.7% wide (5.5307e-11 to 5.7337e-11
 # seconds per instruction), so no single unit keeps the 5% margin on both sides. An
 # architecture gets an entry only once its measured window is wide enough for it.
-LINUX_UNIT_SECONDS: dict[str, float] = {}
+# aarch64 has one (24 measured builds, window 4.7352e-11 to 5.8835e-11, unit at its
+# geometric middle), used only in a process that can open perf_event_open (root,
+# CAP_PERFMON, or perf_event_paranoid at or below 2); stock Ubuntu reads 4 and falls
+# back.
+LINUX_UNIT_SECONDS: dict[str, float] = {"aarch64": 5.2782e-11}
 
 _WORK_COUNTER_TEMPLATE = """\
 def macos_retired(ctypes, os):

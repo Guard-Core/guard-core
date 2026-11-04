@@ -177,6 +177,7 @@ def test_another_platform_still_keeps_the_fallback(
     assert syscall.calls == []
 
 
-def test_no_linux_architecture_is_calibrated_until_the_band_has_measured_one() -> None:
-    assert work_counter.LINUX_UNIT_SECONDS == {}
+def test_only_aarch64_is_calibrated_and_x86_64_has_no_unit() -> None:
+    assert work_counter.LINUX_UNIT_SECONDS == {"aarch64": 5.2782e-11}
+    assert "x86_64" not in work_counter.LINUX_UNIT_SECONDS
     assert work_counter.WORK_UNIT_SECONDS == 5.3034e-11
