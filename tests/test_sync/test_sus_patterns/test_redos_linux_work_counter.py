@@ -179,4 +179,4 @@ def test_another_platform_still_keeps_the_fallback(
 
 def test_no_linux_architecture_is_calibrated_until_the_band_has_measured_one() -> None:
     assert work_counter.LINUX_UNIT_SECONDS == {}
-    assert work_counter.WORK_UNIT_SECONDS == 5.1e-11
+    assert work_counter.WORK_UNIT_SECONDS == 5.3034e-11
