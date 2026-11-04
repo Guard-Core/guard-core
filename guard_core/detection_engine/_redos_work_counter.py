@@ -16,8 +16,8 @@ WORK_UNIT_SECONDS = 5.3034e-11
 # architecture gets an entry only once its measured window is wide enough for it.
 # aarch64 has one (24 measured builds, window 4.7352e-11 to 5.8835e-11, unit at its
 # geometric middle), used only in a process that can open perf_event_open (root,
-# CAP_PERFMON, or perf_event_paranoid at or below 2); stock Ubuntu reads 4 and falls
-# back.
+# CAP_PERFMON, or perf_event_paranoid at or below 2); the Ubuntu 24.04 hosts measured
+# (one production server, GitHub's x64 and arm64 runners) read 4 and fall back.
 LINUX_UNIT_SECONDS: dict[str, float] = {"aarch64": 5.2782e-11}
 
 _WORK_COUNTER_TEMPLATE = """\
