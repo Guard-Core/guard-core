@@ -1,7 +1,6 @@
 import logging
 from collections.abc import Callable
 
-from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import (
     PROCESS_OVERRIDE,
     PULLED_OVERRIDES,
@@ -171,12 +170,15 @@ class ErrorResponseFactory:
     ) -> GuardResponse:
         if not enabled:
             return response
-        security_headers = self.security_headers_manager.get_headers(
-            request_path,
-            config=self.context.config,
-            override=override,
-            checked=True,
-        )
+        manager = self.security_headers_manager
+        security_headers = manager.hot_headers(self.context.config, override)
+        if security_headers is None:
+            security_headers = manager.get_headers(
+                request_path,
+                config=self.context.config,
+                override=override,
+                checked=True,
+            )
         plan = getattr(security_headers, "plan", None)
         if plan is None:
             forced: frozenset[str] = getattr(security_headers, "forced", frozenset())
@@ -264,7 +266,7 @@ class ErrorResponseFactory:
             manager._override.set_at,
             manager._override_epoch,
             manager.redis_handler is None,
-            redis_is_configured(config),
+            bool(config.enable_redis and config.redis_url),
             bool(PULLED_OVERRIDES and manager.pulled_override_for(config) is not None),
         ) == (0.0, 0.0, PROCESS_OVERRIDE.reset_epoch, True, False, False)
         override = manager._override if quiet else manager.resolve_override()
@@ -303,30 +305,27 @@ class ErrorResponseFactory:
         if self.context.config.behavior_scan_response_body:
             prefetch = self._share_prefetch(response)
 
-        client_ip = self._resolve_client_ip_for_behavioral_rules(
-            request,
-            route_config,
-            process_behavioral_rules,
-            process_global_behavioral_rules,
-        )
-
+        client_ip: str | None = None
         if (
-            client_ip is not None
-            and route_config is not None
+            route_config is not None
             and route_config.behavior_rules
             and process_behavioral_rules is not None
-        ):
-            process_behavioral_rules(request, response, client_ip, route_config)
-
-        if (
-            client_ip is not None
-            and self.context.config.global_behavior_rules
+        ) or (
+            bool(self.context.config.global_behavior_rules)
             and process_global_behavioral_rules is not None
         ):
-            global_rules = [
-                config_to_rule(cfg) for cfg in self.context.config.global_behavior_rules
-            ]
-            process_global_behavioral_rules(request, response, client_ip, global_rules)
+            client_ip = extract_client_ip(
+                request, self.context.config, self.context.agent_handler
+            )
+        if client_ip is not None:
+            self._process_behavioral_rules(
+                request,
+                response,
+                client_ip,
+                route_config,
+                process_behavioral_rules,
+                process_global_behavioral_rules,
+            )
 
         self.context.metrics_collector.collect_request_metrics(
             request, response_time, response.status_code
@@ -341,9 +340,11 @@ class ErrorResponseFactory:
         SHARED_PREFETCH.set(prefetch)
         return prefetch
 
-    def _resolve_client_ip_for_behavioral_rules(
+    def _process_behavioral_rules(
         self,
         request: SyncGuardRequest,
+        response: GuardResponse,
+        client_ip: str,
         route_config: RouteConfig | None,
         process_behavioral_rules: Callable[
             [SyncGuardRequest, GuardResponse, str, RouteConfig], None
@@ -353,17 +354,19 @@ class ErrorResponseFactory:
             [SyncGuardRequest, GuardResponse, str, list[BehaviorRule]], None
         ]
         | None,
-    ) -> str | None:
-        needs_client_ip = (
+    ) -> None:
+        if (
             route_config is not None
             and route_config.behavior_rules
             and process_behavioral_rules is not None
-        ) or (
-            bool(self.context.config.global_behavior_rules)
+        ):
+            process_behavioral_rules(request, response, client_ip, route_config)
+
+        if (
+            self.context.config.global_behavior_rules
             and process_global_behavioral_rules is not None
-        )
-        if not needs_client_ip:
-            return None
-        return extract_client_ip(
-            request, self.context.config, self.context.agent_handler
-        )
+        ):
+            global_rules = [
+                config_to_rule(cfg) for cfg in self.context.config.global_behavior_rules
+            ]
+            process_global_behavioral_rules(request, response, client_ip, global_rules)

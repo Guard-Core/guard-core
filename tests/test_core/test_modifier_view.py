@@ -14,6 +14,7 @@ from guard_core.core.responses.modifier_view import (
     ModifierResponseView,
     RecordingHeaders,
     _reported_refusals,
+    body_gate,
     body_gate_refusal,
     declared_content_length,
     modifier_reads_response_body,
@@ -196,6 +197,51 @@ def test_gate_refusal_reasons(
     else:
         assert refusal is not None
         assert expected in refusal
+
+
+def test_the_gate_hands_back_the_declared_length_it_read() -> None:
+    allowed = body_gate(_guard(_Response({"Content-Length": "42"})), "GET", 1024)
+    over = body_gate(_guard(_Response({"Content-Length": "2048"})), "GET", 1024)
+    malformed = body_gate(_guard(_Response({"Content-Length": "4x"})), "GET", 1024)
+
+    assert allowed == (None, 42)
+    assert over[0] is not None and over[1] is None
+    assert malformed[0] is not None and malformed[1] is None
+
+
+@pytest.mark.parametrize(
+    "content_type",
+    [
+        "text/event-stream",
+        "TEXT/Event-Stream; charset=x",
+        "  text/event-stream",
+        " \t\u00a0text/event-stream",
+        "\u2003Text/Event-Stream",
+        "\x1ctext/event-stream",
+        "text/event-streamX",
+        "xtext/event-stream",
+        "text/event-\u017ftream",
+        "text/html",
+    ],
+)
+def test_the_event_stream_check_matches_lstrip_lower_startswith(
+    content_type: str,
+) -> None:
+    headers = {"content-type": content_type, "content-length": "5"}
+    refusal, _declared = body_gate(_guard(_Response(headers)), "GET", 1024)
+
+    expected = content_type.lower().lstrip().startswith("text/event-stream")
+    assert (refusal == "text/event-stream has no end") is expected
+
+
+def test_a_response_with_no_content_length_declares_none() -> None:
+    assert declared_content_length(_guard(_Response({}))) is None
+
+
+def test_an_empty_content_type_on_a_plain_dict_does_not_hide_the_length() -> None:
+    headers = {"content-type": "", "Content-Length": "5"}
+
+    assert body_gate(_guard(_Response(headers)), "GET", 1024) == (None, 5)
 
 
 def test_declared_content_length_reads_a_lower_case_key_directly() -> None:

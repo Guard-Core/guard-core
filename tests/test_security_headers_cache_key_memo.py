@@ -1,9 +1,11 @@
+import hashlib
 import json
 from collections.abc import Callable
 from typing import Any, NoReturn
 
 import pytest
 
+from guard_core._security_headers_override import OverrideRecord
 from guard_core.handlers import _security_headers_cache
 from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.models import SecurityConfig
@@ -74,3 +76,37 @@ def test_a_config_that_cannot_be_copied_is_serialized_without_a_memo(
 
     assert manager._headers_json_memo is None
     assert first == second
+
+
+def test_an_unchanged_config_hashes_its_cache_key_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hashed: list[bytes] = []
+    real_sha256 = _security_headers_cache.hashlib.sha256
+
+    def counting_sha256(data: bytes) -> "hashlib._Hash":
+        hashed.append(data)
+        return real_sha256(data)
+
+    monkeypatch.setattr(_security_headers_cache.hashlib, "sha256", counting_sha256)
+    manager = SecurityHeadersManager.isolated()
+    config = _config()
+
+    keys = {manager._generate_cache_key(None, config) for _ in range(5)}
+
+    assert len(hashed) == 1
+    content = json.dumps(config.security_headers, sort_keys=True, default=str)
+    assert keys == {f"cfg_{real_sha256(content.encode()).hexdigest()[:32]}"}
+
+
+def test_a_changed_config_or_override_gets_its_own_hash() -> None:
+    manager = SecurityHeadersManager.isolated()
+    config = _config()
+    plain = manager._generate_cache_key(None, config)
+    overridden = manager._generate_cache_key(
+        None, config, OverrideRecord(set_at=1.0, keys={"enabled": True})
+    )
+    other = manager._generate_cache_key(None, _config(**{"img-src": ["'self'"]}))
+
+    assert len({plain, overridden, other}) == 3
+    assert manager._generate_cache_key(None, config) == plain

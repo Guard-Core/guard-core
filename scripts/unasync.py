@@ -67,6 +67,7 @@ SKIP_TESTS = {
     "test_geo_sync_handler_in_async_engine.py",
     "test_modifier_body_replay.py",
     "test_modifier_body_pins.py",
+    "test_response_path_cost.py",
     "test_scan_event_loop_yield.py",
     "test_scan_event_loop_segments.py",
     "test_async_body_read_slots.py",
@@ -179,6 +180,7 @@ HAND_MAINTAINED = {
     TEST_SYNC_DIR / "test_core" / "test_custom_callables_follow_the_type.py",
     SYNC_DIR / "core" / "responses" / "modifier_body.py",
     TEST_SYNC_DIR / "test_modifier_body_lazy.py",
+    TEST_SYNC_DIR / "test_response_path_cost.py",
     SYNC_DIR / "_utils" / "block_events.py",
     TEST_SYNC_DIR / "test_core" / "test_verifier_sync_rejection.py",
     TEST_SYNC_DIR / "test_utils" / "test_block_events_sync_rejection.py",
@@ -226,11 +228,56 @@ _ASYNC_SAFE_READ_SRC = (
     "        slots.pop()\n"
     "\n"
     "\n"
+    "@types.coroutine\n"
+    "def _continue_started(\n"
+    "    started: Generator[object, object, bytes], pending: object\n"
+    ") -> Generator[object, object, bytes]:\n"
+    "    while True:\n"
+    "        try:\n"
+    "            sent = yield pending\n"
+    "        except GeneratorExit:\n"
+    "            started.close()\n"
+    "            raise\n"
+    "        except BaseException as error:\n"
+    "            try:\n"
+    "                pending = started.throw(error)\n"
+    "            except StopIteration as done:\n"
+    "                result: bytes = done.value\n"
+    "                return result\n"
+    "        else:\n"
+    "            try:\n"
+    "                pending = started.send(sent)\n"
+    "            except StopIteration as done:\n"
+    "                result = done.value\n"
+    "                return result\n"
+    "\n"
+    "\n"
+    "async def _finish_started(\n"
+    "    started: Generator[object, object, bytes], pending: object\n"
+    ") -> bytes:\n"
+    "    return await _continue_started(started, pending)\n"
+    "\n"
+    "\n"
     "async def _safe_read(\n"
     "    reader: Callable[[], Awaitable[bytes]],\n"
     "    timeout: float,\n"
     "    max_concurrent: int | None = None,\n"
     ") -> bytes | None:\n"
+    "    if max_concurrent is None:\n"
+    "        try:\n"
+    "            if timeout > 0:\n"
+    "                started = reader().__await__()\n"
+    "                try:\n"
+    "                    pending = started.send(None)\n"
+    "                except StopIteration as done:\n"
+    "                    # Done without waiting: no task, no timer, no loop turn.\n"
+    "                    result: bytes = done.value\n"
+    "                    return result\n"
+    "                finish = _finish_started(started, pending)\n"
+    "                return await asyncio.wait_for(finish, timeout)\n"
+    "            return await asyncio.wait_for(reader(), timeout=0.0)\n"
+    "        except Exception:\n"
+    "            return None\n"
     "    deadline = asyncio.get_running_loop().time() + timeout\n"
     "    try:\n"
     "        async with _body_read_slot(max_concurrent, timeout):\n"
@@ -238,6 +285,7 @@ _ASYNC_SAFE_READ_SRC = (
     "            return await asyncio.wait_for(reader(), timeout=remaining)\n"
     "    except Exception:\n"
     "        return None\n"
+    "\n"
 )
 
 _SYNC_SAFE_READ_REPLACEMENT = (
@@ -282,6 +330,8 @@ _SYNC_SAFE_READ_REPLACEMENT = (
     "    max_concurrent: int | None = None,\n"
     ") -> bytes | None:\n"
     "    try:\n"
+    "        if max_concurrent is None:\n"
+    "            return reader()\n"
     "        with _body_read_slot(max_concurrent, timeout):\n"
     "            return reader()\n"
     "    except Exception:\n"

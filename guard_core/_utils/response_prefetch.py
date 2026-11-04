@@ -1,20 +1,8 @@
 from contextvars import ContextVar
-from typing import Protocol, TypeGuard, runtime_checkable
+from functools import partial
 
 from guard_core._utils.body_reader import _safe_read
-from guard_core._utils.capability import has_callable
 from guard_core.protocols.response_protocol import GuardResponse
-
-
-@runtime_checkable
-class _BoundedResponseBodyReader(Protocol):
-    async def read_body_prefix(self, max_bytes: int) -> bytes: ...
-
-
-def _reads_body_prefix(
-    response: GuardResponse,
-) -> TypeGuard[_BoundedResponseBodyReader]:
-    return has_callable(response, "read_body_prefix")
 
 
 class ResponseBodyPrefetch:
@@ -48,13 +36,12 @@ class ResponseBodyPrefetch:
 
     async def _read_from_adapter(self, max_bytes: int, timeout: float) -> None:
         self.requested = max_bytes
-        response = self.response
-        if not _reads_body_prefix(response):
+        # Same check as has_callable, inline: it runs on every body read.
+        reader = getattr(self.response, "read_body_prefix", None)
+        if not callable(reader):
             self.failed = True
             return
-        prefix: object = await _safe_read(
-            lambda: response.read_body_prefix(max_bytes), timeout
-        )
+        prefix: object = await _safe_read(partial(reader, max_bytes), timeout)
         if not isinstance(prefix, bytes):
             self.failed = True
             self.chunks = []

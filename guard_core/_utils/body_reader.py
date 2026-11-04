@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import re
-from collections.abc import AsyncIterator, Awaitable, Callable
+import types
+from collections.abc import AsyncIterator, Awaitable, Callable, Generator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from weakref import WeakKeyDictionary
@@ -95,11 +96,56 @@ async def _body_read_slot(
         slots.pop()
 
 
+@types.coroutine
+def _continue_started(
+    started: Generator[object, object, bytes], pending: object
+) -> Generator[object, object, bytes]:
+    while True:
+        try:
+            sent = yield pending
+        except GeneratorExit:
+            started.close()
+            raise
+        except BaseException as error:
+            try:
+                pending = started.throw(error)
+            except StopIteration as done:
+                result: bytes = done.value
+                return result
+        else:
+            try:
+                pending = started.send(sent)
+            except StopIteration as done:
+                result = done.value
+                return result
+
+
+async def _finish_started(
+    started: Generator[object, object, bytes], pending: object
+) -> bytes:
+    return await _continue_started(started, pending)
+
+
 async def _safe_read(
     reader: Callable[[], Awaitable[bytes]],
     timeout: float,
     max_concurrent: int | None = None,
 ) -> bytes | None:
+    if max_concurrent is None:
+        try:
+            if timeout > 0:
+                started = reader().__await__()
+                try:
+                    pending = started.send(None)
+                except StopIteration as done:
+                    # Done without waiting: no task, no timer, no loop turn.
+                    result: bytes = done.value
+                    return result
+                finish = _finish_started(started, pending)
+                return await asyncio.wait_for(finish, timeout)
+            return await asyncio.wait_for(reader(), timeout=0.0)
+        except Exception:
+            return None
     deadline = asyncio.get_running_loop().time() + timeout
     try:
         async with _body_read_slot(max_concurrent, timeout):

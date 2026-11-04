@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import logging
+import time
 from abc import abstractmethod
 from collections.abc import Callable
 from typing import TypeVar
@@ -21,6 +22,51 @@ from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 _Validated = TypeVar("_Validated")
 
 
+class HotHeadersCache(TTLCache):
+    """A TTLCache that keeps the last resolved headers of the quiet response path.
+
+    ``hot`` is ``(config snapshot, headers, deadline)`` and lives inside the cache,
+    so every way the cache changes (set, delete, pop, clear, eviction, replacing
+    the cache object) drops it with the entries it was read from. The deadline is
+    the entry's own expiry, read from this cache's timer.
+    """
+
+    def __init__(
+        self,
+        maxsize: float,
+        ttl: float,
+        timer: Callable[[], float] = time.monotonic,
+    ) -> None:
+        super().__init__(maxsize=maxsize, ttl=ttl, timer=timer)
+        self.hot: tuple[object, dict[str, str], float] | None = None
+        self.expiry: dict[object, float] = {}
+
+    def __setitem__(self, key: object, value: object) -> None:
+        self.hot = None
+        super().__setitem__(key, value)
+        self.expiry[key] = self.timer() + self.ttl
+
+    def __delitem__(self, key: object) -> None:
+        self.hot = None
+        super().__delitem__(key)
+
+    def popitem(self) -> tuple[object, object]:
+        self.hot = None
+        return super().popitem()
+
+    def clear(self) -> None:
+        self.hot = None
+        self.expiry.clear()
+        super().clear()
+
+    def remember_hot(
+        self, key: object, snapshot: object, headers: dict[str, str]
+    ) -> None:
+        deadline = self.expiry.get(key)
+        if deadline is not None:
+            self.hot = (snapshot, headers, deadline)
+
+
 class SecurityHeadersCacheMixin:
     headers_cache: TTLCache
     redis_handler: SyncRedisHandlerProtocol | None
@@ -36,6 +82,7 @@ class SecurityHeadersCacheMixin:
     _startup_hash: str | None
     _redis_initialized: bool
     _headers_json_memo: tuple[object, str] | None = None
+    _config_key_memo: tuple[str, str] | None = None
 
     @abstractmethod
     def _pull_override(self) -> None: ...
@@ -55,10 +102,7 @@ class SecurityHeadersCacheMixin:
     @abstractmethod
     def _validate_header_value(self, value: str) -> str: ...
 
-    def _security_headers_json(self, headers: object) -> str:
-        memo = self._headers_json_memo
-        if memo is not None and memo[0] == headers:
-            return memo[1]
+    def _serialize_and_memoize_security_headers(self, headers: object) -> str:
         content = json.dumps(headers, sort_keys=True, default=str)
         try:
             self._headers_json_memo = (copy.deepcopy(headers), content)
@@ -73,11 +117,23 @@ class SecurityHeadersCacheMixin:
         override: OverrideRecord | None = None,
     ) -> str:
         if config is not None:
-            content = self._security_headers_json(config.security_headers)
+            headers = config.security_headers
+            memo = self._headers_json_memo
+            content = (
+                memo[1]
+                if memo is not None and memo[0] == headers
+                else self._serialize_and_memoize_security_headers(headers)
+            )
             current = self._current_override() if override is None else override
             if current.keys:
                 content += override_fingerprint(current.keys)
-            return f"cfg_{hashlib.sha256(content.encode()).hexdigest()[:32]}"
+            # The key is a pure function of the content: hash it once per content.
+            hashed = self._config_key_memo
+            if hashed is not None and hashed[0] == content:
+                return hashed[1]
+            key = f"cfg_{hashlib.sha256(content.encode()).hexdigest()[:32]}"
+            self._config_key_memo = (content, key)
+            return key
         if not request_path:
             return "default"
         normalized = request_path.lower().strip("/")
