@@ -148,7 +148,6 @@ class RedisManager(RedisBanStrikeMixin):
     _registered = False
     _connection_lock = asyncio.Lock()
     _closed = False
-    _background_users: set[Callable[[], Awaitable[None]]]
     config: SecurityConfig
     logger: logging.Logger
     agent_handler: redis_types.EventSink | None = None
@@ -160,7 +159,6 @@ class RedisManager(RedisBanStrikeMixin):
             manager.logger = logging.getLogger("guard_core.handlers.redis")
             manager.agent_handler = None
             manager.config = config
-            manager._background_users = set()
             manager._registered = True
             _redis_shared_clients.register_manager(config, manager, cls)
         manager._closed = False
@@ -300,10 +298,17 @@ class RedisManager(RedisBanStrikeMixin):
         """Add a task that may hold one of this client's connections; ``close``
         awaits ``stop`` before the client closes, so no connection is checked
         out while ``aclose`` runs and none is left open behind it."""
-        self._background_users.add(stop)
+        self._background_user_set().add(stop)
+
+    def _background_user_set(self) -> set[Callable[[], Awaitable[None]]]:
+        # Created on first use: a subclass that overrides __new__ skips it.
+        users: set[Callable[[], Awaitable[None]]] = vars(self).setdefault(
+            "_background_users", set()
+        )
+        return users
 
     async def _stop_background_users(self) -> None:
-        for stop in tuple(self._background_users):
+        for stop in tuple(self._background_user_set()):
             await stop()
 
     async def close(self) -> None:

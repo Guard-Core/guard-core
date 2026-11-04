@@ -14,6 +14,7 @@ from guard_core.sync.handlers._ipinfo_redis_pieces import (
     store_file_in_pieces,
 )
 from guard_core.sync.handlers._redis_handler_support import as_stored_value
+from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 if TYPE_CHECKING:
@@ -63,9 +64,8 @@ class IpInfoRedisCopyMixin:
 
     def _bind_redis_handler(self, redis_handler: SyncRedisHandlerProtocol) -> None:
         self.redis_handler = redis_handler
-        register = getattr(redis_handler, "register_background_user", None)
-        if register is not None:
-            register(self._stop_background_load)
+        if isinstance(redis_handler, RedisManager):
+            redis_handler.register_background_user(self._stop_background_load)
         kept = tuple(
             ref
             for ref in self._bound_redis_refs

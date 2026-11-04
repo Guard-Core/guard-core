@@ -42,6 +42,6 @@ def test_a_geo_manager_bound_to_redis_is_stopped_by_its_close(
     geo = IPInfoManager("token", tmp_path / "country_asn.mmdb")
     geo._bind_redis_handler(redis_manager)
 
-    assert geo._stop_background_load in redis_manager._background_users
+    assert geo._stop_background_load in redis_manager._background_user_set()
     redis_manager.close()
     IPInfoManager._instance = None
