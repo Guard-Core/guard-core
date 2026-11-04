@@ -8,7 +8,6 @@ from typing import (
     runtime_checkable,
 )
 
-from guard_core._geo_source import geo_source_problem
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core.decorators.route_config import (
     _REVISION_EXEMPT_ATTRS,
@@ -24,7 +23,6 @@ from guard_core.decorators.route_config import (
     _TrackedList,
     _TrackedSet,
 )
-from guard_core.handlers._downloader import TREE_DOWNLOADER
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
@@ -120,6 +118,9 @@ class BaseSecurityDecorator:
     def _require_geo_source(self, rule: str) -> None:
         if not self.config.fail_on_misconfiguration:
             return
+        from guard_core._geo_source import geo_source_problem
+        from guard_core.handlers._downloader import TREE_DOWNLOADER
+
         problem = geo_source_problem(
             rule,
             self.config.geo_ip_handler,

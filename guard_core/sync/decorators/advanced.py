@@ -5,20 +5,6 @@ from urllib.parse import urlsplit
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.body_reader import _parse_content_length
-from guard_core.sync._utils.honeypot_fields import (
-    FORM_MEDIA_TYPE,
-    JSON_MEDIA_TYPE,
-    MULTIPART_MEDIA_TYPE,
-    form_has_filled_trap,
-    json_has_filled_trap,
-    media_type_of,
-    multipart_has_filled_trap,
-    query_has_filled_trap,
-)
-from guard_core.sync.decorators._route_arguments import (
-    invalid_time_of_day,
-    unknown_time_zone,
-)
 from guard_core.sync.decorators.base import (
     BaseSecurityMixin,
     GuardedParams,
@@ -93,6 +79,11 @@ class AdvancedMixin(BaseSecurityMixin):
         def decorator(
             func: Callable[GuardedParams, GuardedReturn],
         ) -> Callable[GuardedParams, GuardedReturn]:
+            from guard_core.sync.decorators._route_arguments import (
+                invalid_time_of_day,
+                unknown_time_zone,
+            )
+
             for name, value in (("start_time", start_time), ("end_time", end_time)):
                 if invalid_time_of_day(value):
                     self._report_misconfiguration(
@@ -138,6 +129,17 @@ class AdvancedMixin(BaseSecurityMixin):
         def decorator(
             func: Callable[GuardedParams, GuardedReturn],
         ) -> Callable[GuardedParams, GuardedReturn]:
+            from guard_core.sync._utils.honeypot_fields import (
+                FORM_MEDIA_TYPE,
+                JSON_MEDIA_TYPE,
+                MULTIPART_MEDIA_TYPE,
+                form_has_filled_trap,
+                json_has_filled_trap,
+                media_type_of,
+                multipart_has_filled_trap,
+                query_has_filled_trap,
+            )
+
             def honeypot_validator(
                 request: SyncGuardRequest,
             ) -> GuardResponse | None:

@@ -33,12 +33,6 @@ from guard_core._misconfiguration import (
 from guard_core._misconfiguration import (
     report_config_misconfigurations,
 )
-from guard_core._security_config_assignment_checks import (
-    changed_copy_fields,
-    misconfigurations_now,
-    require_cross_field_rules,
-    require_field_constraints,
-)
 from guard_core._security_config_field_validators import (
     require_agent_config,
     warn_agent_endpoint_in_clear,
@@ -117,6 +111,12 @@ from guard_core.protocols.response_protocol import GuardResponse as GuardRespons
 if TYPE_CHECKING:
     from guard_agent import AgentConfig
 
+    from guard_core._security_config_assignment_checks import (
+        changed_copy_fields,
+        misconfigurations_now,
+        require_cross_field_rules,
+        require_field_constraints,
+    )
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
     from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
@@ -194,6 +194,12 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         if name not in type(self).model_fields or _skip_revalidation.get():
             assign(value)
             return
+        from guard_core._security_config_assignment_checks import (
+            misconfigurations_now,
+            require_cross_field_rules,
+            require_field_constraints,
+        )
+
         value = require_field_constraints(self, name, value)
         problems_before = misconfigurations_now(self)
         kept = _snapshot_field(self, name)
@@ -245,6 +251,12 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     ) -> Self:
         copied = super().model_copy(update=update, deep=deep)
         if update:
+            from guard_core._security_config_assignment_checks import (
+                changed_copy_fields,
+                misconfigurations_now,
+                require_cross_field_rules,
+            )
+
             _revalidate_copied_config(copied, update)
             changed_copy_fields(copied, update)
             require_cross_field_rules(
@@ -614,6 +626,12 @@ _LAZY_NAMES = (
     "SecurityConfig[SyncGuardRequest]",
     "SyncGuardRequest",
 )
+_ASSIGNMENT_CHECK_NAMES = (
+    "changed_copy_fields",
+    "misconfigurations_now",
+    "require_cross_field_rules",
+    "require_field_constraints",
+)
 _build_lock = _threading.Lock()
 
 
@@ -624,6 +642,12 @@ def __getattr__(name: str) -> object:
     # process unpickles its arguments). The import runs outside the lock and the
     # build inside it, only while the name is still missing: pydantic's generic
     # cache is not thread-safe, so two threads would build two classes.
+    if name in _ASSIGNMENT_CHECK_NAMES:
+        from guard_core import _security_config_assignment_checks
+
+        value = getattr(_security_config_assignment_checks, name)
+        globals()[name] = value
+        return value
     if name not in _LAZY_NAMES:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     from guard_core.sync.protocols.request_protocol import SyncGuardRequest
@@ -651,7 +675,7 @@ def __getattr__(name: str) -> object:
 
 
 def __dir__() -> list[str]:
-    return sorted({*globals(), *_LAZY_NAMES})
+    return sorted({*globals(), *_LAZY_NAMES, *_ASSIGNMENT_CHECK_NAMES})
 
 
 # What a star import exported at 7025a112 (every public global, imported ones

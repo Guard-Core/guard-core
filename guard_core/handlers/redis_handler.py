@@ -36,6 +36,10 @@ from guard_core.handlers._redis_handler_support import (
     _unparseable_redis_url as _unparseable_redis_url,
 )
 from guard_core.handlers._redis_lean import lean_command, lean_evalsha, reply_counts
+from guard_core.handlers._redis_scan_unlink import SCAN_BATCH
+from guard_core.handlers._redis_scan_unlink import (
+    scan_unlink as _scan_unlink_in_batches,
+)
 from guard_core.models import SecurityConfig
 from guard_core.scripts.ban_write_lua import (
     EXTEND_ONLY_BAN_WRITE_SCRIPT,
@@ -58,7 +62,7 @@ if TYPE_CHECKING:
 
 _REDIS_HANDLER_NAME = "redis"
 _DEFAULT_POOL_SIZE = _redis_shared_clients.DEFAULT_POOL_SIZE
-_SCAN_BATCH = 500
+_SCAN_BATCH = SCAN_BATCH
 
 
 def _redis_over_owned_pool(pool: ConnectionPool) -> Redis:
@@ -883,19 +887,9 @@ async def scan_unlink(
 ) -> int:
     """Delete every key matching full_pattern (and select, when given): one SCAN
     cursor walk, UNLINK in batches. Never KEYS, which walks the whole keyspace in
-    one blocking command."""
-    removed = 0
-    batch: list[str] = []
-    async for key in conn.scan_iter(match=full_pattern, count=_SCAN_BATCH):
-        if select is not None and not select(key):
-            continue
-        batch.append(key)
-        if len(batch) >= _SCAN_BATCH:
-            removed += int(await conn.unlink(*batch))
-            batch.clear()
-    if batch:
-        removed += int(await conn.unlink(*batch))
-    return removed
+    one blocking command. The walk lives in ``_redis_scan_unlink`` so the callers
+    that only need it do not import this module, and with it redis."""
+    return await _scan_unlink_in_batches(conn, full_pattern, select)
 
 
 async def scan_unlink_through_new_client(url: str, full_pattern: str) -> int:

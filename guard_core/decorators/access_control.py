@@ -4,7 +4,6 @@ from collections.abc import Callable
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
-from guard_core.decorators._route_arguments import invalid_ip_entries
 from guard_core.decorators.base import (
     BaseSecurityMixin,
     GuardedParams,
@@ -24,6 +23,8 @@ class AccessControlMixin(BaseSecurityMixin):
         def decorator(
             func: Callable[GuardedParams, GuardedReturn],
         ) -> Callable[GuardedParams, GuardedReturn]:
+            from guard_core.decorators._route_arguments import invalid_ip_entries
+
             if whitelist is not None and not whitelist:
                 self._report_misconfiguration(
                     "@require_ip received an empty whitelist: an empty list "

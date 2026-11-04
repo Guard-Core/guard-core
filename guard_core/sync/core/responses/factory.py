@@ -18,9 +18,6 @@ from guard_core.sync._utils.response_prefetch import (
 )
 from guard_core.sync.core.callable_slot import CallableSlot
 from guard_core.sync.core.responses.context import ResponseContext
-from guard_core.sync.core.responses.modifier_body import (
-    apply_modifier_with_bounded_body,
-)
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, config_to_rule
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
@@ -230,6 +227,10 @@ class ErrorResponseFactory:
         if request is not None:
             materialized = getattr(response, "body_is_materialized", False) is True
         if request is not None and not materialized:
+            from guard_core.sync.core.responses.modifier_body import (
+                apply_modifier_with_bounded_body,
+            )
+
             return apply_modifier_with_bounded_body(
                 modifier,
                 response,

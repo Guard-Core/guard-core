@@ -99,6 +99,8 @@ def test_all_is_every_public_identifier_of_a_fresh_module() -> None:
     code = (
         "import guard_core.models as m\n"
         "m.SyncSecurityConfig\n"
+        "for lazy in m._ASSIGNMENT_CHECK_NAMES:\n"
+        "    getattr(m, lazy)\n"
         "print(sorted(n for n in vars(m) if n.isidentifier() "
         "and not n.startswith('_')))\n"
     )

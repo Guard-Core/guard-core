@@ -7,9 +7,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from guard_core import _tracking_caps
+from guard_core import _redis_exceptions, _tracking_caps
 from guard_core._redis_enablement import redis_is_configured
-from guard_core._redis_exceptions import NoScriptError
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SyncSecurityConfig
 from guard_core.scripts.behavior_throttle_lua import BEHAVIOR_THROTTLE_SCRIPT
@@ -300,7 +299,7 @@ class BehaviorThrottleMixin(BehaviorEvictionMixin):
             reply: Sequence[str | bytes | int | float]
             try:
                 reply = conn.evalsha(self._throttle_script_sha, len(keys), *keys, *args)
-            except NoScriptError:
+            except _redis_exceptions.NoScriptError:
                 self._throttle_script_sha = conn.script_load(BEHAVIOR_THROTTLE_SCRIPT)
                 reply = conn.evalsha(self._throttle_script_sha, len(keys), *keys, *args)
             return reply

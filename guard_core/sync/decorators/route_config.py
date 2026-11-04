@@ -11,7 +11,6 @@ from typing import (
 
 from typing_extensions import Self
 
-from guard_core.sync.decorators._route_arguments import time_restriction_problems
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
@@ -236,6 +235,10 @@ def _refusing_an_invalid_window(
         *args: _Arguments.args,
         **kwargs: _Arguments.kwargs,
     ) -> _Result:
+        from guard_core.sync.decorators._route_arguments import (
+            time_restriction_problems,
+        )
+
         before = dict(self)
         result = method(self, *args, **kwargs)
         problems = time_restriction_problems(self) if self else []
@@ -448,6 +451,10 @@ class RouteConfig:
 
     def __setattr__(self, name: str, value: object) -> None:
         if name == "time_restrictions" and value:  # empty means no restriction
+            from guard_core.sync.decorators._route_arguments import (
+                time_restriction_problems,
+            )
+
             problems = time_restriction_problems(value)
             if problems:
                 raise ValueError(" ".join(problems))
