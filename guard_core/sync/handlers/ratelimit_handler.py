@@ -851,18 +851,30 @@ class RateLimitManager:
                     timestamps.append(now)
                     return None
                 verdict = _blocked_verdict(0, timestamps, window, now)
-        tier = RateLimitTier(kind, limit, window, endpoint_path)
-        block = self.check_rate_limit_tiers(
+        return self._block_by_tier(
             request,
             client_ip,
             create_error_response,
-            [tier],
+            RateLimitTier(kind, limit, window, endpoint_path),
             display_config,
-            verdict=verdict,
+            verdict,
+        )
+
+    def _block_by_tier(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        create_error_response: Callable[[int, str], GuardResponse],
+        tier: RateLimitTier,
+        config: SyncSecurityConfig,
+        verdict: RateLimitVerdict | None,
+    ) -> GuardResponse | None:
+        block = self.check_rate_limit_tiers(
+            request, client_ip, create_error_response, [tier], config, verdict=verdict
         )
         if block is None:
             return None
-        self.report_rate_limit_block(request, client_ip, block, tier, display_config)
+        self.report_rate_limit_block(request, client_ip, block, tier, config)
         return block.response
 
     def _send_rate_limit_event(

@@ -24,6 +24,8 @@ def scan_unlink(
         if len(batch) >= SCAN_BATCH:
             removed += int(conn.unlink(*batch))
             batch.clear()
-    if batch:
-        removed += int(conn.unlink(*batch))
-    return removed
+    return removed + _unlink_remaining(conn, batch)
+
+
+def _unlink_remaining(conn: Redis, batch: list[str]) -> int:
+    return int(conn.unlink(*batch)) if batch else 0
