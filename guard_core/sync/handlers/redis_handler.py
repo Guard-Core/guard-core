@@ -152,6 +152,7 @@ class RedisManager(RedisBanStrikeMixin):
     _registered = False
     _connection_lock = threading.Lock()
     _closed = False
+    _background_users: set[Callable[[], None]]
     config: SyncSecurityConfig
     logger: logging.Logger
     agent_handler: redis_types.EventSink | None = None
@@ -163,6 +164,7 @@ class RedisManager(RedisBanStrikeMixin):
             manager.logger = logging.getLogger("guard_core.sync.handlers.redis")
             manager.agent_handler = None
             manager.config = config
+            manager._background_users = set()
             manager._registered = True
             _redis_shared_clients.register_manager(config, manager, cls)
         manager._closed = False
@@ -298,7 +300,18 @@ class RedisManager(RedisBanStrikeMixin):
                 self._redis = None
                 raise GuardRedisError(503, "Redis connection failed") from e
 
+    def register_background_user(self, stop: Callable[[], None]) -> None:
+        """Add a task that may hold one of this client's connections; ``close``
+        awaits ``stop`` before the client closes, so no connection is checked
+        out while ``aclose`` runs and none is left open behind it."""
+        self._background_users.add(stop)
+
+    def _stop_background_users(self) -> None:
+        for stop in tuple(self._background_users):
+            stop()
+
     def close(self) -> None:
+        self._stop_background_users()
         if self._redis:
             self._discard_client()
             self.logger.info("Redis connection closed")

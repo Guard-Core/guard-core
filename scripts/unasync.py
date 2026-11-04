@@ -53,6 +53,7 @@ SKIP_SRC = {
 }
 
 SKIP_TESTS = {
+    "test_redis_close_stops_geo_load.py",
     "test_redis_abandoned_client.py",
     "test_redis_loop_change.py",
     "test_fork_safety.py",
@@ -424,6 +425,17 @@ _ASYNC_START_OR_JOIN_LOAD_SRC = (
     "        self._background_task = asyncio.create_task("
     "self._load_in_background(work))\n"
     "        return self._background_task\n"
+    "\n"
+    "    async def _stop_background_load(self) -> None:\n"
+    "        task = self._background_task\n"
+    "        if (\n"
+    "            task is None\n"
+    "            or task.done()\n"
+    "            or self._load_loop is not asyncio.get_running_loop()\n"
+    "        ):\n"
+    "            return\n"
+    "        task.cancel()\n"
+    "        await asyncio.gather(task, return_exceptions=True)\n"
 )
 
 _SYNC_START_OR_JOIN_LOAD_REPLACEMENT = (
@@ -440,6 +452,9 @@ _SYNC_START_OR_JOIN_LOAD_REPLACEMENT = (
     "            )\n"
     "            self._background_task.start()\n"
     "            return self._background_task\n"
+    "\n"
+    "    def _stop_background_load(self) -> None:\n"
+    "        return None\n"
 )
 
 _ASYNC_DOWNLOAD_BODY_SRC = (

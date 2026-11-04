@@ -48,6 +48,17 @@ class IpInfoBackgroundMixin:
         self._background_task = asyncio.create_task(self._load_in_background(work))
         return self._background_task
 
+    async def _stop_background_load(self) -> None:
+        task = self._background_task
+        if (
+            task is None
+            or task.done()
+            or self._load_loop is not asyncio.get_running_loop()
+        ):
+            return
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
     _last_load_error: str | None = None
 
     async def ensure_database_loaded(self) -> None:

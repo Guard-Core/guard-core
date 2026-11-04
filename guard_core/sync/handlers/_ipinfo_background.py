@@ -47,6 +47,9 @@ class IpInfoBackgroundMixin:
             self._background_task.start()
             return self._background_task
 
+    def _stop_background_load(self) -> None:
+        return None
+
     _last_load_error: str | None = None
 
     def ensure_database_loaded(self) -> None:
