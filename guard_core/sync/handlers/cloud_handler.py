@@ -12,6 +12,10 @@ from guard_core.sync._utils.app_managers import AppManagers
 from guard_core.sync._utils.app_scope import ScopedAgentHandler, ScopedRedisHandler
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
 from guard_core.sync._utils.sampling import observe_sampled_key
+from guard_core.sync.handlers._background_stop import (
+    stop_before_redis_closes,
+    stop_task_on_its_own_loop,
+)
 from guard_core.sync.handlers._cloud_azure_fetch import (
     _AZURE_DOWNLOAD_ATTEMPT_TIMEOUT_SECONDS,
     _AZURE_DOWNLOAD_MAX_ATTEMPTS,
@@ -273,6 +277,7 @@ class CloudManager:
             if self._refresh_in_flight:
                 return False
             self._refresh_in_flight = True
+            stop_before_redis_closes(self.redis_handler, self._stop_refresh_task)
             try:
                 self._refresh_task = threading.Thread(target=_run_refresh, daemon=True)
 
@@ -282,6 +287,9 @@ class CloudManager:
                 self._refresh_in_flight = False
                 return False
             return True
+
+    def _stop_refresh_task(self) -> None:
+        stop_task_on_its_own_loop(self._refresh_task)
 
     def _log_range_changes(
         self,

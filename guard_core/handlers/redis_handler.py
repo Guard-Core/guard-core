@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import logging
 import uuid
-from collections.abc import AsyncIterator, Callable, Hashable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Hashable, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, NoReturn, TypeGuard
@@ -294,7 +294,25 @@ class RedisManager(RedisBanStrikeMixin):
                 self._redis = None
                 raise GuardRedisError(503, "Redis connection failed") from e
 
+    def register_background_user(self, stop: Callable[[], Awaitable[None]]) -> None:
+        """Add a task that may hold one of this client's connections; ``close``
+        awaits ``stop`` before the client closes, so no connection is checked
+        out while ``aclose`` runs and none is left open behind it."""
+        self._background_user_set().add(stop)
+
+    def _background_user_set(self) -> set[Callable[[], Awaitable[None]]]:
+        # Created on first use: a subclass that overrides __new__ skips it.
+        users: set[Callable[[], Awaitable[None]]] = vars(self).setdefault(
+            "_background_users", set()
+        )
+        return users
+
+    async def _stop_background_users(self) -> None:
+        for stop in tuple(self._background_user_set()):
+            await stop()
+
     async def close(self) -> None:
+        await self._stop_background_users()
         if self._redis:
             await self._discard_client()
             self.logger.info("Redis connection closed")

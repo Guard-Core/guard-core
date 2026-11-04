@@ -298,7 +298,25 @@ class RedisManager(RedisBanStrikeMixin):
                 self._redis = None
                 raise GuardRedisError(503, "Redis connection failed") from e
 
+    def register_background_user(self, stop: Callable[[], None]) -> None:
+        """Add a task that may hold one of this client's connections; ``close``
+        awaits ``stop`` before the client closes, so no connection is checked
+        out while ``aclose`` runs and none is left open behind it."""
+        self._background_user_set().add(stop)
+
+    def _background_user_set(self) -> set[Callable[[], None]]:
+        # Created on first use: a subclass that overrides __new__ skips it.
+        users: set[Callable[[], None]] = vars(self).setdefault(
+            "_background_users", set()
+        )
+        return users
+
+    def _stop_background_users(self) -> None:
+        for stop in tuple(self._background_user_set()):
+            stop()
+
     def close(self) -> None:
+        self._stop_background_users()
         if self._redis:
             self._discard_client()
             self.logger.info("Redis connection closed")

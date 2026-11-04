@@ -48,13 +48,39 @@ class IpInfoBackgroundMixin:
         self._background_task = asyncio.create_task(self._load_in_background(work))
         return self._background_task
 
+    async def _stop_background_load(self) -> None:
+        task = self._background_task
+        if (
+            task is None
+            or task.done()
+            or self._load_loop is not asyncio.get_running_loop()
+        ):
+            return
+        self._load_stopped_by_close = task
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    _load_stopped_by_close: "asyncio.Task[None] | None" = None
+
+    async def _wait_for_load(self, load: "asyncio.Task[None]") -> None:
+        try:
+            await asyncio.shield(load)
+        except asyncio.CancelledError:
+            # shield cancels its outer future with the inner task; a
+            # waiter whose own task is not being cancelled sees a failed load.
+            if load is not self._load_stopped_by_close or not load.cancelled():
+                raise
+            self._last_load_error = "GeoIP load stopped because Redis closed"
+
     _last_load_error: str | None = None
 
     async def ensure_database_loaded(self) -> None:
         if self.reader is not None:
             return
         if not self._is_backing_off():
-            await asyncio.shield(self._start_or_join_load(self._initialize_database))
+            await self._wait_for_load(
+                self._start_or_join_load(self._initialize_database)
+            )
         self._raise_last_load_error()
 
     def _raise_last_load_error(self) -> None:

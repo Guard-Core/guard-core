@@ -25,6 +25,7 @@ from guard_core.core.initialization._whitelist_strikes import (
     reset_startup_whitelist_strikes,
 )
 from guard_core.exceptions import GuardRedisError
+from guard_core.handlers._background_stop import stop_task_on_its_own_loop
 
 if TYPE_CHECKING:
     from guard_core._geo_handler_for_tree import GeoIPHandlerOfThisTree
@@ -109,6 +110,9 @@ class _HandlerInitializerStepsMixin(
         if self.redis_handler is None:
             raise RuntimeError("This step needs a redis_handler and none is set")
         return self.redis_handler
+
+    async def _stop_lazy_init(self) -> None:
+        await stop_task_on_its_own_loop(self._lazy_init_task)
 
     async def _run_lazy_init(self) -> None:
         with in_app_scope(app_scope_of(self.config)):

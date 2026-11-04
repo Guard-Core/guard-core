@@ -8,6 +8,10 @@ from guard_core._utils.app_scope import app_scope_of, in_app_scope
 from guard_core._utils.nat64 import nat64_table_of
 from guard_core._utils.rule_attribution_shared import _APP_RULE_MANAGERS
 from guard_core._utils.whitelist_match import is_listed
+from guard_core.handlers._background_stop import (
+    stop_before_redis_closes,
+    stop_task_on_its_own_loop,
+)
 from guard_core.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
     RuleSideEffects,
@@ -118,6 +122,10 @@ class DynamicRuleManager(
 
     async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
         self.redis_handler = redis_handler
+        stop_before_redis_closes(redis_handler, self._stop_update_loop)
+
+    async def _stop_update_loop(self) -> None:
+        await stop_task_on_its_own_loop(self.update_task)
 
     def _refresh_attribution(self, rules: DynamicRulesProtocol | None = None) -> None:
         """Build the attribution view of the applied set. Called wherever the

@@ -14,6 +14,7 @@ from guard_core.handlers._ipinfo_redis_pieces import (
     store_file_in_pieces,
 )
 from guard_core.handlers._redis_handler_support import as_stored_value
+from guard_core.handlers.redis_handler import RedisManager
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 if TYPE_CHECKING:
@@ -31,6 +32,8 @@ class IpInfoRedisCopyMixin:
     _max_age: int
 
     def _write_database_atomically(self, content: bytes) -> None: ...
+
+    async def _stop_background_load(self) -> None: ...
 
     def _database_tmp_path(self) -> Path:
         return self.db_path.with_name(f"{self.db_path.name}.{uuid.uuid4().hex}.tmp")
@@ -61,6 +64,8 @@ class IpInfoRedisCopyMixin:
 
     def _bind_redis_handler(self, redis_handler: RedisHandlerProtocol) -> None:
         self.redis_handler = redis_handler
+        if isinstance(redis_handler, RedisManager):
+            redis_handler.register_background_user(self._stop_background_load)
         kept = tuple(
             ref
             for ref in self._bound_redis_refs
