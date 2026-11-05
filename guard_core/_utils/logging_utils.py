@@ -241,6 +241,17 @@ class _YieldToHostRootHandlers(logging.Filter):
 _OWN_HANDLER_ATTR = "_guard_core_installed"
 
 
+def _retire_own_handler(logger: logging.Logger, handler: logging.Handler) -> None:
+    logger.removeHandler(handler)
+    handler.close()
+    if isinstance(handler, logging.FileHandler):
+        # CPython's FileHandler.emit reopens a closed handler's file unless
+        # mode is "w" and it was closed, so a late record from a thread that
+        # still holds this handler would leak an open file. Costs nothing per
+        # record: only emit's rare stream-is-None branch reads it.
+        handler.mode = "w"
+
+
 def setup_custom_logging(
     log_file: str | None = None, log_format: str = "text"
 ) -> logging.Logger:
@@ -248,8 +259,7 @@ def setup_custom_logging(
     for handler in logger.handlers[:]:
         if not getattr(handler, _OWN_HANDLER_ATTR, False):
             continue
-        handler.close()
-        logger.removeHandler(handler)
+        _retire_own_handler(logger, handler)
 
     formatter = _create_formatter(log_format)
 
