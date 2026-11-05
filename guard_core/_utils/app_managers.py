@@ -3,6 +3,7 @@ import weakref
 from collections.abc import Callable, Hashable
 from typing import TYPE_CHECKING, Generic, Protocol, TypeVar
 
+from guard_core._parked_records import APP_MANAGERS_RECORD
 from guard_core._redis_enablement import (
     RedisFieldsConfig,
     configured_redis_url,
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
 
-_HELD_ATTRIBUTE = "_guard_app_managers"
+_HELD_ATTRIBUTE = APP_MANAGERS_RECORD
 
 _M = TypeVar("_M")
 
@@ -26,7 +27,15 @@ class _PrefixedRedisConfig(RedisFieldsConfig, Protocol):
 
 
 class _Held(dict[str, object]):
-    """The per-app managers a config keeps alive. A copy of the config shares it."""
+    """The per-app managers a config keeps alive, valid only for its owner."""
+
+    # The owner's id, not the owner: a reference would make a cycle of the config
+    # and its record, which then waits for the garbage collector to be freed.
+    __slots__ = ("owner_id",)
+
+    def __init__(self, owner: object) -> None:
+        super().__init__()
+        self.owner_id = id(owner)
 
     def __copy__(self) -> "_Held":
         return self
@@ -94,6 +103,12 @@ def unmark_shared_by_apps(manager: object) -> None:
     manager.__dict__.pop(SHARED_BY_APPS, None)
 
 
+def held_record_of(config: object) -> _Held | None:
+    """The record parked on this config, only when this config is its owner."""
+    held: _Held | None = config.__dict__.get(_HELD_ATTRIBUTE)
+    return held if held is not None and held.owner_id == id(config) else None
+
+
 def hold_for_app(config: object, kind: str, manager: object) -> bool:
     """Keep a per-app manager alive as long as the config of its app.
 
@@ -102,9 +117,9 @@ def hold_for_app(config: object, kind: str, manager: object) -> bool:
     when the app goes away, whether or not the app uses Redis.
     """
     try:
-        held = config.__dict__.get(_HELD_ATTRIBUTE)
+        held = held_record_of(config)
         if held is None:
-            held = _Held()
+            held = _Held(config)
             object.__setattr__(config, _HELD_ATTRIBUTE, held)
         held[kind] = manager
     except (AttributeError, TypeError):
@@ -115,10 +130,12 @@ def hold_for_app(config: object, kind: str, manager: object) -> bool:
 def held_for_app(config: object, kind: str) -> object | None:
     """What ``hold_for_app`` kept under ``kind`` for this config, if anything."""
     try:
-        held = config.__dict__.get(_HELD_ATTRIBUTE)
+        held: _Held | None = config.__dict__.get(_HELD_ATTRIBUTE)
     except AttributeError:
         return None
-    return held.get(kind) if held is not None else None
+    if held is None or held.owner_id != id(config):
+        return None
+    return held.get(kind)
 
 
 class AppManagers(Generic[_M]):

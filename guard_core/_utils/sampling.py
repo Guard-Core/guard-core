@@ -88,7 +88,8 @@ class PerApp(Generic[_T]):
     def for_app(self, config: object) -> _T:
         try:
             # Indexing, not .get(): this runs on the response path of every request.
-            held = config.__dict__[_HELD_ATTRIBUTE][self._kind]
+            record = config.__dict__[_HELD_ATTRIBUTE]
+            held = record[self._kind] if record.owner_id == id(config) else None
         except (AttributeError, KeyError):
             held = None
         if held is not None and isinstance(held, self._table_type):

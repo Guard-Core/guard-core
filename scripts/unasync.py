@@ -50,6 +50,7 @@ SKIP_SRC = {
     "_lazy_patterns.py",
     "_detection_constants.py",
     "_builtin_import_table.py",
+    "_parked_records.py",
 }
 
 SKIP_TESTS = {

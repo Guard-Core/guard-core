@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING, Generic, TypeVar, overload
 
+from guard_core._parked_records import APP_SCOPE_RECORD
 from guard_core._utils.scan_config_scope import _scan_config_scope
 
 if TYPE_CHECKING:
@@ -11,7 +12,7 @@ if TYPE_CHECKING:
     from guard_core.protocols.agent_protocol import AgentHandlerProtocol
     from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
-_RECORD_ATTRIBUTE = "_guard_app_scope"
+_RECORD_ATTRIBUTE = APP_SCOPE_RECORD
 SHARED_BY_APPS = "_guard_shared_by_apps"
 
 
@@ -122,7 +123,7 @@ class ScopedRuleExemptNetworks(ScopedToApp["tuple[_Network, ...]"]):
 
 def app_scope_of(config: "SecurityConfig") -> AppScope:
     """The scope record parked on the config, created on first use."""
-    scope: AppScope | None = config.__dict__.get(_RECORD_ATTRIBUTE)
+    scope = existing_app_scope_of(config)
     if scope is None:
         scope = AppScope(config)
         object.__setattr__(config, _RECORD_ATTRIBUTE, scope)
@@ -131,7 +132,7 @@ def app_scope_of(config: "SecurityConfig") -> AppScope:
 
 def existing_app_scope_of(config: "SecurityConfig") -> AppScope | None:
     found: AppScope | None = config.__dict__.get(_RECORD_ATTRIBUTE)
-    return found
+    return found if found is not None and found.config is config else None
 
 
 def hold_app_scope(config: "SecurityConfig") -> "Token[AppScope | None] | None":

@@ -33,6 +33,9 @@ from guard_core._misconfiguration import (
 from guard_core._misconfiguration import (
     report_config_misconfigurations,
 )
+from guard_core._parked_records import (
+    without_per_app_records as _without_per_app_records,
+)
 from guard_core._security_config_field_validators import (
     require_agent_config,
     warn_agent_endpoint_in_clear,
@@ -228,7 +231,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         # deepcopy can handle: it travels as a dict and is frozen again on load.
         state = super().__getstate__()
         state["__dict__"] = {
-            **state["__dict__"],
+            **_without_per_app_records(state["__dict__"]),
             "threat_ban_config": dict(self.threat_ban_config),
         }
         return state
@@ -240,6 +243,12 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         )
         state["__dict__"] = {**pickled_fields, "threat_ban_config": frozen}
         super().__setstate__(state)
+
+    def __copy__(self) -> Self:
+        # A copy is another app: the records parked for this app stay with it.
+        clone = super().__copy__()
+        object.__setattr__(clone, "__dict__", _without_per_app_records(clone.__dict__))
+        return clone
 
     def __deepcopy__(self, memo: dict[int, object] | None = None) -> Self:
         clone = self.__class__.__new__(self.__class__)
