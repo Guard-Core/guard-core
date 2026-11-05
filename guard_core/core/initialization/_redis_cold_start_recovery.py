@@ -1,3 +1,4 @@
+import inspect
 import logging
 import threading
 from collections.abc import Awaitable, Callable
@@ -111,13 +112,11 @@ class RedisColdStartRecoveryMixin:
             claim.release()
 
     async def _bind_recovered_redis(self) -> None:
-        from guard_core.handlers.redis_handler import is_connected_redis_manager
-
         with in_app_scope(app_scope_of(self.config)):
             redis_handler = self._require_redis_handler()
             # initialize() drops a healthy client first, so a manager another caller
             # already reconnected is bound as it is.
-            if not is_connected_redis_manager(redis_handler):
+            if not self._redis_handler_holds_a_client(redis_handler):
                 await self._initialize_redis_handler(redis_handler)
             await self._initialize_connected_redis_handlers()
         self._disarm_redis_cold_start_recovery()
@@ -155,5 +154,9 @@ class RedisColdStartRecoveryMixin:
     def _redis_handler_holds_a_client(redis_handler: "RedisHandlerProtocol") -> bool:
         is_connected = getattr(redis_handler, "is_connected", None)
         if is_connected is not None:
-            return bool(is_connected())
+            answer = is_connected()
+            if inspect.iscoroutine(answer):
+                # An async is_connected is never awaited: not connected, no warning.
+                answer.close()
+            return answer is True
         return getattr(redis_handler, "_redis", None) is not None

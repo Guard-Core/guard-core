@@ -118,6 +118,7 @@ SKIP_TESTS = {
     "test_event_correlation_parallel.py",
     "test_ban_attribution_cross_worker.py",
     "network_guard.py",
+    "async_is_connected.py",
     "test_network_guard.py",
     "test_ruff_pin.py",
     "test_sync_fixture_guard.py",

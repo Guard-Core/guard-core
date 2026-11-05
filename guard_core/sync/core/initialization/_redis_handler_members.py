@@ -1,3 +1,4 @@
+import inspect
 import logging
 from typing import TYPE_CHECKING
 
@@ -32,6 +33,17 @@ def report_incomplete_redis_handler(
     missing = missing_redis_handler_members(
         handler, recovery_armable=config.redis_fail_open
     )
+    if config.redis_fail_open and inspect.iscoroutinefunction(
+        getattr(handler, "is_connected", None)
+    ):
+        report_misconfiguration(
+            config,
+            f"The Redis handler {type(handler).__name__} defines is_connected as "
+            "async, but the engine calls it without awaiting, so it never reads as "
+            "connected; make it a plain method.",
+            logger=logger,
+            stacklevel=5,
+        )
     if missing:
         report_misconfiguration(
             config,
