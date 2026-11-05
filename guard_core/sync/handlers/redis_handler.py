@@ -55,6 +55,7 @@ from guard_core.sync.handlers._redis_lean import (
     lean_evalsha,
     reply_counts,
 )
+from guard_core.sync.handlers._redis_reconnect_gate import RedisReconnectGate
 from guard_core.sync.handlers._redis_scan_unlink import SCAN_BATCH
 from guard_core.sync.handlers._redis_scan_unlink import (
     scan_unlink as _scan_unlink_in_batches,
@@ -248,6 +249,33 @@ class RedisManager(RedisBanStrikeMixin):
 
         self._closed = False
 
+        gate = self._reconnect_gate()
+        gated = self._redis is None
+        if gated and not gate.enter():
+            raise GuardRedisError(503, "Redis connection failed")
+        recovered = False
+        try:
+            self._open_connection(url)
+        finally:
+            if gated:
+                recovered = gate.leave(self._redis is not None)
+        if recovered:
+            self._send_redis_event(
+                event_type=EVENT_REDIS_CONNECTION,
+                action_taken="connection_recovered",
+                reason="Redis connection recovered after failed attempts",
+                redis_url=_redact_redis_url(url),
+            )
+
+    def _reconnect_gate(self) -> RedisReconnectGate:
+        # Created on first use: a subclass that overrides __new__ skips __init__ work.
+        gate: RedisReconnectGate = vars(self).setdefault(
+            "_reconnect_gate_of_this_manager", RedisReconnectGate()
+        )
+        return gate
+
+    def _open_connection(self, url: str) -> None:
+        config = self.config
         with self._connection_lock:
             self._discard_client()
 
@@ -279,15 +307,16 @@ class RedisManager(RedisBanStrikeMixin):
                     )
 
             except Exception as e:
-                self.logger.error(f"Redis connection failed: {str(e)}")
+                if self._reconnect_gate().report_due():
+                    self.logger.error(f"Redis connection failed: {str(e)}")
 
-                self._send_redis_event(
-                    event_type=EVENT_REDIS_ERROR,
-                    action_taken="connection_failed",
-                    reason=f"Redis connection failed: {str(e)}",
-                    redis_url=_redact_redis_url(url),
-                    error_type="connection_error",
-                )
+                    self._send_redis_event(
+                        event_type=EVENT_REDIS_ERROR,
+                        action_taken="connection_failed",
+                        reason=f"Redis connection failed: {str(e)}",
+                        redis_url=_redact_redis_url(url),
+                        error_type="connection_error",
+                    )
 
                 if new_redis is not None and (
                     not shared

@@ -32,6 +32,10 @@ class SyncRedisHandlerProtocol(Protocol):
     ``evalsha``, ``scan_iter``, ``zrange`` and ``execute_command`` on it. Reads
     return ``None`` on a miss (never raise for absent keys); keep calls
     fast on the request hot path. All TTLs are expressed in seconds.
+    A handler that implements the members directly keeps its live client in
+    ``_redis`` (``None`` while disconnected): after a cold start under
+    ``redis_fail_open`` the engine reads that attribute to tell whether a
+    reconnect succeeded.
     """
 
     config: SyncSecurityConfig

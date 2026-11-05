@@ -20,9 +20,12 @@ from guard_core.sync.core.checks._usage_rules_step import (
     warn_at_startup_if_throttle_cannot_refuse,
 )
 from guard_core.sync.core.checks.base import SecurityCheck
+from guard_core.sync.handlers._redis_reconnect_gate import (
+    REDIS_RECONNECT_WINDOW_SECONDS,
+)
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
-REDIS_OUTAGE_RETRY_AFTER = 5
+REDIS_OUTAGE_RETRY_AFTER = REDIS_RECONNECT_WINDOW_SECONDS
 
 
 def _pending_of(state: object) -> PendingBan | None:
@@ -95,18 +98,24 @@ class SecurityCheckPipeline:
         signature = self._container_signature(config)
         route_config_revision = self._current_route_config_revision()
         muted_check_logs = config.muted_check_logs
-        checks = self._replay_check_edits(self._rebuild_checks())
+        edits_seen = len(self._check_edits)
+        checks = self._replay_check_edits(self._rebuild_checks(), edits_seen)
         with self._rebuild_lock:
+            checks = self._replay_check_edits(checks, start=edits_seen)
             self.checks = checks
             self.muted_check_logs = muted_check_logs
             self._built_revision = revision
             self._built_signature = signature
             self._built_route_config_revision = route_config_revision
 
-    def _replay_check_edits(self, checks: list[SecurityCheck]) -> list[SecurityCheck]:
+    def _replay_check_edits(
+        self, checks: list[SecurityCheck], stop: int | None = None, start: int = 0
+    ) -> list[SecurityCheck]:
         """The checks a caller added, inserted or removed by hand stay in force across
-        a rebuild: replay each edit, in order, on the freshly built list."""
-        for edit in tuple(self._check_edits):
+        a rebuild: replay each edit, in order, on the freshly built list. A rebuild
+        replays the first ``stop`` edits outside the lock and, inside it, every edit
+        recorded since, so an edit made while the rebuild ran is never lost."""
+        for edit in tuple(self._check_edits[start:stop]):
             checks = edit(checks)
         return checks
 
@@ -236,7 +245,7 @@ class SecurityCheckPipeline:
         if not self.checks:
             raise error
         self.logger.warning("Blocking request due to rebuild error in fail-secure mode")
-        return self.checks[0].create_error_response(
+        return self._first_real_check().create_error_response(
             status_code=500,
             default_message="Security check failed",
         )
@@ -256,7 +265,7 @@ class SecurityCheckPipeline:
     def _resolve_app_scope(self) -> AppScope | None:
         config = self._config
         if config is None and self.checks:
-            config = self.checks[0].config
+            config = self._first_real_check().config
         self._app_scope = None if config is None else existing_app_scope_of(config)
         return self._app_scope
 
@@ -306,13 +315,13 @@ class SecurityCheckPipeline:
         try:
             return self._resolve_pending_ban(request)
         except Exception as e:
-            return self._handle_check_error(self.checks[0], request, e)
+            return self._handle_check_error(self._first_real_check(), request, e)
 
     def _finish(self, request: SyncGuardRequest) -> GuardResponse | None:
         try:
             banned = self._resolve_pending_ban(request)
         except Exception as e:
-            banned = self._handle_check_error(self.checks[0], request, e)
+            banned = self._handle_check_error(self._first_real_check(), request, e)
         if banned is not None:
             return banned
         return enforce_usage_rules(
@@ -323,25 +332,37 @@ class SecurityCheckPipeline:
     def needs_route_identity(self) -> bool:
         return any(check.needs_route_identity for check in self.checks)
 
+    def _edit_checks(
+        self, edit: Callable[[list[SecurityCheck]], list[SecurityCheck]]
+    ) -> None:
+        # Copy on write: a request walking the old list never sees it change.
+        self._check_edits.append(edit)
+        self.checks = edit(self.checks)
+
     def add_check(self, check: SecurityCheck) -> None:
-        self._check_edits.append(lambda checks: [*checks, check])
-        self.checks.append(check)
+        with self._rebuild_lock:
+            self._edit_checks(lambda checks: [*checks, check])
 
     def insert_check(self, index: int, check: SecurityCheck) -> None:
-        self._check_edits.append(
-            lambda checks: [*checks[:index], check, *checks[index:]]
-        )
-        self.checks.insert(index, check)
+        with self._rebuild_lock:
+            self._edit_checks(lambda checks: [*checks[:index], check, *checks[index:]])
 
     def remove_check(self, check_name: str) -> bool:
-        for i, check in enumerate(self.checks):
-            if check.check_name == check_name:
-                self._check_edits.append(
-                    lambda checks: [c for c in checks if c.check_name != check_name]
-                )
-                self.checks.pop(i)
-                return True
-        return False
+        with self._rebuild_lock:
+            if all(check.check_name != check_name for check in self.checks):
+                return False
+            self._edit_checks(
+                lambda checks: [c for c in checks if c.check_name != check_name]
+            )
+            return True
+
+    def _first_real_check(self) -> SecurityCheck:
+        """The check that stands for the pipeline in an error or a refusal: the first
+        one the engine did not insert itself."""
+        for check in self.checks:
+            if not check.is_internal:
+                return check
+        return self.checks[0]
 
     def get_check_names(self) -> list[str]:
         return [check.check_name for check in self.checks]

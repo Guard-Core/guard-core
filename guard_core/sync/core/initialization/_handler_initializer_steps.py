@@ -16,6 +16,9 @@ from guard_core.sync.core.initialization._headers_manager_attach import (
     attach_security_headers_manager_to_redis,
 )
 from guard_core.sync.core.initialization._nat64 import apply_nat64_prefixes
+from guard_core.sync.core.initialization._redis_cold_start_recovery import (
+    RedisColdStartRecoveryMixin,
+)
 from guard_core.sync.core.initialization._redis_handler_members import (
     report_incomplete_redis_handler,
 )
@@ -62,7 +65,9 @@ class _RateLimitSlot(Protocol):
 
 
 class _HandlerInitializerStepsMixin(
-    RouteMisconfigurationReportsMixin, CloudInitializationMixin
+    RouteMisconfigurationReportsMixin,
+    CloudInitializationMixin,
+    RedisColdStartRecoveryMixin,
 ):
     config: "SyncSecurityConfig"
     redis_handler: "SyncRedisHandlerProtocol | None" = None
@@ -211,6 +216,7 @@ class _HandlerInitializerStepsMixin(
     def initialize_redis_handlers(self) -> None:
         scope = app_scope_of(self.config)
         scope.redis_handler = None
+        self._disarm_redis_cold_start_recovery()
         with in_app_scope(scope):
             self.report_route_misconfigurations()
             self._configure_detection()
@@ -226,6 +232,8 @@ class _HandlerInitializerStepsMixin(
                 self._warn_if_lazy_init_is_inert()
             elif without_redis or not self._connect_redis():
                 self._load_cloud_and_geo_without_redis()
+                if not without_redis:
+                    self._arm_redis_cold_start_recovery()
             else:
                 self._initialize_connected_redis_handlers()
 

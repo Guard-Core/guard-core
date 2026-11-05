@@ -17,6 +17,8 @@ class SecurityCheck(ABC):
     requires: ClassVar[tuple[str, ...]] = ()
     container_fields: ClassVar[tuple[str, ...]] = ()
     enforced_on_excluded_paths: ClassVar[bool] = False
+    # True for a check the engine inserts itself; it never stands for the pipeline
+    is_internal: ClassVar[bool] = False
     defers_ban_read: ClassVar[bool] = False
     # True for a check that can leave a ban read pending or resolve one itself
     leaves_ban_pending: ClassVar[bool] = False
