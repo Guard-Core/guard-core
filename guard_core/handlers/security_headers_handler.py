@@ -17,7 +17,7 @@ from guard_core.handlers._security_headers_override_state import (
 )
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
-from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from guard_core.protocols.redis_protocol import SecurityHeadersRedisHandler
 
 
 class ResolvedHeaders(dict[str, str]):
@@ -43,7 +43,7 @@ class SecurityHeadersManager(
     _instance: "SecurityHeadersManager | None" = None
     _lock = threading.Lock()
     headers_cache: TTLCache
-    redis_handler: RedisHandlerProtocol | None = None
+    redis_handler: SecurityHeadersRedisHandler | None = None
     agent_handler: AgentHandlerProtocol | None = None
     logger: logging.Logger
     enabled: bool

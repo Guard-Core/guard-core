@@ -169,3 +169,35 @@ def test_a_registered_object_that_is_not_a_redis_handler_is_not_adopted() -> Non
         REDIS_HANDLERS.drop(config)
 
     assert manager.redis_handler is None
+
+
+class _HeadersOnlyRedisHandler:
+    """Has the four members the headers override path calls and nothing else."""
+
+    def __init__(self, config: SyncSecurityConfig) -> None:
+        self.config = config
+
+    def get_key(self, namespace: str, key: str) -> str | None:
+        return None
+
+    def set_key(
+        self, namespace: str, key: str, value: str, ttl: int | None = None
+    ) -> bool | None:
+        return True
+
+    get_connection = MagicMock()
+
+
+def test_a_registered_handler_lacking_an_unrelated_member_is_adopted() -> None:
+    manager = SecurityHeadersManager.isolated()
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://127.0.0.1:1")
+    registered = _HeadersOnlyRedisHandler(config)
+    assert not hasattr(registered, "is_connected")
+    assert not hasattr(registered, "delete_pattern")
+    REDIS_HANDLERS.register(config, registered)
+    try:
+        manager._find_registered_redis_handler(config)
+    finally:
+        REDIS_HANDLERS.drop(config)
+
+    assert manager.redis_handler is registered

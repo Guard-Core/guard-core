@@ -114,7 +114,7 @@ Config level:
 - An `exclude_paths` entry or an `endpoint_rate_limits` key with a dot segment, an empty segment, a backslash or an encoded dot or separator.
 - A `security_headers` key that is not a known key.
 - A `nat64_prefixes` entry that is not an IPv6 prefix of an RFC 6052 length.
-- A Redis handler that lacks members the engine calls.
+- A Redis handler that lacks members the engine calls. `is_connected()` is one of them, named only under `redis_fail_open=True` and only when the handler has no `_redis` attribute either; a handler that keeps its client elsewhere adds `is_connected() -> bool`, and recovery falls back to `_redis` when it is absent.
 - A `threat_ban_config` or `auto_ban_threshold` above the number of strikes one client can produce in the window under the configured `rate_limit` (the threshold could never fire).
 - An `ipv6_prefix_length` that differs from the value other workers on the same Redis recorded.
 - A country rule or geo rate limit with no geo source, or with `ipinfo_token` but without `maxminddb` and the tree's downloader.

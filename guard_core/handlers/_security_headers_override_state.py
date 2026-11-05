@@ -34,7 +34,7 @@ from guard_core.handlers._security_headers_persistence_calls import (
 )
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
-from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from guard_core.protocols.redis_protocol import SecurityHeadersRedisHandler
 
 _OVERRIDE_NAMESPACE = "security_headers"
 _OWN_STATE_KEYS = ("csp_config", "hsts_config", "custom_headers")
@@ -52,7 +52,7 @@ class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
     # the process-wide manager, read here for its own-state flag and its Redis handler
     _instance: "SecurityHeadersOverrideMixin | None"
     headers_cache: TTLCache
-    redis_handler: RedisHandlerProtocol | None
+    redis_handler: SecurityHeadersRedisHandler | None
     agent_handler: AgentHandlerProtocol | None
     logger: logging.Logger
 
@@ -258,11 +258,11 @@ class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
         if now < self._override_next_lookup:
             return
         self._override_next_lookup = now + OVERRIDE_PULL_INTERVAL_SECONDS
-        # the registry holds handlers of any kind; only one that speaks the Redis
-        # protocol is used
+        # the registry holds handlers of any kind; only one with the members this path
+        # calls is used
         registered = REDIS_HANDLERS.lookup(config)
         self.redis_handler = (
-            registered if isinstance(registered, RedisHandlerProtocol) else None
+            registered if isinstance(registered, SecurityHeadersRedisHandler) else None
         )
 
     async def _flush_own_state(self) -> None:
@@ -332,7 +332,7 @@ class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
         return manager
 
     async def _read_override_and_clock(
-        self, redis_handler: RedisHandlerProtocol
+        self, redis_handler: SecurityHeadersRedisHandler
     ) -> str | bytes | None:
         # GET and TIME in one round trip: the offset to Redis time costs no extra trip.
         prefix = redis_handler.config.redis_prefix

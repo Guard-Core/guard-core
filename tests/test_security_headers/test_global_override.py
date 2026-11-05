@@ -191,7 +191,7 @@ def _hash_of(manager: SecurityHeadersManager) -> str | None:
     return manager._startup_hash
 
 
-def _redis_of(manager: SecurityHeadersManager) -> RedisHandlerProtocol | None:
+def _redis_of(manager: SecurityHeadersManager) -> object | None:
     return manager.redis_handler
 
 

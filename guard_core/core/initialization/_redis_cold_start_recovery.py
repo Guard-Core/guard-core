@@ -153,8 +153,7 @@ class RedisColdStartRecoveryMixin:
 
     @staticmethod
     def _redis_handler_holds_a_client(redis_handler: "RedisHandlerProtocol") -> bool:
-        from guard_core.handlers.redis_handler import is_connected_redis_manager
-
-        if is_connected_redis_manager(redis_handler):
-            return True
+        is_connected = getattr(redis_handler, "is_connected", None)
+        if is_connected is not None:
+            return bool(is_connected())
         return getattr(redis_handler, "_redis", None) is not None

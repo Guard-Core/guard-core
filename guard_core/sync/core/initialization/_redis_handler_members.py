@@ -10,18 +10,28 @@ if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
 
 
-def missing_redis_handler_members(handler: object) -> list[str]:
+def missing_redis_handler_members(
+    handler: object, *, recovery_armable: bool = True
+) -> list[str]:
     return sorted(
         name
         for name in get_protocol_members(SyncRedisHandlerProtocol)
         if not hasattr(handler, name)
+        and not (
+            name == "is_connected"
+            and (not recovery_armable or hasattr(handler, "_redis"))
+        )
     )
 
 
 def report_incomplete_redis_handler(
     config: "SyncSecurityConfig", handler: object, logger: logging.Logger
 ) -> None:
-    missing = missing_redis_handler_members(handler)
+    # Recovery is the only caller of is_connected, so this fail-open condition must
+    # widen if anything else starts calling it.
+    missing = missing_redis_handler_members(
+        handler, recovery_armable=config.redis_fail_open
+    )
     if missing:
         report_misconfiguration(
             config,

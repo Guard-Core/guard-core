@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
-    from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+    from guard_core.sync.protocols.redis_protocol import SyncSecurityHeadersRedisHandler
 
 
 class SecurityHeadersPersistenceCalls:
@@ -17,7 +17,7 @@ class SecurityHeadersPersistenceCalls:
 
         def initialize_redis(
             self,
-            redis_handler: SyncRedisHandlerProtocol,
+            redis_handler: SyncSecurityHeadersRedisHandler,
             config: SyncSecurityConfig | None = ...,
         ) -> None: ...
 

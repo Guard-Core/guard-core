@@ -14,6 +14,31 @@ if TYPE_CHECKING:
 
 
 @runtime_checkable
+class SecurityHeadersRedisHandler(Protocol):
+    """The four members the security headers override path calls on a handler.
+
+    A handler registered under a config is kept for that path when it has these,
+    whatever else of ``RedisHandlerProtocol`` it lacks.
+    """
+
+    config: SecurityConfig
+
+    async def get_key(self, namespace: str, key: str) -> str | None:
+        """Return the value stored at ``namespace:key``, or ``None`` if absent."""
+        ...
+
+    async def set_key(
+        self, namespace: str, key: str, value: RedisValue, ttl: int | None = None
+    ) -> bool | None:
+        """Store ``value`` at ``namespace:key``, expiring after ``ttl`` seconds."""
+        ...
+
+    def get_connection(self) -> AsyncContextManager[Redis]:
+        """Yield a redis-py-compatible asyncio client for one operation."""
+        ...
+
+
+@runtime_checkable
 class RedisHandlerProtocol(Protocol):
     """Storage backend the engine uses for all shared, cross-worker state.
 
@@ -33,7 +58,10 @@ class RedisHandlerProtocol(Protocol):
     A handler that implements the members directly keeps its live client in
     ``_redis`` (``None`` while disconnected): after a cold start under
     ``redis_fail_open`` the engine reads that attribute to tell whether a
-    reconnect succeeded.
+    reconnect succeeded. ``is_connected`` is how a handler that keeps its client
+    elsewhere answers the same question: the engine calls it when the handler has
+    it, and falls back to ``_redis`` otherwise (startup names a handler with
+    neither only under ``redis_fail_open``, the one mode that recovers).
     """
 
     config: SecurityConfig
@@ -234,4 +262,11 @@ class RedisHandlerProtocol(Protocol):
 
     def get_connection(self) -> AsyncContextManager[Redis]:
         """Yield a redis-py-compatible asyncio client for one operation."""
+        ...
+
+    def is_connected(self) -> bool:
+        """Return whether the handler holds a live client right now.
+
+        Cold-start recovery asks it after a reconnect attempt.
+        """
         ...
