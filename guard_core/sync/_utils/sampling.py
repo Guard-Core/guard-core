@@ -62,9 +62,10 @@ class WarnedKeys(set[str]):
 class PerApp(Generic[_T]):
     """One sampling table per app, found by the app's config.
 
-    The config holds its table and a copy of the config shares it, so with N apps
-    the process holds at most N tables, each bounded by the caller's own cap. No
-    config, or one that cannot hold a table, uses a process-wide table of its own.
+    The config holds its table and a copy of the config gets a table of its own (it
+    is another app), so with N apps the process holds at most N tables, each
+    bounded by the caller's own cap. No config, or one that cannot hold a table,
+    uses a process-wide table of its own.
     """
 
     def __init__(self, kind: str, table_type: type[_T]) -> None:
@@ -93,7 +94,7 @@ class PerApp(Generic[_T]):
         try:
             # Indexing, not .get(): this runs on the response path of every request.
             record = config.__dict__[_HELD_ATTRIBUTE]
-            held = record[self._kind] if record.owner_id == id(config) else None
+            held = record[self._kind] if record.owner is config else None
         except (AttributeError, KeyError):
             held = None
         if held is not None and isinstance(held, self._table_type):

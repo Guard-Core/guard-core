@@ -1,5 +1,6 @@
 import copy
 import pickle
+import sys
 import threading
 from collections.abc import Callable
 from ipaddress import IPv6Network
@@ -20,9 +21,11 @@ from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_manager_for
 from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
-from tests.test_sync.conftest import SyncMockGuardRequest
+from tests.test_sync.conftest import SyncMockGuardRequest, suite_redis_prefix
+from tests.test_sync.protocol_only_redis import REDIS_URL as LIVE_REDIS_URL
 
 URL = "redis://user:hunter2@one.invalid:6379/0"
 PREFIX = "wp460-copy:"
@@ -41,6 +44,8 @@ COPY_FORMS: dict[str, Callable[[SyncSecurityConfig], SyncSecurityConfig]] = {
     "deepcopy": copy.deepcopy,
     "pickle": lambda config: pickle.loads(pickle.dumps(config)),
 }
+if sys.version_info >= (3, 13):
+    COPY_FORMS["copy.replace"] = lambda config: copy.replace(config, rate_limit=7)
 
 
 def _base_config() -> SyncSecurityConfig:
@@ -224,3 +229,48 @@ def test_a_lookup_refuses_a_record_whose_owner_is_another_config() -> None:
     assert held_for_app(other, "wp460-kind") is None
     assert nat64_table_of(base) is table
     assert held_for_app(base, "wp460-kind") is not None
+
+
+@pytest.mark.parametrize("form", ["deepcopy", "model_copy_deep", "pickle"])
+def test_the_config_of_an_app_started_on_a_real_redis_manager_can_be_copied(
+    form: str,
+) -> None:
+    config = SyncSecurityConfig(
+        enable_redis=True,
+        redis_url=LIVE_REDIS_URL,
+        redis_prefix=suite_redis_prefix("wp460-live"),
+        enable_agent=False,
+    )
+    manager = RedisManager(config)
+    initializer = HandlerInitializer(config, redis_handler=manager)
+    try:
+        initializer.initialize_redis_handlers()
+        sus_patterns_manager_for(config, bind=True).configure(config)
+        assert app_scope_of(config).redis_handler is manager
+
+        clone = COPY_FORMS[form](config)
+
+        assert existing_app_scope_of(clone) is None
+        assert app_scope_of(clone).redis_handler is None
+        assert app_scope_of(config).redis_handler is manager
+        assert clone.redis_prefix == config.redis_prefix
+    finally:
+        manager.close()
+
+
+@pytest.mark.parametrize("form", ["deepcopy", "model_copy_deep", "pickle"])
+def test_the_config_of_an_app_that_holds_tables_can_be_copied_without_redis(
+    form: str,
+) -> None:
+    from guard_core.sync.handlers.ratelimit_handler import _by_ip_request_timestamps
+
+    config = SyncSecurityConfig(enable_redis=False)
+    _by_ip_request_timestamps.for_app(config)
+    configure_nat64_prefixes(config, [NAT64])
+
+    clone = COPY_FORMS[form](config)
+
+    assert nat64_table_of(clone) is DEFAULT_NAT64_TABLE
+    assert _by_ip_request_timestamps.for_app(clone) is not (
+        _by_ip_request_timestamps.for_app(config)
+    )
