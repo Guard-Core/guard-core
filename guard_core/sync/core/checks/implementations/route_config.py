@@ -129,12 +129,16 @@ def _born_subclass(steady: type[_Check]) -> type[_Check]:
         type.__setattr__(type(self), "check", steady.check)
         return self.check(request)
 
-    born = types.new_class(
+    born: type[_Check] = types.new_class(
         steady.__name__,
         (steady,),
-        exec_body=lambda ns: ns.update(check=warn_then_check),
+        exec_body=lambda ns: ns.update(
+            check=warn_then_check,
+            __module__=steady.__module__,
+            __qualname__=steady.__qualname__,
+        ),
     )
-    return born if issubclass(born, steady) else steady
+    return born
 
 
 class _TemplateRecordingRouteConfigCheck(RouteConfigCheck):
