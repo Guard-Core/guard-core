@@ -17,7 +17,7 @@ from guard_core._security_headers_override import (
 from guard_core._utils.logging_utils import _sanitize_for_log
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
-from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from guard_core.protocols.redis_protocol import SecurityHeadersRedisHandler
 
 _Validated = TypeVar("_Validated")
 
@@ -69,7 +69,7 @@ class HotHeadersCache(TTLCache):
 
 class SecurityHeadersCacheMixin:
     headers_cache: TTLCache
-    redis_handler: RedisHandlerProtocol | None
+    redis_handler: SecurityHeadersRedisHandler | None
     agent_handler: AgentHandlerProtocol | None
     logger: logging.Logger
     enabled: bool
@@ -141,7 +141,7 @@ class SecurityHeadersCacheMixin:
 
     async def initialize_redis(
         self,
-        redis_handler: RedisHandlerProtocol,
+        redis_handler: SecurityHeadersRedisHandler,
         config: SecurityConfig | None = None,
     ) -> None:
         self.redis_handler = redis_handler

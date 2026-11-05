@@ -344,6 +344,9 @@ class RedisManager(RedisBanStrikeMixin):
         for stop in tuple(self._background_user_set()):
             stop()
 
+    def is_connected(self) -> bool:
+        return self._redis is not None
+
     def close(self) -> None:
         self._stop_background_users()
         if self._redis:

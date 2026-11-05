@@ -26,7 +26,7 @@ from guard_core._security_headers_override import (
     validate_cors_override,
 )
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+from guard_core.sync.protocols.redis_protocol import SyncSecurityHeadersRedisHandler
 
 
 class SecurityHeadersConfigMixin:
@@ -38,7 +38,7 @@ class SecurityHeadersConfigMixin:
     cors_config: dict[str, object] | None
     default_headers: dict[str, str]
     headers_cache: TTLCache
-    redis_handler: SyncRedisHandlerProtocol | None
+    redis_handler: SyncSecurityHeadersRedisHandler | None
     _startup_hash: str | None
     _own_state_dirty: bool
 

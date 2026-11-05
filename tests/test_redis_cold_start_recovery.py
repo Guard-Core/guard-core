@@ -1,8 +1,10 @@
 import asyncio
+import gc
 import logging
 import socket
 import threading
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from time import monotonic
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -10,6 +12,8 @@ from urllib.parse import urlparse
 
 import pytest
 import redis as redis_sync
+from redis.asyncio import Redis
+from redis.exceptions import RedisError
 
 from guard_core.core.checks import factory as checks_factory
 from guard_core.core.checks.base import SecurityCheck
@@ -21,9 +25,14 @@ from guard_core.core.checks.pipeline import (
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
-from guard_core.handlers.redis_handler import RedisHandlerBase, RedisManager
+from guard_core.handlers.redis_handler import (
+    RedisHandlerBase,
+    RedisManager,
+    close_redis_client,
+)
 from guard_core.models import SecurityConfig
 from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
+from tests.async_is_connected import async_false
 from tests.conftest import REDIS_URL, suite_redis_prefix
 
 RECOVERY_CHECK = "redis_cold_start_recovery"
@@ -1037,3 +1046,229 @@ async def test_a_second_outage_within_5_s_of_a_recovery_is_reported(
     assert gate.enter() is True
     assert gate.report_due() is True
     gate.leave(connected=False)
+
+
+class OtherAttributeClientHandler(RedisHandlerBase):
+    """Keeps its client under ``_client`` and answers ``is_connected`` itself."""
+
+    def __init__(self, config: SecurityConfig, url: str) -> None:
+        self.config = config
+        self._url = url
+        self._client: Redis | None = None
+
+    async def initialize(self) -> None:
+        client = Redis.from_url(
+            self._url, decode_responses=True, socket_connect_timeout=0.5
+        )
+        try:
+            await client.ping()
+        except RedisError as error:
+            await close_redis_client(client)
+            raise GuardRedisError(503, "Redis connection failed") from error
+        await self.close()
+        self._client = client
+
+    @asynccontextmanager
+    async def get_connection(self) -> AsyncIterator[Redis]:
+        assert self._client is not None
+        yield self._client
+
+    def is_connected(self) -> bool:
+        return self._client is not None
+
+    async def close(self) -> None:
+        if self._client is not None:
+            await close_redis_client(self._client)
+
+
+async def test_a_handler_with_its_client_elsewhere_recovers_through_is_connected(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
+) -> None:
+    config = config_for(forwarder.url, prefix)
+    handler = OtherAttributeClientHandler(config, forwarder.url)
+    initializer = HandlerInitializer(config, redis_handler=handler)
+    middleware = MagicMock()
+    middleware.config = config
+    middleware.logger = logging.getLogger("wp456")
+    middleware.handler_initializer = initializer
+    with patch.object(checks_factory, "DEFAULT_CHECK_CLASSES", ()):
+        pipeline = build_default_pipeline(middleware)
+    await initializer.initialize_redis_handlers()
+    assert pipeline.get_check_names() == [RECOVERY_CHECK]
+    assert handler.is_connected() is False
+
+    forwarder.on()
+    for _ in range(80):
+        assert await pipeline.execute(request_of()) is None
+        clock.now += 0.1
+        if not pipeline.get_check_names():
+            break
+    assert pipeline.get_check_names() == []
+    assert handler.is_connected() is True
+    await ip_ban_manager_for(config).ban_ip(BANNED_IP, 60, config=config)
+    assert keys_under(prefix) > 0
+    await handler.close()
+
+
+class WithoutIsConnectedHandler(RedisHandlerBase):
+    """A handler whose only connection state is ``_redis``: no ``is_connected``.
+
+    Its own ``initialize`` keeps recovery on the path that reads state."""
+
+    async def initialize(self) -> None:
+        await super().initialize()
+
+    def __getattribute__(self, name: str) -> object:
+        if name == "is_connected":
+            raise AttributeError(name)
+        return super().__getattribute__(name)
+
+
+async def test_a_handler_with_only_redis_attribute_starts_clean_and_recovers(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
+) -> None:
+    config = config_for(forwarder.url, prefix)
+    assert config.fail_on_misconfiguration is True
+    handler = WithoutIsConnectedHandler(config)
+    assert not hasattr(handler, "is_connected")
+    initializer = HandlerInitializer(config, redis_handler=handler)
+    middleware = MagicMock()
+    middleware.config = config
+    middleware.logger = logging.getLogger("wp456")
+    middleware.handler_initializer = initializer
+    with patch.object(checks_factory, "DEFAULT_CHECK_CLASSES", ()):
+        pipeline = build_default_pipeline(middleware)
+    await initializer.initialize_redis_handlers()
+    assert pipeline.get_check_names() == [RECOVERY_CHECK]
+
+    forwarder.on()
+    for _ in range(80):
+        assert await pipeline.execute(request_of()) is None
+        clock.now += 0.1
+        if not pipeline.get_check_names():
+            break
+    assert pipeline.get_check_names() == []
+    await ip_ban_manager_for(config).ban_ip(BANNED_IP, 60, config=config)
+    assert keys_under(prefix) > 0
+    await handler.close()
+
+
+async def test_the_redis_manager_reports_is_connected_from_its_client(
+    forwarder: RedisForwarder, prefix: str
+) -> None:
+    manager = RedisManager(config_for(forwarder.url, prefix))
+    assert manager.is_connected() is False
+    forwarder.on()
+    await manager.initialize()
+    assert manager.is_connected() is True
+    await manager.close()
+    assert manager.is_connected() is False
+
+
+class AsyncIsConnectedHandler(OtherAttributeClientHandler):
+    """Answers ``is_connected`` with a coroutine, which the engine never awaits."""
+
+    def __getattribute__(self, name: str) -> object:
+        if name == "is_connected":
+            return async_false
+        return super().__getattribute__(name)
+
+
+async def test_an_async_is_connected_never_reads_as_connected(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
+) -> None:
+    config = config_for(forwarder.url, prefix).model_copy(
+        update={"fail_on_misconfiguration": False}
+    )
+    handler = AsyncIsConnectedHandler(config, forwarder.url)
+    initializer = HandlerInitializer(config, redis_handler=handler)
+    middleware = MagicMock()
+    middleware.config = config
+    middleware.logger = logging.getLogger("wp456")
+    middleware.handler_initializer = initializer
+    with patch.object(checks_factory, "DEFAULT_CHECK_CLASSES", ()):
+        pipeline = build_default_pipeline(middleware)
+    await initializer.initialize_redis_handlers()
+    assert pipeline.get_check_names() == [RECOVERY_CHECK]
+
+    forwarder.on()
+    for _ in range(20):
+        assert await pipeline.execute(request_of()) is None
+        clock.now += 0.5
+    gc.collect()
+    assert pipeline.get_check_names() == [RECOVERY_CHECK]
+    await handler.close()
+
+
+class CountingHandler(OtherAttributeClientHandler):
+    initialize_calls = 0
+
+    async def initialize(self) -> None:
+        type(self).initialize_calls += 1
+        await super().initialize()
+
+
+async def test_a_handler_that_reports_connected_is_bound_without_initialize(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
+) -> None:
+    CountingHandler.initialize_calls = 0
+    config = config_for(forwarder.url, prefix)
+    handler = CountingHandler(config, forwarder.url)
+    initializer = HandlerInitializer(config, redis_handler=handler)
+    middleware = MagicMock()
+    middleware.config = config
+    middleware.logger = logging.getLogger("wp456")
+    middleware.handler_initializer = initializer
+    with patch.object(checks_factory, "DEFAULT_CHECK_CLASSES", ()):
+        pipeline = build_default_pipeline(middleware)
+    await initializer.initialize_redis_handlers()
+    assert pipeline.get_check_names() == [RECOVERY_CHECK]
+    assert CountingHandler.initialize_calls == 1
+
+    forwarder.on()
+    await handler.initialize()
+    assert handler.is_connected() is True
+    assert CountingHandler.initialize_calls == 2
+    clock.now += 10
+    assert await pipeline.execute(request_of()) is None
+    assert pipeline.get_check_names() == []
+    assert CountingHandler.initialize_calls == 2
+    await handler.close()
+
+
+class ClientAnsweringHandler(CountingHandler):
+    """Answers ``is_connected`` with its client object, which is truthy."""
+
+    def __getattribute__(self, name: str) -> object:
+        if name == "is_connected":
+            return super().__getattribute__("_client_or_none")
+        return super().__getattribute__(name)
+
+    def _client_or_none(self) -> object:
+        return self._client
+
+
+async def test_a_truthy_client_answer_from_is_connected_is_bound_without_initialize(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
+) -> None:
+    ClientAnsweringHandler.initialize_calls = 0
+    config = config_for(forwarder.url, prefix)
+    handler = ClientAnsweringHandler(config, forwarder.url)
+    initializer = HandlerInitializer(config, redis_handler=handler)
+    middleware = MagicMock()
+    middleware.config = config
+    middleware.logger = logging.getLogger("wp456")
+    middleware.handler_initializer = initializer
+    with patch.object(checks_factory, "DEFAULT_CHECK_CLASSES", ()):
+        pipeline = build_default_pipeline(middleware)
+    await initializer.initialize_redis_handlers()
+    assert pipeline.get_check_names() == [RECOVERY_CHECK]
+
+    forwarder.on()
+    await handler.initialize()
+    assert ClientAnsweringHandler.initialize_calls == 2
+    clock.now += 10
+    assert await pipeline.execute(request_of()) is None
+    assert pipeline.get_check_names() == []
+    assert ClientAnsweringHandler.initialize_calls == 2
+    await handler.close()

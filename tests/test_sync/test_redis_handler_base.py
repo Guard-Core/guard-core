@@ -18,6 +18,7 @@ from guard_core.sync.handlers.redis_handler import (
     close_redis_client,
 )
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+from tests.async_is_connected import async_false
 from tests.test_sync.conftest import suite_redis_prefix
 from tests.test_sync.protocol_only_redis import REDIS_URL, protocol_only_handler
 
@@ -164,3 +165,97 @@ def test_a_base_subclass_leaves_the_manager_singleton_alone() -> None:
     finally:
         own.close()
         reset_singleton()
+
+
+class _OnlyTheClientAttribute:
+    _redis = None
+
+
+def test_is_connected_is_named_for_a_handler_with_neither_it_nor_a_client() -> None:
+    assert "is_connected" in missing_redis_handler_members(object())
+    assert "is_connected" not in missing_redis_handler_members(
+        object(), recovery_armable=False
+    )
+
+
+def test_a_client_attribute_stands_in_for_is_connected() -> None:
+    absent = missing_redis_handler_members(_OnlyTheClientAttribute())
+    assert "is_connected" not in absent
+    assert missing_redis_handler_members(RedisManager(SyncSecurityConfig())) == []
+
+
+def test_a_handler_without_is_connected_is_named_when_redis_fails_open(
+    handler: RecordingRedisHandler, caplog: pytest.LogCaptureFixture
+) -> None:
+    del handler.is_connected
+    config = handler.config.model_copy(
+        update={"redis_fail_open": True, "fail_on_misconfiguration": False}
+    )
+    with caplog.at_level(logging.WARNING):
+        HandlerInitializer(config, redis_handler=handler).initialize_redis_handlers()
+    named = [r.getMessage() for r in caplog.records if "lacks" in r.getMessage()]
+    assert len(named) == 1
+    assert "lacks is_connected," in named[0]
+
+
+def test_a_handler_without_is_connected_refuses_to_start_when_asked(
+    handler: RecordingRedisHandler,
+) -> None:
+    del handler.is_connected
+    config = handler.config.model_copy(
+        update={"redis_fail_open": True, "fail_on_misconfiguration": True}
+    )
+    with pytest.raises(ValueError, match="lacks is_connected,"):
+        HandlerInitializer(config, redis_handler=handler).initialize_redis_handlers()
+
+
+def test_a_handler_without_is_connected_starts_clean_when_redis_fails_closed(
+    handler: RecordingRedisHandler, caplog: pytest.LogCaptureFixture
+) -> None:
+    del handler.is_connected
+    config = handler.config.model_copy(
+        update={"redis_fail_open": False, "fail_on_misconfiguration": True}
+    )
+    with caplog.at_level(logging.WARNING):
+        HandlerInitializer(config, redis_handler=handler).initialize_redis_handlers()
+    assert not [r for r in caplog.records if "lacks" in r.getMessage()]
+
+
+def test_an_async_is_connected_is_refused_at_startup_when_redis_fails_open(
+    handler: RecordingRedisHandler, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(handler, "is_connected", async_false)
+    config = handler.config.model_copy(
+        update={"redis_fail_open": True, "fail_on_misconfiguration": True}
+    )
+    with pytest.raises(ValueError, match="without awaiting"):
+        HandlerInitializer(config, redis_handler=handler).initialize_redis_handlers()
+
+
+def test_an_async_is_connected_is_warned_about_when_asked_to_start_anyway(
+    handler: RecordingRedisHandler,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(handler, "is_connected", async_false)
+    config = handler.config.model_copy(
+        update={"redis_fail_open": True, "fail_on_misconfiguration": False}
+    )
+    with caplog.at_level(logging.WARNING):
+        HandlerInitializer(config, redis_handler=handler).initialize_redis_handlers()
+    named = [r for r in caplog.records if "without awaiting" in r.getMessage()]
+    assert len(named) == 1
+
+
+def test_an_async_is_connected_is_not_reported_when_redis_fails_closed(
+    handler: RecordingRedisHandler,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(handler, "is_connected", async_false)
+    config = handler.config.model_copy(
+        update={"redis_fail_open": False, "fail_on_misconfiguration": True}
+    )
+    with caplog.at_level(logging.WARNING):
+        HandlerInitializer(config, redis_handler=handler).initialize_redis_handlers()
+    assert not [r for r in caplog.records if "without awaiting" in r.getMessage()]

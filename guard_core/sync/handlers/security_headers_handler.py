@@ -17,7 +17,7 @@ from guard_core.sync.handlers._security_headers_override_state import (
     SecurityHeadersOverrideMixin,
 )
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
-from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+from guard_core.sync.protocols.redis_protocol import SyncSecurityHeadersRedisHandler
 
 
 class ResolvedHeaders(dict[str, str]):
@@ -43,7 +43,7 @@ class SecurityHeadersManager(
     _instance: "SecurityHeadersManager | None" = None
     _lock = threading.Lock()
     headers_cache: TTLCache
-    redis_handler: SyncRedisHandlerProtocol | None = None
+    redis_handler: SyncSecurityHeadersRedisHandler | None = None
     agent_handler: SyncAgentHandlerProtocol | None = None
     logger: logging.Logger
     enabled: bool

@@ -34,7 +34,7 @@ from guard_core.sync.handlers._security_headers_persistence_calls import (
     SecurityHeadersPersistenceCalls,
 )
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
-from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+from guard_core.sync.protocols.redis_protocol import SyncSecurityHeadersRedisHandler
 
 _OVERRIDE_NAMESPACE = "security_headers"
 _OWN_STATE_KEYS = ("csp_config", "hsts_config", "custom_headers")
@@ -52,7 +52,7 @@ class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
     # the process-wide manager, read here for its own-state flag and its Redis handler
     _instance: "SecurityHeadersOverrideMixin | None"
     headers_cache: TTLCache
-    redis_handler: SyncRedisHandlerProtocol | None
+    redis_handler: SyncSecurityHeadersRedisHandler | None
     agent_handler: SyncAgentHandlerProtocol | None
     logger: logging.Logger
 
@@ -258,11 +258,13 @@ class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
         if now < self._override_next_lookup:
             return
         self._override_next_lookup = now + OVERRIDE_PULL_INTERVAL_SECONDS
-        # the registry holds handlers of any kind; only one that speaks the Redis
-        # protocol is used
+        # the registry holds handlers of any kind; only one with the members this path
+        # calls is used
         registered = REDIS_HANDLERS.lookup(config)
         self.redis_handler = (
-            registered if isinstance(registered, SyncRedisHandlerProtocol) else None
+            registered
+            if isinstance(registered, SyncSecurityHeadersRedisHandler)
+            else None
         )
 
     def _flush_own_state(self) -> None:
@@ -332,7 +334,7 @@ class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
         return manager
 
     def _read_override_and_clock(
-        self, redis_handler: SyncRedisHandlerProtocol
+        self, redis_handler: SyncSecurityHeadersRedisHandler
     ) -> str | bytes | None:
         # GET and TIME in one round trip: the offset to Redis time costs no extra trip.
         prefix = redis_handler.config.redis_prefix

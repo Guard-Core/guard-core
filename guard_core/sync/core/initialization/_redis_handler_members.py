@@ -1,3 +1,4 @@
+import inspect
 import logging
 from typing import TYPE_CHECKING
 
@@ -10,18 +11,39 @@ if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
 
 
-def missing_redis_handler_members(handler: object) -> list[str]:
+def missing_redis_handler_members(
+    handler: object, *, recovery_armable: bool = True
+) -> list[str]:
     return sorted(
         name
         for name in get_protocol_members(SyncRedisHandlerProtocol)
         if not hasattr(handler, name)
+        and not (
+            name == "is_connected"
+            and (not recovery_armable or hasattr(handler, "_redis"))
+        )
     )
 
 
 def report_incomplete_redis_handler(
     config: "SyncSecurityConfig", handler: object, logger: logging.Logger
 ) -> None:
-    missing = missing_redis_handler_members(handler)
+    # Recovery is the only caller of is_connected, so this fail-open condition must
+    # widen if anything else starts calling it.
+    missing = missing_redis_handler_members(
+        handler, recovery_armable=config.redis_fail_open
+    )
+    if config.redis_fail_open and inspect.iscoroutinefunction(
+        getattr(handler, "is_connected", None)
+    ):
+        report_misconfiguration(
+            config,
+            f"The Redis handler {type(handler).__name__} defines is_connected as "
+            "async, but the engine calls it without awaiting, so it never reads as "
+            "connected; make it a plain method.",
+            logger=logger,
+            stacklevel=5,
+        )
     if missing:
         report_misconfiguration(
             config,
