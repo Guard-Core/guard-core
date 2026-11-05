@@ -1,6 +1,9 @@
 import logging
 from pathlib import Path
 
+import pytest
+from pytest_mock import MockerFixture
+
 from guard_core.sync._utils.logging_utils import setup_custom_logging
 
 
@@ -44,6 +47,27 @@ def test_a_live_file_handler_still_writes_its_records(tmp_path: Path) -> None:
 
         assert "record on the live handler" in log_file.read_text()
     finally:
+        for installed in list(logger.handlers):
+            installed.close()
+            logger.removeHandler(installed)
+
+
+def test_replacing_an_engine_handler_while_file_handler_is_patched_still_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
+) -> None:
+    logger = setup_custom_logging(str(tmp_path / "guard.log"))
+    try:
+        mocker.patch(
+            "guard_core.sync._utils.logging_utils.logging.FileHandler",
+            side_effect=PermissionError("cannot create log file"),
+        )
+        caplog.set_level(logging.WARNING, logger="guard_core")
+
+        setup_custom_logging(str(tmp_path / "other.log"))
+
+        assert f"Failed to create log file {tmp_path / 'other.log'}" in caplog.text
+    finally:
+        mocker.stopall()
         for installed in list(logger.handlers):
             installed.close()
             logger.removeHandler(installed)
