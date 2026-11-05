@@ -3,6 +3,7 @@ import socket
 import threading
 import time
 from collections.abc import Iterator
+from time import monotonic
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlparse
@@ -97,12 +98,41 @@ class RedisForwarder:
             self._close(sink)
 
 
+class SilentServer:
+    """A loopback port whose connections complete in the kernel backlog and are never
+    answered: a Redis behind a partition, where the connect works and the read hangs."""
+
+    def __init__(self) -> None:
+        self._listener = socket.socket()
+        self._listener.bind(("127.0.0.1", 0))
+        self._listener.listen(128)
+        self.port = int(self._listener.getsockname()[1])
+
+    @property
+    def url(self) -> str:
+        return urlparse(REDIS_URL)._replace(netloc=f"127.0.0.1:{self.port}").geturl()
+
+    def close(self) -> None:
+        self._listener.close()
+
+
 class Clock:
     def __init__(self) -> None:
         self.now = 1000.0
 
     def __call__(self) -> float:
         return self.now
+
+
+class Events:
+    def __init__(self) -> None:
+        self.actions: list[str] = []
+
+    def send_event(self, event: object) -> None:
+        self.actions.append(str(getattr(event, "action_taken", "")))
+
+    def count(self, action: str) -> int:
+        return self.actions.count(action)
 
 
 class Parked(SecurityCheck):
@@ -126,6 +156,15 @@ class Parked(SecurityCheck):
             time.sleep(0.01)
 
 
+class Blocker(SecurityCheck):
+    @property
+    def check_name(self) -> str:
+        return "blocker"
+
+    def check(self, request: object) -> MagicMock:
+        return MagicMock()
+
+
 @pytest.fixture
 def forwarder() -> Iterator[RedisForwarder]:
     forward = RedisForwarder()
@@ -134,11 +173,18 @@ def forwarder() -> Iterator[RedisForwarder]:
 
 
 @pytest.fixture
+def silent() -> Iterator[SilentServer]:
+    server = SilentServer()
+    yield server
+    server.close()
+
+
+@pytest.fixture
 def clock() -> Iterator[Clock]:
-    from guard_core.sync.core.initialization import _redis_cold_start_recovery
+    from guard_core.sync.handlers import _redis_reconnect_gate
 
     fake = Clock()
-    with patch.object(_redis_cold_start_recovery, "monotonic", fake):
+    with patch.object(_redis_reconnect_gate, "monotonic", fake):
         yield fake
 
 
@@ -152,9 +198,9 @@ def prefix() -> Iterator[str]:
     client.close()
 
 
-def request_of() -> MagicMock:
+def request_of(**state: object) -> MagicMock:
     request = MagicMock()
-    request.state = SimpleNamespace()
+    request.state = SimpleNamespace(**state)
     return request
 
 
@@ -163,6 +209,21 @@ def keys_under(prefix: str) -> int:
     count = sum(1 for _ in client.scan_iter(f"{prefix}*"))
     client.close()
     return count
+
+
+def config_for(
+    url: str, prefix: str, *, fail_open: bool = True, enable_redis: bool = True
+) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
+        enable_redis=enable_redis,
+        redis_url=url,
+        redis_prefix=prefix,
+        redis_fail_open=fail_open,
+        enable_rate_limiting=False,
+        redis_socket_connect_timeout=0.5,
+        redis_socket_timeout=0.5,
+        redis_retries=0,
+    )
 
 
 class App:
@@ -180,8 +241,8 @@ class App:
     def start(self) -> None:
         self.initializer.initialize_redis_handlers()
 
-    def request(self) -> object:
-        return self.pipeline.execute(request_of())
+    def request(self, **state: object) -> object:
+        return self.pipeline.execute(request_of(**state))
 
     def ban(self) -> None:
         manager = ip_ban_manager_for(self.config)
@@ -190,17 +251,9 @@ class App:
     def names(self) -> list[str]:
         return self.pipeline.get_check_names()
 
-
-def config_for(
-    url: str, prefix: str, *, fail_open: bool = True, enable_redis: bool = True
-) -> SyncSecurityConfig:
-    return SyncSecurityConfig(
-        enable_redis=enable_redis,
-        redis_url=url,
-        redis_prefix=prefix,
-        redis_fail_open=fail_open,
-        enable_rate_limiting=False,
-    )
+    def connects(self) -> MagicMock:
+        assert self.redis is not None
+        return MagicMock(wraps=self.redis._open_connection)
 
 
 def test_redis_is_used_after_the_retry_interval_when_it_comes_back(
@@ -218,13 +271,16 @@ def test_redis_is_used_after_the_retry_interval_when_it_comes_back(
 
     app.ban()
     assert keys_under(prefix) > 0
+    assert app.names() == []
 
 
 def test_the_retry_interval_is_the_503_retry_after() -> None:
     from guard_core.sync.core.initialization import _redis_cold_start_recovery
+    from guard_core.sync.handlers import _redis_reconnect_gate
 
     interval = _redis_cold_start_recovery.REDIS_COLD_START_RETRY_INTERVAL
     assert interval == REDIS_OUTAGE_RETRY_AFTER == 5
+    assert _redis_reconnect_gate.REDIS_RECONNECT_WINDOW_SECONDS == 5
 
 
 def test_a_healthy_start_never_inserts_the_recovery_check(
@@ -270,10 +326,11 @@ def test_a_second_failure_keeps_failing_open_and_retries_next_interval(
 ) -> None:
     app = App(config_for(forwarder.url, prefix))
     assert app.redis is not None
-    attempts = MagicMock(wraps=app.redis.initialize)
-    with patch.object(app.redis, "initialize", attempts):
+    attempts = app.connects()
+    with patch.object(app.redis, "_open_connection", attempts):
         app.start()
         assert attempts.call_count == 1
+        assert app.names() == [RECOVERY_CHECK]
 
         assert app.request() is None
         assert attempts.call_count == 1
@@ -303,43 +360,49 @@ def test_a_second_failure_keeps_failing_open_and_retries_next_interval(
         assert attempts.call_count == 4
 
 
-def test_a_busy_retry_does_not_queue_another_one(
+def test_a_held_claim_makes_the_retry_return_without_connecting(
     forwarder: RedisForwarder, prefix: str, clock: Clock
 ) -> None:
     app = App(config_for(forwarder.url, prefix))
     app.start()
     forwarder.on()
     clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
-    with patch.object(app.initializer, "_connect_redis") as connect:
-        with app.initializer._recovery_lock:
-            assert app.request() is None
+    assert app.redis is not None
+    with patch.object(app.redis, "_open_connection") as connect:
+        assert app.initializer._recovery_claim.acquire(blocking=False)
+        assert app.request() is None
+        app.initializer._recovery_claim.release()
         connect.assert_not_called()
 
 
-def test_the_due_check_is_repeated_once_the_lock_is_held(
+def test_the_armed_check_is_repeated_once_the_claim_is_held(
     forwarder: RedisForwarder, prefix: str
 ) -> None:
     app = App(config_for(forwarder.url, prefix))
     app.start()
     forwarder.on()
     with (
-        patch.object(app.initializer, "_redis_recovery_due", side_effect=[True, False]),
-        patch.object(app.initializer, "_connect_redis") as connect,
+        patch.object(
+            app.initializer, "_redis_recovery_armed", side_effect=[True, False]
+        ),
+        patch.object(app.initializer, "_bind_recovered_redis") as bind,
     ):
         assert app.request() is None
-    connect.assert_not_called()
+    bind.assert_not_called()
     assert app.names() == [RECOVERY_CHECK]
 
 
-def test_a_failing_handler_setup_is_logged_and_retried_later(
+def test_a_manager_another_caller_reconnected_is_bound_without_a_connect(
     forwarder: RedisForwarder,
     prefix: str,
     clock: Clock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     app = App(config_for(forwarder.url, prefix))
+    assert app.redis is not None
     app.start()
     forwarder.on()
+    clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
     with (
         patch.object(
             app.initializer,
@@ -348,14 +411,18 @@ def test_a_failing_handler_setup_is_logged_and_retried_later(
         ),
         caplog.at_level(logging.WARNING),
     ):
-        clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
         assert app.request() is None
     assert "Redis recovery after a cold start failed" in caplog.text
     assert app.names() == [RECOVERY_CHECK]
 
-    clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
-    assert app.request() is None
+    attempts = app.connects()
+    with patch.object(app.redis, "_open_connection", attempts):
+        assert app.request() is None
+        assert app.request() is None
+    attempts.assert_not_called()
     assert app.names() == []
+    app.ban()
+    assert keys_under(prefix) > 0
 
 
 def test_an_unbound_initializer_arms_nothing(
@@ -367,20 +434,23 @@ def test_an_unbound_initializer_arms_nothing(
     assert initializer._recovery_check is None
 
 
-def test_arming_twice_inserts_one_check(forwarder: RedisForwarder, prefix: str) -> None:
+def test_arming_twice_inserts_one_check(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
+) -> None:
     app = App(config_for(forwarder.url, prefix))
     app.start()
-    app.start()
+    app.initializer._arm_redis_cold_start_recovery()
     assert app.names() == [RECOVERY_CHECK]
 
 
 def test_a_new_start_with_redis_back_removes_the_check(
-    forwarder: RedisForwarder, prefix: str
+    forwarder: RedisForwarder, prefix: str, clock: Clock
 ) -> None:
     app = App(config_for(forwarder.url, prefix))
     app.start()
     assert app.names() == [RECOVERY_CHECK]
     forwarder.on()
+    clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
     app.start()
     assert app.names() == []
 
@@ -430,3 +500,189 @@ def test_a_pipeline_rebuild_keeps_the_check_until_redis_recovers(
         app.config.rate_limit = 8
         assert app.request() is None
         assert app.names() == []
+
+
+def test_an_arming_between_the_build_and_the_assign_of_a_rebuild_survives(
+    forwarder: RedisForwarder, prefix: str
+) -> None:
+    forwarder.on()
+    app = App(config_for(forwarder.url, prefix))
+    app.start()
+    assert app.names() == []
+
+    def build_while_arming() -> list[SecurityCheck]:
+        app.initializer._arm_redis_cold_start_recovery()
+        return []
+
+    app.config.rate_limit = 9
+    with patch.object(app.pipeline, "_rebuild_checks", build_while_arming):
+        app.pipeline._rebuild_if_stale()
+    assert app.names() == [RECOVERY_CHECK]
+
+
+def test_a_blocked_request_alone_brings_redis_back(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
+) -> None:
+    app = App(config_for(forwarder.url, prefix))
+    app.start()
+    app.pipeline.add_check(Blocker(app.middleware))
+    forwarder.on()
+    clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
+    assert app.request() is not None
+    assert app.names() == ["blocker"]
+    app.ban()
+    assert keys_under(prefix) > 0
+
+
+def test_an_excluded_path_probe_alone_brings_redis_back(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
+) -> None:
+    app = App(config_for(forwarder.url, prefix))
+    app.start()
+    gate = threading.Event()
+    gate.set()
+    enforced_nowhere = Parked(app.middleware, "ordinary", gate)
+    app.pipeline.add_check(enforced_nowhere)
+    forwarder.on()
+    clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
+    assert app.request(guard_exclusion_scoped=True) is None
+    assert enforced_nowhere.seen == []
+    assert app.names() == ["ordinary"]
+    app.ban()
+    assert keys_under(prefix) > 0
+
+
+def test_a_pending_ban_error_names_the_first_real_check_while_armed(
+    forwarder: RedisForwarder, prefix: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    app = App(config_for(forwarder.url, prefix))
+    app.start()
+    gate = threading.Event()
+    gate.set()
+    real = Parked(app.middleware, "first_real", gate)
+    app.pipeline.add_check(real)
+    assert app.pipeline.checks[0].middleware is real.middleware
+    assert app.pipeline._first_real_check() is real
+    app.middleware.create_error_response = MagicMock(return_value=MagicMock())
+    with (
+        patch.object(
+            app.pipeline, "_resolve_pending_ban", side_effect=RuntimeError("boom")
+        ),
+        caplog.at_level(logging.ERROR),
+    ):
+        assert app.request() is not None
+    assert "Error in security check first_real" in caplog.text
+    assert RECOVERY_CHECK not in caplog.text
+
+
+def test_the_first_real_check_falls_back_to_the_only_check(
+    forwarder: RedisForwarder, prefix: str
+) -> None:
+    app = App(config_for(forwarder.url, prefix))
+    app.start()
+    assert app.pipeline._first_real_check().check_name == RECOVERY_CHECK
+
+
+def test_removing_a_check_that_is_not_there_changes_nothing(
+    forwarder: RedisForwarder, prefix: str
+) -> None:
+    forwarder.on()
+    app = App(config_for(forwarder.url, prefix))
+    assert app.pipeline.remove_check("nothing") is False
+
+
+def test_a_black_holed_redis_is_tried_again_when_the_next_window_opens(
+    silent: SilentServer, prefix: str, clock: Clock
+) -> None:
+    manager = RedisManager(config_for(silent.url, prefix))
+    events = Events()
+    manager.agent_handler = events
+
+    def call() -> None:
+        with pytest.raises(GuardRedisError):
+            with manager.get_connection():
+                pass
+
+    call()
+    assert events.count("connection_failed") == 1
+    clock.now += 1.0
+    call()
+    assert events.count("connection_failed") == 1
+    clock.now += REDIS_OUTAGE_RETRY_AFTER
+    call()
+    assert events.count("connection_failed") == 2
+    call()
+    assert events.count("connection_failed") == 2
+    clock.now += REDIS_OUTAGE_RETRY_AFTER
+    call()
+    assert events.count("connection_failed") == 3
+
+
+def test_fail_closed_gets_its_503_fast_during_an_outage(
+    silent: SilentServer, prefix: str, clock: Clock
+) -> None:
+    app = App(config_for(silent.url, prefix, fail_open=False))
+    assert app.redis is not None
+    attempts = app.connects()
+    with patch.object(app.redis, "_open_connection", attempts):
+        with pytest.raises(GuardRedisError):
+            app.start()
+        began = monotonic()
+        with pytest.raises(GuardRedisError):
+            with app.redis.get_connection():
+                pass
+        assert monotonic() - began < 0.1
+        assert attempts.call_count == 1
+        clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
+        with pytest.raises(GuardRedisError):
+            with app.redis.get_connection():
+                pass
+        assert attempts.call_count == 2
+
+
+def test_a_connected_manager_is_never_gated(
+    forwarder: RedisForwarder, prefix: str
+) -> None:
+    forwarder.on()
+    manager = RedisManager(config_for(forwarder.url, prefix))
+    manager.initialize()
+    manager.initialize()
+    with manager.get_connection() as connection:
+        assert connection.ping()
+    manager.close()
+
+
+def test_the_gate_lets_one_caller_in_and_waits_out_a_failure(
+    clock: Clock,
+) -> None:
+    from guard_core.sync.handlers._redis_reconnect_gate import RedisReconnectGate
+
+    gate = RedisReconnectGate()
+    assert gate.enter() is True
+    assert gate.enter() is False
+    gate.leave(connected=False)
+    assert gate.enter() is False
+    clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
+    assert gate.enter() is True
+    gate.leave(connected=True)
+    assert gate.enter() is True
+    gate.leave(connected=True)
+
+
+def test_the_gate_admits_exactly_one_thread() -> None:
+    from guard_core.sync.handlers._redis_reconnect_gate import RedisReconnectGate
+
+    gate = RedisReconnectGate()
+    admitted: list[bool] = []
+    start = threading.Barrier(8)
+
+    def contend() -> None:
+        start.wait()
+        admitted.append(gate.enter())
+
+    threads = [threading.Thread(target=contend) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert admitted.count(True) == 1

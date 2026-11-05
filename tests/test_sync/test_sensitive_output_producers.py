@@ -795,10 +795,15 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     ),
     "core/initialization/_redis_cold_start_recovery.py:"
     "RedisColdStartRecoveryMixin._recover_redis_after_cold_start": (
-        "a WARNING with the Redis setup error when a retry after a cold start fails, "
-        "and one INFO when it succeeds; it runs inside the request that finds the "
-        "retry due but interpolates nothing from it: no client address and no "
-        "request value, only the setup exception"
+        "a WARNING with the Redis handler setup error when binding the handlers "
+        "after a cold start fails; it runs inside a request but interpolates "
+        "nothing from it: no client address and no request value, only the setup "
+        "exception"
+    ),
+    "core/initialization/_redis_cold_start_recovery.py:"
+    "RedisColdStartRecoveryMixin._bind_recovered_redis": (
+        "one fixed INFO line when Redis is back after a cold start; no request "
+        "value and no data of any kind is interpolated"
     ),
     "core/initialization/_handler_initializer_steps.py:"
     "_HandlerInitializerStepsMixin._warn_if_lazy_init_is_inert": (
@@ -1479,8 +1484,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/redis_handler.py:RedisManager.get_connection": (
         "line 207: connection-acquire failure, infra only"
     ),
+    "handlers/redis_handler.py:RedisManager._open_connection": (
+        "connection lifecycle/failure log, infra only"
+    ),
     "handlers/redis_handler.py:RedisManager.initialize": (
-        "lines 142,151,154: connection-init lifecycle/failure log, infra only"
+        "fixed warning when no Redis URL is configured, infra only"
     ),
     "handlers/redis_handler.py:RedisManager._raise_operation_failure": (
         "line 288: wrapped-operation failure, infra only (the operation's "
