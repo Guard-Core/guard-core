@@ -1185,3 +1185,41 @@ def test_a_handler_that_reports_connected_is_bound_without_initialize(
     assert pipeline.get_check_names() == []
     assert CountingHandler.initialize_calls == 2
     handler.close()
+
+
+class ClientAnsweringHandler(CountingHandler):
+    """Answers ``is_connected`` with its client object, which is truthy."""
+
+    def __getattribute__(self, name: str) -> object:
+        if name == "is_connected":
+            return super().__getattribute__("_client_or_none")
+        return super().__getattribute__(name)
+
+    def _client_or_none(self) -> object:
+        return self._client
+
+
+def test_a_truthy_client_answer_from_is_connected_is_bound_without_initialize(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
+) -> None:
+    ClientAnsweringHandler.initialize_calls = 0
+    config = config_for(forwarder.url, prefix)
+    handler = ClientAnsweringHandler(config, forwarder.url)
+    initializer = HandlerInitializer(config, redis_handler=handler)
+    middleware = MagicMock()
+    middleware.config = config
+    middleware.logger = logging.getLogger("wp456")
+    middleware.handler_initializer = initializer
+    with patch.object(checks_factory, "DEFAULT_CHECK_CLASSES", ()):
+        pipeline = build_default_pipeline(middleware)
+    initializer.initialize_redis_handlers()
+    assert pipeline.get_check_names() == [RECOVERY_CHECK]
+
+    forwarder.on()
+    handler.initialize()
+    assert ClientAnsweringHandler.initialize_calls == 2
+    clock.now += 10
+    assert pipeline.execute(request_of()) is None
+    assert pipeline.get_check_names() == []
+    assert ClientAnsweringHandler.initialize_calls == 2
+    handler.close()

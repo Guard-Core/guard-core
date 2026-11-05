@@ -156,7 +156,9 @@ class RedisColdStartRecoveryMixin:
         if is_connected is not None:
             answer = is_connected()
             if inspect.iscoroutine(answer):
-                # An async is_connected is never awaited: not connected, no warning.
+                # Never awaited: an async is_connected reads as not connected.
                 answer.close()
-            return answer is True
+                return False
+            # Any other answer counts by its truth value (a bool, 1, a client).
+            return bool(answer)
         return getattr(redis_handler, "_redis", None) is not None
