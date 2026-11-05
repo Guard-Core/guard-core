@@ -1,6 +1,7 @@
 import re
 from typing import TYPE_CHECKING, TypedDict
 
+from guard_core._parked_records import PATTERN_MANAGER_RECORD
 from guard_core.sync._utils.scan_config_scope import (
     _request_scan_window,
     configure_lock,
@@ -89,7 +90,7 @@ class _SusPatternsEnhancedMixin:
             cls._config = config
         self._detection_state = _build_enhanced_detection_state(config, self)
         try:
-            object.__setattr__(config, "_guard_pattern_manager", self)
+            object.__setattr__(config, PATTERN_MANAGER_RECORD, self)
         except (AttributeError, TypeError):
             return
 

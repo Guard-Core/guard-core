@@ -79,11 +79,14 @@ async def test_forgetting_a_range_and_clearing_reach_every_app() -> None:
     assert not _by_ip_request_timestamps.for_app(app_b)
 
 
-async def test_a_copy_of_the_config_shares_the_apps_budget() -> None:
+async def test_a_copy_of_the_config_is_another_app_with_a_budget_of_its_own() -> None:
     app = _config()
     await check_rate_limit_by_ip(IP, app)
     copy = app.model_copy()
 
     await check_rate_limit_by_ip(IP, app)
 
+    assert await check_rate_limit_by_ip(IP, app) is False
+    assert await check_rate_limit_by_ip(IP, copy) is True
+    assert await check_rate_limit_by_ip(IP, copy) is True
     assert await check_rate_limit_by_ip(IP, copy) is False

@@ -46,10 +46,11 @@ def configure_nat64_prefixes(
 
 def nat64_table_of(config: object) -> Nat64Table:
     try:
-        table: Nat64Table = config.__dict__[_HELD_ATTRIBUTE][_HELD_KIND]
+        record = config.__dict__[_HELD_ATTRIBUTE]
+        table: Nat64Table = record[_HELD_KIND]
     except (AttributeError, KeyError):
         return DEFAULT_NAT64_TABLE
-    return table
+    return table if record.owner() is config else DEFAULT_NAT64_TABLE
 
 
 def _decode_nat64_embedded_ipv4(addr: IPv6Address, prefix: IPv6Network) -> IPv4Address:

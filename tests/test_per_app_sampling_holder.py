@@ -8,13 +8,15 @@ def _config() -> SecurityConfig:
     return SecurityConfig(enable_redis=False)
 
 
-def test_a_copy_of_a_config_is_the_same_app_and_shares_its_table() -> None:
+def test_a_copy_of_a_config_is_another_app_and_gets_a_table_of_its_own() -> None:
     tables: PerApp[SampledKeys] = PerApp("copy_probe", SampledKeys)
     config = _config()
     table = tables.for_app(config)
 
-    assert tables.for_app(copy.copy(config)) is table
-    assert tables.for_app(copy.deepcopy(config)) is table
+    for clone in (copy.copy(config), copy.deepcopy(config), config.model_copy()):
+        assert tables.for_app(clone) is not table
+        assert tables.for_app(clone) is tables.for_app(clone)
+    assert tables.for_app(config) is table
     assert tables.for_app(_config()) is not table
 
 

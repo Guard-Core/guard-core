@@ -32,10 +32,11 @@ class _Target:
     pass
 
 
-def test_held_managers_are_shared_by_a_copy_of_the_config() -> None:
+def test_a_held_record_is_never_duplicated_by_a_copy_of_itself() -> None:
     import copy
 
-    held = _Held(kind=object())
+    held = _Held(_Target())
+    held["kind"] = object()
     assert copy.copy(held) is held
     assert copy.deepcopy(held) is held
 
