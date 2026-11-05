@@ -1,3 +1,6 @@
+import types
+from typing import TYPE_CHECKING, TypeVar
+
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.route_gate import (
     ROUTE_TEMPLATE_STATE_ATTR,
@@ -10,6 +13,13 @@ from guard_core.sync.handlers.cors_handler import is_preflight
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import extract_client_ip, log_activity
 
+if TYPE_CHECKING:
+    from guard_core.sync.protocols.middleware_protocol import (
+        SyncGuardMiddlewareProtocol,
+    )
+
+_Check = TypeVar("_Check", bound="RouteConfigCheck")
+
 UNRESOLVED_ROUTE_REASON = (
     "Route resolution failed; per-route decorator config could not be applied"
 )
@@ -17,6 +27,15 @@ UNRESOLVED_ROUTE_REASON = (
 
 class RouteConfigCheck(SecurityCheck):
     enforced_on_excluded_paths = True
+
+    def __new__(cls, middleware: "SyncGuardMiddlewareProtocol") -> "RouteConfigCheck":
+        steady = (
+            _TemplateRecordingRouteConfigCheck
+            if cls is RouteConfigCheck
+            and callable(getattr(middleware, "route_template", None))
+            else cls
+        )
+        return super().__new__(_born_subclass(steady))
 
     @property
     def check_name(self) -> str:
@@ -84,22 +103,8 @@ class RouteConfigCheck(SecurityCheck):
         return self.config.enable_cors and is_preflight(request.method, request.headers)
 
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
-        # The first request warns once, then moves this instance to the class that
-        # serves every later request with no per-request test of what is now known.
-        warn_unmatched_exclude_paths(self.middleware, self.config)
-        self.__class__ = (
-            _TemplateRecordingRouteConfigCheck
-            if callable(getattr(self.middleware, "route_template", None))
-            else _PlainRouteConfigCheck
-        )
-        return self.check(request)
-
-
-class _PlainRouteConfigCheck(RouteConfigCheck):
-    def check(self, request: SyncGuardRequest) -> GuardResponse | None:
-        route_config = self.middleware.route_resolver.get_route_config(request)
         state = request.state
-        state.route_config = route_config
+        state.route_config = self.middleware.route_resolver.get_route_config(request)
         state.client_ip = extract_client_ip(
             request, self.config, self.middleware.agent_handler
         )
@@ -112,11 +117,30 @@ class _PlainRouteConfigCheck(RouteConfigCheck):
         return None
 
 
+def _born_subclass(steady: type[_Check]) -> type[_Check]:
+    """A subclass of its own for one instance, whose first `check` warns once and then
+    puts the steady `check` on that subclass: no request tests whether it is the first
+    and no instance is ever moved to another class."""
+
+    def warn_then_check(
+        self: RouteConfigCheck, request: SyncGuardRequest
+    ) -> GuardResponse | None:
+        warn_unmatched_exclude_paths(self.middleware, self.config)
+        type.__setattr__(type(self), "check", steady.check)
+        return self.check(request)
+
+    born = types.new_class(
+        steady.__name__,
+        (steady,),
+        exec_body=lambda ns: ns.update(check=warn_then_check),
+    )
+    return born if issubclass(born, steady) else steady
+
+
 class _TemplateRecordingRouteConfigCheck(RouteConfigCheck):
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
-        route_config = self.middleware.route_resolver.get_route_config(request)
         state = request.state
-        state.route_config = route_config
+        state.route_config = self.middleware.route_resolver.get_route_config(request)
         if getattr(state, ROUTE_TEMPLATE_STATE_ATTR, None) is None:
             record_route_template(request, self.middleware, self.logger)
         state.client_ip = extract_client_ip(
