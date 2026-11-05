@@ -1108,7 +1108,12 @@ async def test_a_handler_with_its_client_elsewhere_recovers_through_is_connected
 
 
 class WithoutIsConnectedHandler(RedisHandlerBase):
-    """A handler whose only connection state is ``_redis``: no ``is_connected``."""
+    """A handler whose only connection state is ``_redis``: no ``is_connected``.
+
+    Its own ``initialize`` keeps recovery on the path that reads state."""
+
+    async def initialize(self) -> None:
+        await super().initialize()
 
     def __getattribute__(self, name: str) -> object:
         if name == "is_connected":
