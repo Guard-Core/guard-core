@@ -396,6 +396,20 @@ async def test_the_armed_check_is_repeated_once_the_claim_is_held(
     assert app.names() == [RECOVERY_CHECK]
 
 
+async def test_a_disarmed_recovery_returns_before_taking_the_claim(
+    forwarder: RedisForwarder, prefix: str
+) -> None:
+    app = App(config_for(forwarder.url, prefix))
+    await app.start()
+    forwarder.on()
+    with (
+        patch.object(app.initializer, "_redis_recovery_armed", return_value=False),
+        patch.object(app.initializer, "_bind_recovered_redis") as bind,
+    ):
+        assert await app.request() is None
+    bind.assert_not_called()
+
+
 async def test_a_manager_another_caller_reconnected_is_bound_without_a_connect(
     forwarder: RedisForwarder,
     prefix: str,
