@@ -7,6 +7,7 @@ from guard_core._utils.app_scope import app_scope_of, in_app_scope
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.pipeline import REDIS_OUTAGE_RETRY_AFTER
 from guard_core.exceptions import GuardRedisError
+from guard_core.handlers._redis_reconnect_gate import RedisReconnectGate
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
@@ -54,6 +55,7 @@ class RedisColdStartRecoveryMixin:
     _recovery_middleware: "GuardMiddlewareProtocol | None" = None
     _recovery_check: RedisColdStartRecoveryCheck | None = None
     _recovery_claim = threading.Lock()
+    _recovery_own_gate = RedisReconnectGate()
 
     _require_redis_handler: Callable[[], "RedisHandlerProtocol"]
 
@@ -67,6 +69,7 @@ class RedisColdStartRecoveryMixin:
         self._recovery_pipeline = pipeline
         self._recovery_middleware = middleware
         self._recovery_claim = threading.Lock()
+        self._recovery_own_gate = RedisReconnectGate()
 
     def _arm_redis_cold_start_recovery(self) -> None:
         pipeline, middleware = self._recovery_pipeline, self._recovery_middleware
@@ -114,7 +117,31 @@ class RedisColdStartRecoveryMixin:
             # initialize() drops a healthy client first, so a manager another caller
             # already reconnected is bound as it is.
             if not is_connected_redis_manager(redis_handler):
-                await redis_handler.initialize()
+                await self._initialize_redis_handler(redis_handler)
             await self._initialize_connected_redis_handlers()
         self._disarm_redis_cold_start_recovery()
         self.logger.info("Redis recovered after a cold start; handlers connected")
+
+    async def _initialize_redis_handler(
+        self, redis_handler: "RedisHandlerProtocol"
+    ) -> None:
+        from guard_core.handlers.redis_handler import RedisManager
+
+        if (
+            isinstance(redis_handler, RedisManager)
+            and type(redis_handler).initialize is RedisManager.initialize
+        ):
+            await redis_handler.initialize()
+            return
+        # A handler with its own initialize (a subclass that calls super(), or a
+        # duck-typed one) has its gate inside or none at all: entering the manager's
+        # gate from here would refuse the super() call. Recovery paces it with its own.
+        gate = self._recovery_own_gate
+        if not gate.enter():
+            raise GuardRedisError(503, "Redis connection failed")
+        connected = False
+        try:
+            await redis_handler.initialize()
+            connected = True
+        finally:
+            gate.leave(connected)

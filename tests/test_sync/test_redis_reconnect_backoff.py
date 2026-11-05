@@ -83,7 +83,7 @@ def test_requests_a_second_apart_do_not_each_pay_a_connect(
     durations = []
     for _ in range(3):
         durations.append(refused_after(manager))
-        time.sleep(1.0)
+        time.sleep(0.25)
     assert durations[0] >= CONNECT_TIMEOUT * 0.8
     assert durations[1] < 0.1
     assert durations[2] < 0.1
