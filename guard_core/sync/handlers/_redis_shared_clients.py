@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 import weakref
 from collections.abc import Hashable
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 from guard_core._redis_enablement import configured_redis_url
 from guard_core._redis_exceptions import RedisConnectionError, RedisTimeoutError
@@ -67,11 +67,17 @@ _entries: dict[Hashable, _Entry] = {}
 _entries_lock = threading.Lock()
 
 
+def _freeze_settings(
+    settings: dict[str, object],
+) -> tuple[tuple[str, Hashable], ...]:
+    return tuple(
+        sorted(((k, _freeze(v)) for k, v in settings.items()), key=lambda kv: kv[0])
+    )
+
+
 def _freeze(value: object) -> Hashable:
     if isinstance(value, dict):
-        return tuple(
-            sorted(((k, _freeze(v)) for k, v in value.items()), key=lambda kv: kv[0])
-        )
+        return _freeze_settings(value)
     if isinstance(value, (list, tuple)):
         return tuple(_freeze(v) for v in value)
     if value is None or isinstance(value, (str, int, float, bool, type)):
@@ -106,19 +112,29 @@ def _attributes_of(value: object) -> dict[str, object] | None:
     return attributes if hasattr(value, "__dict__") or slot_names else None
 
 
+class PoolKey(NamedTuple):
+    """Every connection setting by value plus the running scope, never the prefix."""
+
+    url: str
+    max_connections: int
+    pool_timeout: float
+    connection_kwargs: tuple[tuple[str, Hashable], ...]
+    scope_id: int
+
+
 def pool_key(
     url: str,
     max_connections: int,
     pool_timeout: float,
     connection_kwargs: dict[str, object],
     scope: object,
-) -> Hashable:
+) -> PoolKey:
     """Every connection setting by value plus the running scope, never the prefix."""
-    return (
+    return PoolKey(
         url,
         max_connections,
         pool_timeout,
-        _freeze(connection_kwargs),
+        _freeze_settings(connection_kwargs),
         id(scope),
     )
 
@@ -129,7 +145,7 @@ def pool_key_of_settings(
     connection_kwargs: dict[str, object],
     default_pool_size: int,
     scope: object,
-) -> Hashable:
+) -> PoolKey:
     """The pool key a config's connection settings give, the one place it is built."""
     return pool_key(
         url,
@@ -259,7 +275,7 @@ def connection_kwargs_of(cfg: SecurityConfig[RequestT]) -> dict[str, object]:
     return kwargs
 
 
-def connection_key_of(config: SecurityConfig[RequestT]) -> Hashable | None:
+def connection_key_of(config: SecurityConfig[RequestT]) -> PoolKey | None:
     """The key ``RedisManager.initialize`` pools this config's client under, or
     None without a configured Redis; the running event loop is part of it."""
     url = configured_redis_url(config)
