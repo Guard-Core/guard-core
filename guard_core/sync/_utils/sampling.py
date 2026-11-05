@@ -94,7 +94,7 @@ class PerApp(Generic[_T]):
         try:
             # Indexing, not .get(): this runs on the response path of every request.
             record = config.__dict__[_HELD_ATTRIBUTE]
-            held = record[self._kind] if record.owner is config else None
+            held = record[self._kind] if record.owner() is config else None
         except (AttributeError, KeyError):
             held = None
         if held is not None and isinstance(held, self._table_type):

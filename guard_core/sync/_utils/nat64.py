@@ -50,7 +50,7 @@ def nat64_table_of(config: object) -> Nat64Table:
         table: Nat64Table = record[_HELD_KIND]
     except (AttributeError, KeyError):
         return DEFAULT_NAT64_TABLE
-    return table if record.owner is config else DEFAULT_NAT64_TABLE
+    return table if record.owner() is config else DEFAULT_NAT64_TABLE
 
 
 def _decode_nat64_embedded_ipv4(addr: IPv6Address, prefix: IPv6Network) -> IPv4Address:

@@ -29,13 +29,14 @@ class _PrefixedRedisConfig(RedisFieldsConfig, Protocol):
 class _Held(dict[str, object]):
     """The per-app managers a config keeps alive, valid only for its owner."""
 
-    # The owner itself, compared with `is`: the response path asks on every request,
-    # and a call (id(), a weak reference) costs more than the lookup around it.
+    # A weak reference, not the owner (a strong one makes a cycle that waits for the
+    # garbage collector) and not id(owner), whose call costs about twice as much on
+    # the response path, where every request asks.
     __slots__ = ("owner",)
 
     def __init__(self, owner: object) -> None:
         super().__init__()
-        self.owner = owner
+        self.owner = weakref.ref(owner)
 
     def __copy__(self) -> "_Held":
         return self
@@ -106,7 +107,7 @@ def unmark_shared_by_apps(manager: object) -> None:
 def held_record_of(config: object) -> _Held | None:
     """The record parked on this config, only when this config is its owner."""
     held: _Held | None = config.__dict__.get(_HELD_ATTRIBUTE)
-    return held if held is not None and held.owner is config else None
+    return held if held is not None and held.owner() is config else None
 
 
 def hold_for_app(config: object, kind: str, manager: object) -> bool:
@@ -133,7 +134,7 @@ def held_for_app(config: object, kind: str) -> object | None:
         held: _Held | None = config.__dict__.get(_HELD_ATTRIBUTE)
     except AttributeError:
         return None
-    if held is None or held.owner is not config:
+    if held is None or held.owner() is not config:
         return None
     return held.get(kind)
 
