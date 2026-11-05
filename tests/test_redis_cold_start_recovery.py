@@ -371,9 +371,11 @@ async def test_a_held_claim_makes_the_retry_return_without_connecting(
     clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
     assert app.redis is not None
     with patch.object(app.redis, "_open_connection") as connect:
-        assert app.initializer._recovery_claim.acquire(blocking=False)
+        claim = app.initializer._recovery_claim
+        assert claim is not None
+        assert claim.acquire(blocking=False)
         assert await app.request() is None
-        app.initializer._recovery_claim.release()
+        claim.release()
         connect.assert_not_called()
 
 
@@ -932,3 +934,92 @@ async def test_a_recovered_connection_sends_one_recovered_event(
     await first_try.initialize()
     assert fresh.count("connection_recovered") == 0
     await first_try.close()
+
+
+class SwallowingHandler(RedisHandlerBase):
+    initialize_calls = 0
+    swallow = False
+
+    async def initialize(self) -> None:
+        type(self).initialize_calls += 1
+        try:
+            await super().initialize()
+        except GuardRedisError:
+            if not type(self).swallow:
+                raise
+
+
+async def test_an_initialize_that_swallows_the_failure_keeps_the_backoff(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
+) -> None:
+    SwallowingHandler.initialize_calls = 0
+    SwallowingHandler.swallow = False
+    config = config_for(forwarder.url, prefix)
+    handler = SwallowingHandler(config)
+    initializer = HandlerInitializer(config, redis_handler=handler)
+    middleware = MagicMock()
+    middleware.config = config
+    middleware.logger = logging.getLogger("wp450")
+    middleware.handler_initializer = initializer
+    with patch.object(checks_factory, "DEFAULT_CHECK_CLASSES", ()):
+        pipeline = build_default_pipeline(middleware)
+    await initializer.initialize_redis_handlers()
+    SwallowingHandler.swallow = True
+    for _ in range(300):
+        assert await pipeline.execute(request_of()) is None
+        clock.now += 0.1
+    assert 8 <= SwallowingHandler.initialize_calls <= 13
+    assert pipeline.get_check_names() == [RECOVERY_CHECK]
+
+    forwarder.on()
+    for _ in range(80):
+        assert await pipeline.execute(request_of()) is None
+        clock.now += 0.1
+        if not pipeline.get_check_names():
+            break
+    assert pipeline.get_check_names() == []
+    await handler.close()
+
+
+async def test_a_second_outage_after_a_recovery_reports_its_first_failure(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
+) -> None:
+    manager = RedisManager(config_for(forwarder.url, prefix))
+    events = Events()
+    manager.agent_handler = events
+
+    async def refused() -> None:
+        with pytest.raises(GuardRedisError):
+            async with manager.get_connection():
+                pass
+
+    await refused()
+    assert events.count("connection_failed") == 1
+    forwarder.on()
+    clock.now += 0.3
+    async with manager.get_connection() as connection:
+        assert await connection.ping()
+    forwarder.off()
+    await manager._discard_client()
+    clock.now += 0.8
+    await refused()
+    assert events.count("connection_failed") == 2
+    assert events.count("connection_recovered") == 1
+
+
+async def test_a_second_outage_within_5_s_of_a_recovery_is_reported(
+    clock: Clock,
+) -> None:
+    from guard_core.handlers._redis_reconnect_gate import RedisReconnectGate
+
+    gate = RedisReconnectGate()
+    assert gate.enter() is True
+    assert gate.report_due() is True
+    gate.leave(connected=False)
+    clock.now += 0.3
+    assert gate.enter() is True
+    gate.leave(connected=True)
+    clock.now += 0.8
+    assert gate.enter() is True
+    assert gate.report_due() is True
+    gate.leave(connected=False)

@@ -56,8 +56,8 @@ class RedisColdStartRecoveryMixin:
     _recovery_pipeline: "SecurityCheckPipeline | None" = None
     _recovery_middleware: "SyncGuardMiddlewareProtocol | None" = None
     _recovery_check: RedisColdStartRecoveryCheck | None = None
-    _recovery_claim = threading.Lock()
-    _recovery_own_gate = RedisReconnectGate()
+    _recovery_claim: "threading.Lock | None" = None
+    _recovery_own_gate: RedisReconnectGate | None = None
 
     _require_redis_handler: Callable[[], "SyncRedisHandlerProtocol"]
 
@@ -94,9 +94,10 @@ class RedisColdStartRecoveryMixin:
         # One caller at a time, never waiting: a non-blocking acquire is atomic for
         # coroutines and threads. The reconnect itself is the manager's single-flight
         # entry, which refuses at once until its backoff window opens.
-        if not self._redis_recovery_armed() or not self._recovery_claim.acquire(
-            blocking=False
-        ):
+        claim = self._recovery_claim
+        if claim is None or not self._redis_recovery_armed():
+            return
+        if not claim.acquire(blocking=False):
             return
         try:
             if not self._redis_recovery_armed():
@@ -109,7 +110,7 @@ class RedisColdStartRecoveryMixin:
                 "Redis recovery after a cold start failed: %s", e, exc_info=True
             )
         finally:
-            self._recovery_claim.release()
+            claim.release()
 
     def _bind_recovered_redis(self) -> None:
         from guard_core.sync.handlers.redis_handler import is_connected_redis_manager
@@ -139,11 +140,25 @@ class RedisColdStartRecoveryMixin:
         # duck-typed one) has its gate inside or none at all: entering the manager's
         # gate from here would refuse the super() call. Recovery paces it with its own.
         gate = self._recovery_own_gate
-        if not gate.enter():
+        if gate is None or not gate.enter():
             raise GuardRedisError(503, "Redis connection failed")
         connected = False
         try:
             redis_handler.initialize()
-            connected = True
+            # Connected is read from state: an initialize that logs and returns on a
+            # failure must keep the backoff.
+            connected = self._redis_handler_holds_a_client(redis_handler)
         finally:
             gate.leave(connected)
+        if not connected:
+            raise GuardRedisError(503, "Redis connection failed")
+
+    @staticmethod
+    def _redis_handler_holds_a_client(
+        redis_handler: "SyncRedisHandlerProtocol",
+    ) -> bool:
+        from guard_core.sync.handlers.redis_handler import is_connected_redis_manager
+
+        if is_connected_redis_manager(redis_handler):
+            return True
+        return getattr(redis_handler, "_redis", None) is not None

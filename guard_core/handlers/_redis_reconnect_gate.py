@@ -38,6 +38,8 @@ class RedisReconnectGate:
         now = monotonic()
         recovered = connected and self._failures > 0
         if connected:
+            if recovered:
+                self._reported_at = None
             self._failures = 0
             self._not_before = 0.0
         else:
