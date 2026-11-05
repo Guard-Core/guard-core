@@ -18,10 +18,6 @@ from guard_core._redis_exceptions import (
 )
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SyncSecurityConfig
-from guard_core.scripts.ban_write_lua import (
-    EXTEND_ONLY_BAN_WRITE_SCRIPT,
-    PURGE_OWNED_BAN_SCRIPT,
-)
 from guard_core.scripts.detection_strikes_lua import (
     FORGET_DETECTION_STRIKES_SCRIPT,
     READ_DETECTION_CATEGORIES_SCRIPT,
@@ -54,6 +50,19 @@ from guard_core.sync.handlers._redis_lean import (
     lean_command,
     lean_evalsha,
     reply_counts,
+)
+from guard_core.sync.handlers._redis_owned_ban_operations import (
+    _EXTEND_ONLY_BAN_WRITE_SHA as _EXTEND_ONLY_BAN_WRITE_SHA,
+)
+from guard_core.sync.handlers._redis_owned_ban_operations import (
+    _PURGE_OWNED_BAN_SHA as _PURGE_OWNED_BAN_SHA,
+)
+from guard_core.sync.handlers._redis_owned_ban_operations import (
+    disown_ban,
+    owned_ban_members,
+    owned_ban_state,
+    purge_owned_ban,
+    write_ban_extending_only,
 )
 from guard_core.sync.handlers._redis_reconnect_gate import RedisReconnectGate
 from guard_core.sync.handlers._redis_scan_unlink import SCAN_BATCH
@@ -132,12 +141,6 @@ _READ_DETECTION_CATEGORIES_SHA = hashlib.sha1(
 ).hexdigest()
 _FORGET_DETECTION_STRIKES_SHA = hashlib.sha1(
     FORGET_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False
-).hexdigest()
-_EXTEND_ONLY_BAN_WRITE_SHA = hashlib.sha1(
-    EXTEND_ONLY_BAN_WRITE_SCRIPT.encode(), usedforsecurity=False
-).hexdigest()
-_PURGE_OWNED_BAN_SHA = hashlib.sha1(
-    PURGE_OWNED_BAN_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
 _DETECTION_NAMESPACE = "detection"
 _SUM_INDEXED_WINDOW_HITS_SHA = hashlib.sha1(
@@ -558,92 +561,36 @@ class RedisManager(RedisBanStrikeMixin):
         expiry text the caller formatted once. advance_version increments the
         version counter in the same call when the ban was written; rule_owned
         records the ban in the owned set with that same text as its score."""
-        if not redis_is_configured(self.config):
-            return float(expiry)
-
-        prefix = self.config.redis_prefix
-        keys = [
-            f"{prefix}{namespace}:{key}",
-            f"{prefix}{version[0]}:{version[1]}",
-            self._owned_bans_key(),
-            self.ban_floor_key(namespace, key),
-        ]
-        args: list[str | int] = [
+        return write_ban_extending_only(
+            self,
+            namespace,
+            key,
             expiry,
             duration,
-            "1" if advance_version else "0",
-            "1" if rule_owned else "0",
-        ]
-
-        def _write(conn: Redis) -> float:
-            try:
-                answer = conn.evalsha(
-                    _EXTEND_ONLY_BAN_WRITE_SHA, len(keys), *keys, *args
-                )
-            except NoScriptError:
-                conn.script_load(EXTEND_ONLY_BAN_WRITE_SCRIPT)
-                answer = conn.evalsha(
-                    _EXTEND_ONLY_BAN_WRITE_SHA, len(keys), *keys, *args
-                )
-            return float(answer[1])
-
-        expiry_held = self.safe_operation(_write)
-        if expiry_held is None:
-            raise TypeError(redis_types.NO_OPERATION_RESULT)
-        return expiry_held
+            version=version,
+            advance_version=advance_version,
+            rule_owned=rule_owned,
+        )
 
     def ban_floor_key(self, namespace: str, key: str) -> str:
         return f"{self.config.redis_prefix}{BAN_FLOORS_NAMESPACE}:{namespace}:{key}"
 
     def owned_ban_members(self) -> list[str]:
         """The full ban keys the dynamic rules own, as the owned set holds them."""
-        if not redis_is_configured(self.config):
-            return []
-
-        def _members(conn: Redis) -> list[str]:
-            return [str(m) for m in conn.zrange(self._owned_bans_key(), 0, -1)]
-
-        return list(self.safe_operation(_members) or [])
+        return owned_ban_members(self)
 
     def owned_ban_state(
         self, namespace: str, key: str
     ) -> tuple[float | None, float | None]:
         """The expiry the rule wrote for one ban (its score in the owned set)
         and the expiry the ban holds now, read in one round trip."""
-        if not redis_is_configured(self.config):
-            return None, None
-        prefix = self.config.redis_prefix
-        member = f"{prefix}{namespace}:{key}"
-
-        def _state(conn: Redis) -> tuple[float | None, float | None]:
-            with conn.pipeline(transaction=False) as pipe:
-                pipe.zscore(self._owned_bans_key(), member)
-                pipe.get(member)
-                score, stored = pipe.execute()
-            return (
-                None if score is None else float(score),
-                None if not stored else float(stored),
-            )
-
-        state: tuple[float | None, float | None] | None = self.safe_operation(_state)
-        return state if state is not None else (None, None)
+        return owned_ban_state(self, namespace, key)
 
     def purge_owned_ban(self, member: str) -> int:
         """Lift one owned ban down to its floor, or off, in one script call, and
         drop it from the owned set. Returns 0 (already gone), 1 (deleted),
         2 (rewritten to its floor) or 3 (a longer ban replaced it, left alone)."""
-        prefix = self.config.redis_prefix
-        floor = f"{prefix}{BAN_FLOORS_NAMESPACE}:{member[len(prefix) :]}"
-        keys = [member, self._owned_bans_key(), floor]
-
-        def _purge(conn: Redis) -> int:
-            try:
-                return int(conn.evalsha(_PURGE_OWNED_BAN_SHA, len(keys), *keys))
-            except NoScriptError:
-                conn.script_load(PURGE_OWNED_BAN_SCRIPT)
-                return int(conn.evalsha(_PURGE_OWNED_BAN_SHA, len(keys), *keys))
-
-        return int(self.safe_operation(_purge) or 0)
+        return purge_owned_ban(self, member)
 
     def _owned_bans_key(self) -> str:
         return (
@@ -653,15 +600,7 @@ class RedisManager(RedisBanStrikeMixin):
 
     def disown_ban(self, namespace: str, key: str) -> None:
         """Remove the ban from the set of bans a dynamic rule owns."""
-        if not redis_is_configured(self.config):
-            return
-
-        member = f"{self.config.redis_prefix}{namespace}:{key}"
-
-        def _disown(conn: Redis) -> None:
-            conn.zrem(self._owned_bans_key(), member)
-
-        self.safe_operation(_disown)
+        return disown_ban(self, namespace, key)
 
     def record_sliding_window_hit(
         self,
