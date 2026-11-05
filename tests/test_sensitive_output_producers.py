@@ -793,6 +793,13 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "lines 39,47: lazy cloud-IP/geo-IP init failure warnings; adapter "
         "init only, no request in scope"
     ),
+    "core/initialization/_redis_cold_start_recovery.py:"
+    "RedisColdStartRecoveryMixin._recover_redis_after_cold_start": (
+        "a WARNING with the Redis setup error when a retry after a cold start fails, "
+        "and one INFO when it succeeds; it runs inside the request that finds the "
+        "retry due but interpolates nothing from it: no client address and no "
+        "request value, only the setup exception"
+    ),
     "core/initialization/_handler_initializer_steps.py:"
     "_HandlerInitializerStepsMixin._warn_if_lazy_init_is_inert": (
         "line 71: static advisory about lazy_init without Redis; adapter "

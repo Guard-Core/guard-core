@@ -91,7 +91,7 @@ def build_default_pipeline(
     middleware: "SyncGuardMiddlewareProtocol",
 ) -> SecurityCheckPipeline:
     config = middleware.config
-    return SecurityCheckPipeline(
+    pipeline = SecurityCheckPipeline(
         _build_checks(middleware),
         muted_check_logs=config.muted_check_logs,
         config=config,
@@ -99,3 +99,7 @@ def build_default_pipeline(
         watched_container_fields=WATCHED_CONTAINER_FIELDS,
         route_config_revision=lambda: _route_config_revision(middleware),
     )
+    initializer = getattr(middleware, "handler_initializer", None)
+    if initializer is not None:
+        initializer.bind_redis_recovery_pipeline(pipeline, middleware)
+    return pipeline
