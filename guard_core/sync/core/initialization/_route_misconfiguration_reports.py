@@ -37,8 +37,8 @@ class RouteMisconfigurationReportsMixin:
     _route_misconfigurations_reported: tuple[int, int | None, int] | None = None
 
     def _report_unreachable_ban_thresholds(self) -> None:
-        # The remembered context outlives this initializer, so it reads the app
-        # through a weak reference and a dropped app is freed by refcount.
+        # The context is parked on this app's config, which this initializer owns, so
+        # it reads the app through a weak reference and holds no cycle.
         app = weakref.ref(self)
 
         def route_configs() -> tuple["RouteConfig", ...]:
@@ -53,7 +53,9 @@ class RouteMisconfigurationReportsMixin:
             )
 
         context = _BanThresholdContext(route_configs, redis_shared)
-        remember_ban_threshold_context(context.route_configs, context.redis_shared)
+        remember_ban_threshold_context(
+            context.route_configs, context.redis_shared, self.config
+        )
         report_unreachable_ban_thresholds(
             self.config, context, self.logger, stacklevel=6
         )

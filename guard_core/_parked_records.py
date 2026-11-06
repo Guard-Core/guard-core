@@ -10,9 +10,15 @@ record of its own on the config registers its attribute name once.
 APP_SCOPE_RECORD = "_guard_app_scope"
 APP_MANAGERS_RECORD = "_guard_app_managers"
 PATTERN_MANAGER_RECORD = "_guard_pattern_manager"
+BAN_THRESHOLD_CONTEXT_RECORD = "_guard_ban_threshold_context"
 
 _PER_APP_RECORDS: frozenset[str] = frozenset(
-    {APP_SCOPE_RECORD, APP_MANAGERS_RECORD, PATTERN_MANAGER_RECORD}
+    {
+        APP_SCOPE_RECORD,
+        APP_MANAGERS_RECORD,
+        PATTERN_MANAGER_RECORD,
+        BAN_THRESHOLD_CONTEXT_RECORD,
+    }
 )
 
 

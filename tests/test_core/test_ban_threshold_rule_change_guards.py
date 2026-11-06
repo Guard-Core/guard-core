@@ -10,9 +10,8 @@ from guard_core.models import DynamicRules, SecurityConfig
 
 
 def test_a_rule_change_before_any_report_logs_nothing(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setattr(_ban_threshold_report, "_remembered_context", None)
     config = SecurityConfig(enable_redis=False, rate_limit=1)
 
     with caplog.at_level(logging.WARNING):
