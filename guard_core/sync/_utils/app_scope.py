@@ -126,12 +126,42 @@ class ScopedToApp(Generic[_V]):
 
 
 class ScopedConfig(ScopedToApp["SyncSecurityConfig | None"]):
+    _config_weak_key: str
+
     def __init__(self) -> None:
         super().__init__(None)
 
     def __set_name__(self, owner: type, name: str) -> None:
         super().__set_name__(owner, name)
-        self._weak_key = _weak_key(name)
+        self._weak_key = self._config_weak_key = _weak_key(name)
+
+    @overload
+    def __get__(self, instance: None, owner: type | None = None) -> "ScopedConfig": ...
+
+    @overload
+    def __get__(
+        self, instance: object, owner: type | None = None
+    ) -> "SyncSecurityConfig | None": ...
+
+    def __get__(
+        self, instance: object | None, owner: type | None = None
+    ) -> "ScopedConfig | SyncSecurityConfig | None":
+        # Hot path: no scope in force, so the config set last (strongly, else the
+        # weakly held one) answers; anything else takes the general rule.
+        if (
+            instance is not None
+            and _current_app_scope.get() is None
+            and _scan_config_scope.get() is None
+        ):
+            stored = instance.__dict__
+            value: SyncSecurityConfig | None = stored.get(self._name)
+            if value is None:
+                weak = stored.get(self._config_weak_key)
+                if weak is not None:
+                    value = weak()
+            if value is not None:
+                return value
+        return super().__get__(instance, owner)
 
     def __set__(self, instance: object, value: "SyncSecurityConfig | None") -> None:
         instance.__dict__.pop(_weak_key(self._name), None)
