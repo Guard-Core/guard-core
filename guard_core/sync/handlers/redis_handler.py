@@ -10,6 +10,7 @@ import weakref
 from collections.abc import Callable, Hashable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from threading import Lock
 from typing import TYPE_CHECKING, NoReturn, TypeGuard, cast
 
 from guard_core._redis_abandoned_client import close_sync_client
@@ -248,11 +249,36 @@ class RedisManager(RedisBanStrikeMixin):
         except Exception as e:
             self.logger.warning(f"Failed to close a Redis client: {e}")
 
+    def _swap_client(
+        self,
+        new_redis: Redis | None,
+        new_key: Hashable | None,
+        new_loop: EventLoop | None,
+    ) -> tuple[Redis | None, Hashable | None, EventLoop | None]:
+        # No inside: loops on two threads each swap whole, so a client one
+        # thread bound is always the "old" one of the next swap and gets released.
+        swap_lock: Lock = vars(self).setdefault("_client_swap_lock", Lock())
+        with swap_lock:
+            old = (self._redis, self._pool_key, self._client_loop)
+            self._redis, self._pool_key, self._client_loop = (
+                new_redis,
+                new_key,
+                new_loop,
+            )
+        return old
+
     def _discard_client(self) -> None:
-        old_redis, self._redis = self._redis, None
-        key, self._pool_key = self._pool_key, None
-        old_loop, self._client_loop = self._client_loop, None
-        if old_redis is None:
+        old_redis, key, old_loop = self._swap_client(None, None, None)
+        self._release_client(old_redis, key, old_loop, keep=None)
+
+    def _release_client(
+        self,
+        old_redis: Redis | None,
+        key: Hashable | None,
+        old_loop: EventLoop | None,
+        keep: Redis | None,
+    ) -> None:
+        if old_redis is None or old_redis is keep:
             return
         released = key is None or _redis_shared_clients.release(key, old_redis, self)
         if not released:
@@ -388,6 +414,7 @@ class RedisManager(RedisBanStrikeMixin):
         if gate is not None:
             gate.reset_after_fork()
         vars(self).pop("_connection_locks", None)
+        vars(self).pop("_client_swap_lock", None)
         vars(self).pop("_redis_attempt_slot", None)
 
     def _reconnect_gate(self) -> RedisReconnectGate:
@@ -415,12 +442,10 @@ class RedisManager(RedisBanStrikeMixin):
                         self, new_redis, key, scope
                     )
                     shared = True
-                if self._redis is not None and self._redis is not new_redis:
-                    # Another loop's reconnect bound its client while this one pinged.
-                    self._discard_client()
-                self._redis = new_redis
-                self._pool_key = key
-                self._client_loop = running_loop_or_none()
+                # Another loop's reconnect may have bound its client while this one
+                # pinged: the swap hands it back and it is released here.
+                replaced = self._swap_client(new_redis, key, running_loop_or_none())
+                self._release_client(*replaced, keep=new_redis)
                 self._degraded = False
                 self._connect_generation += 1
                 self._mark_most_recently_initialized()

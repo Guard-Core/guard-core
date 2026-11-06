@@ -87,6 +87,9 @@ class ThreadSafeClient:
     async def ping(self) -> bool:
         if self.rig.mode == "fail":
             raise RedisConnectionError("down")
+        trap = self.rig.trap
+        if trap is not None and threading.current_thread() is trap.thread:
+            trap.armed = True
         if self.rig.mode == "slow":
             await asyncio.sleep(0.3)
         self.rig.started.set()
@@ -106,12 +109,46 @@ class ThreadSafeClient:
         self.closed = True
 
 
+class ReadTrap:
+    """Pauses one thread right after it read the manager's client, so another thread
+    can run a whole bind before the first one writes (the interleaving of two loops on
+    two OS threads between a check and an assignment)."""
+
+    def __init__(self) -> None:
+        self.thread: threading.Thread | None = None
+        self.armed = False
+        self.read = threading.Event()
+        self.other_done = threading.Event()
+
+    def pause_if_trapped(self) -> None:
+        if self.armed and threading.current_thread() is self.thread:
+            self.armed = False
+            self.read.set()
+            self.other_done.wait(0.5)
+
+
+class TrappedClientSlot:
+    def __init__(self, trap: ReadTrap) -> None:
+        self.trap = trap
+
+    def __get__(self, owner: object, *_unused: object) -> object:
+        if owner is None:
+            return None
+        value = vars(owner).get("_raw_redis")
+        self.trap.pause_if_trapped()
+        return value
+
+    def __set__(self, owner: object, value: object) -> None:
+        vars(owner)["_raw_redis"] = value
+
+
 class ThreadSafeRig:
     def __init__(self) -> None:
         self.mode = "fail"
         self.release = threading.Event()
         self.started = threading.Event()
         self.clients: list[ThreadSafeClient] = []
+        self.trap: ReadTrap | None = None
 
     def build(self, *args: object, **kwargs: object) -> ThreadSafeClient:
         client = ThreadSafeClient(self)
@@ -342,6 +379,40 @@ async def test_two_loops_reconnecting_at_once_leave_no_client_unreleased(
         ]
         for racer in racers:
             racer.result(10)
+        live = manager._redis
+        leaked = [
+            client
+            for client in rig.clients
+            if client is not live and not (client.closed or client.dropped)
+        ]
+        assert leaked == []
+        assert live is not None
+        bound.run(manager.close())
+
+
+async def test_two_threads_binding_between_a_check_and_a_write_release_the_first(
+    rig: ThreadSafeRig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rig.mode = "ok"
+    manager = RedisManager(config_for(fake_url(), "interleave", TIMEOUT))
+
+    async def use() -> None:
+        async with manager.get_connection():
+            pass
+
+    with LoopThread() as bound, LoopThread() as first, LoopThread() as second:
+        bound.run(use())
+        trap = ReadTrap()
+        trap.thread = first._thread
+        rig.trap = trap
+        monkeypatch.setattr(RedisManager, "_redis", TrappedClientSlot(trap))
+        vars(manager)["_raw_redis"] = vars(manager).pop("_redis", None)
+        racer = asyncio.run_coroutine_threadsafe(use(), first.loop)
+        assert trap.read.wait(5)
+        other = asyncio.run_coroutine_threadsafe(use(), second.loop)
+        other.result(10)
+        trap.other_done.set()
+        racer.result(10)
         live = manager._redis
         leaked = [
             client
