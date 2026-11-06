@@ -445,3 +445,34 @@ async def test_a_pass_that_starts_with_the_budget_spent_charges_no_cpu() -> None
     assert charged[0] == 0.0
     assert matched == timeouts == ["scan_time_budget_exhausted"]
     assert [threat["pattern"] for threat in threats] == matched
+
+
+async def test_a_budget_spent_by_the_last_scanned_row_is_reported_beside_a_tail() -> (
+    None
+):
+    manager = SusPatternsManager()
+    manager.configure(SecurityConfig(detection_max_scan_seconds=1.0))
+    rows = await manager._rows_to_scan()
+
+    async def spends_the_budget(*args: object, **kwargs: object) -> tuple[None, bool]:
+        detection_scan._record_scan_time(2.0)
+        return None, False
+
+    with (
+        _scan_value_budget(512, max_scan_seconds=1.0),
+        patch.object(
+            _suspatterns_regex, "_applicable_patterns", lambda *a, **k: (rows[:1], True)
+        ),
+        patch.object(
+            _suspatterns_regex,
+            "rows_with_required_literal",
+            lambda found, *a: iter(found),
+        ),
+        patch.object(manager, "_check_regex_pattern", spends_the_budget),
+    ):
+        threats, matched, timeouts = await manager._check_regex_patterns(
+            "benign text", "127.0.0.1", None
+        )
+
+    assert matched == timeouts == ["scan_time_budget_exhausted"]
+    assert [threat["pattern"] for threat in threats] == matched
