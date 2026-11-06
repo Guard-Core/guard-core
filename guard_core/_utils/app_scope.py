@@ -133,6 +133,36 @@ class ScopedConfig(ScopedToApp["SecurityConfig | None"]):
         super().__set_name__(owner, name)
         self._weak_key = _weak_key(name)
 
+    @overload
+    def __get__(
+        self, instance: None, owner: type | None = None
+    ) -> "ScopedConfig": ...
+
+    @overload
+    def __get__(
+        self, instance: object, owner: type | None = None
+    ) -> "SecurityConfig | None": ...
+
+    def __get__(
+        self, instance: object | None, owner: type | None = None
+    ) -> "ScopedConfig | SecurityConfig | None":
+        # Hot path: no scope in force, so the config set last (strongly, else the
+        # weakly held one) answers; anything else takes the general rule.
+        if (
+            instance is not None
+            and _current_app_scope.get() is None
+            and _scan_config_scope.get() is None
+        ):
+            stored = instance.__dict__
+            value: SecurityConfig | None = stored.get(self._name)
+            if value is None:
+                weak = stored.get(self._weak_key)
+                if weak is not None:
+                    value = weak()
+            if value is not None:
+                return value
+        return super().__get__(instance, owner)
+
     def __set__(self, instance: object, value: "SecurityConfig | None") -> None:
         instance.__dict__.pop(_weak_key(self._name), None)
         super().__set__(instance, value)
