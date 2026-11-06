@@ -809,7 +809,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
 
     @classmethod
     def _for_app(
-        cls: type["SusPatternsManager"], config: "SecurityConfig[RequestT]"
+        cls: type["SusPatternsManager"], config: object
     ) -> "SusPatternsManager":
         instance = cls._fresh()
         instance.patterns = [definition[0] for definition in cls._pattern_definitions]

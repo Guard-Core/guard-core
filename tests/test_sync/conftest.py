@@ -82,7 +82,7 @@ _DetectionSingletonSnapshot = tuple[Any, Any, Any, Any, Any, Any, Any]
 _detection_singleton_snapshots: dict[int, _DetectionSingletonSnapshot] = {}
 
 _SusPatternsSnapshot = tuple[
-    SusPatternsManager | None, object, list[str] | None, set[str]
+    SusPatternsManager | None, SyncSecurityConfig | None, list[str] | None, set[str]
 ]
 _sus_patterns_snapshots: dict[int, _SusPatternsSnapshot] = {}
 
