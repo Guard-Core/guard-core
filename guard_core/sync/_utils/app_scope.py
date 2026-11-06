@@ -118,6 +118,64 @@ class ScopedConfig(ScopedToApp["SyncSecurityConfig | None"]):
     def __init__(self) -> None:
         super().__init__(None)
 
+    @overload
+    def __get__(self, instance: None, owner: type | None = None) -> "ScopedConfig": ...
+
+    @overload
+    def __get__(
+        self, instance: object, owner: type | None = None
+    ) -> "SyncSecurityConfig | None": ...
+
+    def __get__(
+        self, instance: object | None, owner: type | None = None
+    ) -> "ScopedConfig | SyncSecurityConfig | None":
+        if instance is None:
+            return self
+        served = super().__get__(instance, owner)
+        if served is not None:
+            return served
+        return weakly_held_config(instance, self._name)
+
+    def __set__(self, instance: object, value: "SyncSecurityConfig | None") -> None:
+        instance.__dict__.pop(_weak_key(self._name), None)
+        super().__set__(instance, value)
+
+
+class WeakableConfig:
+    """A config attribute a module singleton can serve without owning the app.
+
+    ``manager.attribute = value`` keeps the value strongly, as a plain attribute
+    does. ``hold_config_weakly`` serves it until the app that owns it is gone.
+    Read on the class it returns the descriptor itself.
+    """
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self._name = name
+
+    @overload
+    def __get__(
+        self, instance: None, owner: type | None = None
+    ) -> "WeakableConfig": ...
+
+    @overload
+    def __get__(
+        self, instance: object, owner: type | None = None
+    ) -> "SyncSecurityConfig | None": ...
+
+    def __get__(
+        self, instance: object | None, owner: type | None = None
+    ) -> "WeakableConfig | SyncSecurityConfig | None":
+        if instance is None:
+            return self
+        stored: SyncSecurityConfig | None = instance.__dict__.get(self._name)
+        if stored is not None:
+            return stored
+        return weakly_held_config(instance, self._name)
+
+    def __set__(self, instance: object, value: "SyncSecurityConfig | None") -> None:
+        instance.__dict__.pop(_weak_key(self._name), None)
+        instance.__dict__[self._name] = value
+
 
 class ScopedAgentHandler(ScopedToApp["SyncAgentHandlerProtocol | None"]):
     def __init__(self) -> None:
@@ -132,6 +190,48 @@ class ScopedRedisHandler(ScopedToApp["SyncRedisHandlerProtocol | None"]):
 class ScopedRuleExemptNetworks(ScopedToApp["tuple[_Network, ...]"]):
     def __init__(self) -> None:
         super().__init__((), writes_to_scope=True)
+
+
+def _weak_key(attribute: str) -> str:
+    return f"_guard_weak_{attribute}"
+
+
+def weakly_held_config(manager: object, attribute: str) -> "SyncSecurityConfig | None":
+    held: weakref.ref[SyncSecurityConfig] | None = manager.__dict__.get(
+        _weak_key(attribute)
+    )
+    return None if held is None else held()
+
+
+def hold_config_weakly(
+    manager: object, config: object, attribute: str = "config"
+) -> None:
+    """Serve this config from a manager attribute without keeping its app alive.
+
+    A module singleton manager holds the config of the first app, so a strong
+    reference keeps that app's config, scope and handlers for the life of the
+    process, and every later app on another prefix is told the first is still
+    running. A plain assignment to the attribute stays strong.
+    """
+    manager.__dict__.pop(attribute, None)
+    manager.__dict__[_weak_key(attribute)] = weakref.ref(config)
+
+
+def serve_config_of_the_live_app(
+    manager: object, config: "SyncSecurityConfig", attribute: str = "config"
+) -> None:
+    """Point a singleton whose app is gone at the app now using it, never away
+    from an app still alive."""
+    if (
+        attribute not in manager.__dict__
+        and weakly_held_config(manager, attribute) is None
+    ):
+        hold_config_weakly(manager, config, attribute)
+
+
+def forget_config(manager: object, attribute: str) -> None:
+    manager.__dict__.pop(attribute, None)
+    manager.__dict__.pop(_weak_key(attribute), None)
 
 
 def app_scope_of(config: "SyncSecurityConfig") -> AppScope:

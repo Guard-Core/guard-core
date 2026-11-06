@@ -2,6 +2,7 @@ import re
 from typing import TYPE_CHECKING, TypedDict
 
 from guard_core._parked_records import PATTERN_MANAGER_RECORD
+from guard_core.sync._utils.app_scope import hold_config_weakly
 from guard_core.sync._utils.scan_config_scope import (
     _request_scan_window,
     configure_lock,
@@ -87,7 +88,7 @@ class _SusPatternsEnhancedMixin:
         if "_config" in vars(self):
             self._config = config
         else:
-            cls._config = config
+            hold_config_weakly(self, config, "_config")
         self._detection_state = _build_enhanced_detection_state(config, self)
         try:
             object.__setattr__(config, PATTERN_MANAGER_RECORD, self)

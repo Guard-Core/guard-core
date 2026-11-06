@@ -2,9 +2,16 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from ipaddress import ip_address
+from typing import TYPE_CHECKING
 
 from guard_core._utils.app_managers import AppManagers as AppManagers
-from guard_core._utils.app_scope import app_scope_of, in_app_scope
+from guard_core._utils.app_scope import (
+    WeakableConfig,
+    app_scope_of,
+    hold_config_weakly,
+    in_app_scope,
+    serve_config_of_the_live_app,
+)
 from guard_core._utils.nat64 import nat64_table_of
 from guard_core._utils.rule_attribution_shared import _APP_RULE_MANAGERS
 from guard_core._utils.whitelist_match import is_listed
@@ -49,6 +56,8 @@ class DynamicRuleManager(
 ):
     _instance = None
     config: SecurityConfig
+    if not TYPE_CHECKING:
+        config = WeakableConfig()
     agent_handler: AgentHandlerProtocol | None = None
     redis_handler: RedisHandlerProtocol | None = None
     logger: logging.Logger
@@ -78,9 +87,13 @@ class DynamicRuleManager(
             return own
         if cls._instance is None:
             cls._instance = cls._fresh(config)
-        return _APP_RULE_MANAGERS.bind(
+            hold_config_weakly(cls._instance, config)
+        manager = _APP_RULE_MANAGERS.bind(
             config, cls._instance, lambda: cls._fresh(config)
         )
+        if manager is cls._instance:
+            serve_config_of_the_live_app(manager, config)
+        return manager
 
     @classmethod
     def _fresh(

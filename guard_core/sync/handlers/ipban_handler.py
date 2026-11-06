@@ -8,6 +8,7 @@ from guard_core.sync._utils.app_scope import (
     ScopedConfig,
     ScopedRedisHandler,
     ScopedRuleExemptNetworks,
+    hold_config_weakly,
 )
 from guard_core.sync.handlers._ipban_bans import _LOOPBACK_NETWORKS
 from guard_core.sync.handlers._ipban_cache import (
@@ -145,7 +146,7 @@ def ip_ban_manager_for(
     """
     if bind:
         manager = _APP_BAN_MANAGERS.bind(config, ip_ban_manager, IPBanManager._fresh)
-        manager.config = config
+        hold_config_weakly(manager, config)
         return manager
     own = _APP_BAN_MANAGERS.own(config)
     if own is not None:

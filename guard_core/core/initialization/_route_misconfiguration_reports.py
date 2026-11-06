@@ -1,4 +1,5 @@
 import logging
+import weakref
 from typing import TYPE_CHECKING
 
 from guard_core._geo_handler_for_tree import (
@@ -19,7 +20,7 @@ from guard_core.core.initialization._route_limit_report import (
 )
 
 if TYPE_CHECKING:
-    from guard_core.decorators.base import BaseSecurityDecorator
+    from guard_core.decorators.base import BaseSecurityDecorator, RouteConfig
     from guard_core.models import SecurityConfig
     from guard_core.protocols.geo_ip_protocol import GeoIPHandler
     from guard_core.protocols.redis_protocol import RedisHandlerProtocol
@@ -37,10 +38,22 @@ class RouteMisconfigurationReportsMixin:
     _route_misconfigurations_reported: tuple[int, int | None, int] | None = None
 
     def _report_unreachable_ban_thresholds(self) -> None:
-        context = _BanThresholdContext(
-            lambda: tuple(getattr(self.guard_decorator, "_route_configs", {}).values()),
-            lambda: bool(redis_is_configured(self.config) and self.redis_handler),
-        )
+        # The remembered context outlives this initializer, so it reads the app
+        # through a weak reference and a dropped app is freed by refcount.
+        app = weakref.ref(self)
+
+        def route_configs() -> tuple["RouteConfig", ...]:
+            live = app()
+            decorator = None if live is None else live.guard_decorator
+            return tuple(getattr(decorator, "_route_configs", {}).values())
+
+        def redis_shared() -> bool:
+            live = app()
+            return live is not None and bool(
+                redis_is_configured(live.config) and live.redis_handler
+            )
+
+        context = _BanThresholdContext(route_configs, redis_shared)
         remember_ban_threshold_context(context.route_configs, context.redis_shared)
         report_unreachable_ban_thresholds(
             self.config, context, self.logger, stacklevel=6

@@ -6,6 +6,7 @@ from guard_core._builtin_import_table import (
     BUILTIN_PATTERN_COMPILE_FLAGS,
     IMPORT_COMPILED_TABLE,
 )
+from guard_core.sync._utils.app_scope import WeakableConfig
 from guard_core.sync._utils.detection_scan import _built_once_uncharged
 from guard_core.sync._utils.scan_config_scope import scoped_config
 from guard_core.sync.handlers._suspatterns_pattern_table import BARE_UNION_SELECT_ROW
@@ -49,6 +50,8 @@ class _SusPatternsLazyRowsMixin:
     _pattern_definitions: list[tuple[str, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
     _config: "SyncSecurityConfig | None" = None
+    if not TYPE_CHECKING:
+        _config = WeakableConfig()
     _disabled_row_sources: frozenset[str] = frozenset()
 
     def _scan_config(self) -> "SyncSecurityConfig | None":
