@@ -25,7 +25,7 @@ from guard_core.sync._utils.app_scope import (
     ScopedAgentHandler,
     ScopedRedisHandler,
     WeakableConfig,
-    hold_config_weakly,
+    hold_config_until_adopted,
 )
 from guard_core.sync._utils.detection_scan import (
     LazyPreview,
@@ -794,7 +794,8 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         if cls._instance is None:
             cls._instance = cls._fresh()
             if config is not None:
-                hold_config_weakly(cls._instance, config, "_config")
+                # A manager built by hand owns its config until an app adopts it.
+                hold_config_until_adopted(cls._instance, config, "_config")
             if _supports_enhanced_config(config):
                 cls._instance._detection_state = _build_enhanced_detection_state(
                     config, cls._instance

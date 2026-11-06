@@ -1,3 +1,4 @@
+import inspect
 import weakref
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -234,6 +235,21 @@ def _held_key(attribute: str) -> str:
     return f"_guard_held_{attribute}"
 
 
+def _reclaim_displaced_slot(manager: object, attribute: str) -> None:
+    """Put the config descriptor back when a plain value replaced it on the class.
+
+    v4.4.0 code resets the default manager with ``Manager._config = None``, which
+    replaces the descriptor; the instance's held and weak entries would then be
+    invisible and a hand-built manager would read no config at all.
+    """
+    owner = type(manager)
+    if hasattr(inspect.getattr_static(owner, attribute, None), "__set__"):
+        return
+    slot = WeakableConfig()
+    slot.__set_name__(owner, attribute)
+    setattr(owner, attribute, slot)
+
+
 def weakly_held_config(manager: object, attribute: str) -> "SecurityConfig | None":
     held: weakref.ref[SecurityConfig] | None = manager.__dict__.get(
         _weak_key(attribute)
@@ -252,6 +268,7 @@ def hold_config_weakly(
     running. A plain assignment to the attribute stays strong. A config that
     cannot be weakly referenced stays held strongly.
     """
+    _reclaim_displaced_slot(manager, attribute)
     manager.__dict__.pop(attribute, None)
     manager.__dict__.pop(_held_key(attribute), None)
     try:
@@ -265,6 +282,7 @@ def hold_config_until_adopted(
 ) -> None:
     """Keep the config strongly, as v4.4.0 did, without marking the manager as
     one that owns an app of its own; ``release_config_to_app`` lets it go."""
+    _reclaim_displaced_slot(manager, attribute)
     manager.__dict__[_held_key(attribute)] = config
 
 
