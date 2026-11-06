@@ -390,7 +390,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "reached; a number from the configuration, no request value is "
         "interpolated"
     ),
-    "_utils/body_reader.py:_resolve_body_reader_kind": (
+    "_utils/body_reader.py:_warn_body_reader_fallback_once_per_app": (
         "logs the adapter class name, once per adapter class, when it lacks "
         "read_body_prefix_until_idle; a class name from the adapter's own "
         "code, no request value is interpolated"

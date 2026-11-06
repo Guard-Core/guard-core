@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from weakref import WeakKeyDictionary
 
 from guard_core._utils.capability import has_callable, serves_attributes_dynamically
+from guard_core._utils.sampling import PerApp, WarnedRequestKinds
 from guard_core.exceptions import (
     BodyReadFailedError,
     BodyReadSlotsExhaustedError,
@@ -160,46 +161,56 @@ _PREFIX = "read_body_prefix"
 _FULL_BODY = "body"
 
 _reader_kind_by_class: WeakKeyDictionary[type, str] = WeakKeyDictionary()
-_fallback_warned_kinds: WeakKeyDictionary[type, set[str]] = WeakKeyDictionary()
-
-
-def _first_fallback_of_kind(request: GuardRequest, kind: str) -> bool:
-    warned = _fallback_warned_kinds.setdefault(type(request), set())
-    first = kind not in warned
-    warned.add(kind)
-    return first
+_fallback_warned_kinds = PerApp("body_reader_fallbacks", WarnedRequestKinds)
 
 
 def _resolve_body_reader_kind(request: GuardRequest) -> str:
-    adapter = type(request).__name__
     if has_callable(request, _PREFIX_UNTIL_IDLE):
         return _PREFIX_UNTIL_IDLE
     if has_callable(request, _PREFIX):
-        if _first_fallback_of_kind(request, _PREFIX):
-            logger.warning(
-                "%s has no read_body_prefix_until_idle; its read_body_prefix is "
-                "read in full with no idle deadline, so a client that stops "
-                "sending holds the request until the server's own timeout",
-                adapter,
-            )
         return _PREFIX
-    if _first_fallback_of_kind(request, _FULL_BODY):
-        logger.warning(
-            "%s has neither read_body_prefix_until_idle nor read_body_prefix; "
-            "body() is read in full with no idle deadline, so a client that "
-            "stops sending holds the request until the server's own timeout",
-            adapter,
-        )
     return _FULL_BODY
 
 
-def _body_reader_kind(request: GuardRequest) -> str:
+def _warn_body_reader_fallback_once_per_app(
+    request: GuardRequest, kind: str, config: "SecurityConfig | None"
+) -> None:
+    cls = type(request)
+    warned = _fallback_warned_kinds.for_app(config).get(cls)
+    if warned is None:
+        warned = _fallback_warned_kinds.for_app(config)[cls] = set()
+    elif kind in warned:
+        return
+    warned.add(kind)
+    adapter = cls.__name__
+    if kind == _PREFIX:
+        logger.warning(
+            "%s has no read_body_prefix_until_idle; its read_body_prefix is "
+            "read in full with no idle deadline, so a client that stops "
+            "sending holds the request until the server's own timeout",
+            adapter,
+        )
+        return
+    logger.warning(
+        "%s has neither read_body_prefix_until_idle nor read_body_prefix; "
+        "body() is read in full with no idle deadline, so a client that "
+        "stops sending holds the request until the server's own timeout",
+        adapter,
+    )
+
+
+def _body_reader_kind(
+    request: GuardRequest, config: "SecurityConfig | None" = None
+) -> str:
     cls = type(request)
     kind = _reader_kind_by_class.get(cls)
     if kind is None:
         kind = _resolve_body_reader_kind(request)
         if not serves_attributes_dynamically(cls):
             _reader_kind_by_class[cls] = kind
+    if kind is _PREFIX_UNTIL_IDLE:
+        return kind
+    _warn_body_reader_fallback_once_per_app(request, kind, config)
     return kind
 
 
@@ -321,8 +332,9 @@ async def _read_capped_body_prefix(
     max_concurrent: int | None,
     *,
     patterns: "SusPatternsManager | None" = None,
+    config: "SecurityConfig | None" = None,
 ) -> bytes | None:
-    kind = _body_reader_kind(request)
+    kind = _body_reader_kind(request, config)
     if kind == _FULL_BODY:
         return None
 
@@ -375,8 +387,9 @@ async def _read_oversized_declared_body(
     client_ip: str,
     *,
     patterns: "SusPatternsManager | None" = None,
+    config: "SecurityConfig | None" = None,
 ) -> bytes | None:
-    kind = _body_reader_kind(request)
+    kind = _body_reader_kind(request, config)
     content_type = request.headers.get("content-type")
     if kind == _FULL_BODY:
         _warn_body_inspect_bytes_cap_reached_no_bounded_reader(
@@ -399,8 +412,9 @@ async def _read_declared_body(
     max_bytes: int,
     timeout: float,
     max_concurrent: int | None,
+    config: "SecurityConfig | None" = None,
 ) -> bytes | None:
-    kind = _body_reader_kind(request)
+    kind = _body_reader_kind(request, config)
     return await _read_and_cache_body(
         request,
         max_bytes,
@@ -455,16 +469,19 @@ async def read_body_for_inspection(
                         max_concurrent,
                         client_ip,
                         patterns=patterns,
+                        config=config,
                     ),
                     True,
                 )
             return (
-                await _read_declared_body(request, max_bytes, timeout, max_concurrent),
+                await _read_declared_body(
+                    request, max_bytes, timeout, max_concurrent, config
+                ),
                 False,
             )
 
     prefix = await _read_capped_body_prefix(
-        request, max_bytes, timeout, max_concurrent, patterns=patterns
+        request, max_bytes, timeout, max_concurrent, patterns=patterns, config=config
     )
     return prefix, prefix is not None and len(prefix) > max_bytes
 
@@ -514,7 +531,7 @@ async def read_prefix_beyond_limit(
     failed = getattr(request.state, _FAILED_LIMIT_READ_STATE_ATTR, None)
     if failed is not None and failed[0] is request:
         raise failed[1]
-    kind = _body_reader_kind(request)
+    kind = _body_reader_kind(request, config)
     fetch_bytes = limit + 1
     try:
         return await _read_and_cache_body(
