@@ -91,6 +91,7 @@ SKIP_TESTS = {
     "test_redis_lean.py",
     "test_redis_fast_path_shape.py",
     "test_per_app_sharing_by_event_loop.py",
+    "test_redis_open_connection_cleanup_pins.py",
     "test_split_connection_warning_event_loop.py",
     "test_ipban_unban_inside_async.py",
     "test_ipban_atomic_version.py",
