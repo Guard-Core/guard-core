@@ -164,19 +164,6 @@ _reader_kind_by_class: WeakKeyDictionary[type, str] = WeakKeyDictionary()
 _fallback_warned_kinds = PerApp("body_reader_fallbacks", WarnedRequestKinds)
 
 
-def _first_fallback_of_kind(
-    request: GuardRequest, kind: str, config: "SecurityConfig | None"
-) -> bool:
-    table = _fallback_warned_kinds.for_app(config)
-    warned = table.get(type(request))
-    if warned is None:
-        warned = table[type(request)] = set()
-    if kind in warned:
-        return False
-    warned.add(kind)
-    return True
-
-
 def _resolve_body_reader_kind(request: GuardRequest) -> str:
     if has_callable(request, _PREFIX_UNTIL_IDLE):
         return _PREFIX_UNTIL_IDLE
@@ -188,9 +175,14 @@ def _resolve_body_reader_kind(request: GuardRequest) -> str:
 def _warn_body_reader_fallback_once_per_app(
     request: GuardRequest, kind: str, config: "SecurityConfig | None"
 ) -> None:
-    if not _first_fallback_of_kind(request, kind, config):
+    cls = type(request)
+    warned = _fallback_warned_kinds.for_app(config).get(cls)
+    if warned is None:
+        warned = _fallback_warned_kinds.for_app(config)[cls] = set()
+    elif kind in warned:
         return
-    adapter = type(request).__name__
+    warned.add(kind)
+    adapter = cls.__name__
     if kind == _PREFIX:
         logger.warning(
             "%s has no read_body_prefix_until_idle; its read_body_prefix is "
@@ -216,8 +208,9 @@ def _body_reader_kind(
         kind = _resolve_body_reader_kind(request)
         if not serves_attributes_dynamically(cls):
             _reader_kind_by_class[cls] = kind
-    if kind != _PREFIX_UNTIL_IDLE:
-        _warn_body_reader_fallback_once_per_app(request, kind, config)
+    if kind is _PREFIX_UNTIL_IDLE:
+        return kind
+    _warn_body_reader_fallback_once_per_app(request, kind, config)
     return kind
 
 

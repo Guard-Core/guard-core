@@ -3,7 +3,6 @@ import time
 import weakref
 from collections import OrderedDict
 from typing import Generic, Protocol, TypeVar
-from weakref import WeakKeyDictionary
 
 from guard_core.sync._utils.app_managers import (
     _HELD_ATTRIBUTE,
@@ -60,8 +59,12 @@ class WarnedKeys(set[str]):
     """The warnings one app already logged, for log-once warnings."""
 
 
-class WarnedRequestKinds(WeakKeyDictionary[type, set[str]]):
-    """The body-reader fallbacks one app already warned about, by request class."""
+class WarnedRequestKinds(dict[type, set[str]]):
+    """The body-reader fallbacks one app already warned about, by request class.
+
+    A plain dict: a weak-keyed lookup builds a weakref on every body read. The table
+    goes with its app's config and holds only the few request classes that app saw.
+    """
 
 
 class PerApp(Generic[_T]):
