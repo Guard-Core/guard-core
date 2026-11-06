@@ -405,7 +405,12 @@ def _ensure_detection_singleton_configured(
     # every warm request.
     if manager is not None:
         configured_for = manager._configured_for
-        if configured_for is not None and configured_for() is config:
+        # A state reset to the legacy one (no compiler) is not configured.
+        if (
+            configured_for is not None
+            and configured_for() is config
+            and manager._detection_state.compiler is not None
+        ):
             return manager
     bound = sus_patterns_manager_for(config, bind=True)
     if bound._detection_state.compiler is None or bound._config is not config:

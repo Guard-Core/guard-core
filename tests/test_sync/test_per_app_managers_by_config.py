@@ -20,6 +20,7 @@ from guard_core.sync.handlers import cloud_handler as cloud_module
 from guard_core.sync.handlers import ipban_handler as ipban_module
 from guard_core.sync.handlers import suspatterns_handler as suspatterns_module
 from guard_core.sync.handlers._suspatterns_enhanced import _DetectionState
+from guard_core.sync.handlers._suspatterns_state import _LEGACY_DETECTION_STATE
 from guard_core.sync.handlers.cloud_handler import cloud_handler_for
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
@@ -271,3 +272,15 @@ def _override_keys(prefix: str) -> list[str]:
         return [key for key in client.scan_iter(match=f"{prefix}*override*", count=500)]
     finally:
         close_redis_client(client)
+
+
+def test_a_warm_config_whose_detection_state_was_reset_is_detected_again() -> None:
+    config = _config()
+    HandlerInitializer(config)
+    attack = _request("%253Cscript%253Ealert(1)%253C%252Fscript%253E")
+    assert (detect_penetration_attempt(attack, config)).is_threat
+    manager = config._guard_pattern_manager
+    assert manager is not None
+    manager._detection_state = _LEGACY_DETECTION_STATE
+
+    assert (detect_penetration_attempt(attack, config)).is_threat
