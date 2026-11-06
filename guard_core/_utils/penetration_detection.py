@@ -401,8 +401,12 @@ def _ensure_detection_singleton_configured(
     if config is None:
         return sus_patterns_handler
     manager = config._guard_pattern_manager
-    if manager is not None and manager._config is config:
-        return manager
+    # Not manager._config: that may be held weakly, and reading it is a call on
+    # every warm request.
+    if manager is not None:
+        configured_for = manager._configured_for
+        if configured_for is not None and configured_for() is config:
+            return manager
     bound = sus_patterns_manager_for(config, bind=True)
     if bound._detection_state.compiler is None or bound._config is not config:
         bound.configure(config)
