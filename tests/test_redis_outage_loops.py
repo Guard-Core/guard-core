@@ -2,10 +2,10 @@
 outlives or is cut off by its loop, and a hung app that costs a healthy one nothing."""
 
 import asyncio
+import itertools
 import threading
 from collections.abc import Awaitable, Callable, Coroutine, Iterator
 from time import monotonic
-from types import SimpleNamespace
 from typing import TypeVar
 from unittest.mock import MagicMock
 
@@ -23,6 +23,13 @@ from tests.redis_outage_standins import HungListener
 
 T = TypeVar("T")
 TIMEOUT = 0.6
+
+
+_URLS = itertools.count(300)
+
+
+def fake_url() -> str:
+    return f"redis://127.0.0.1:1/{next(_URLS)}"
 
 
 def config_for(url: str, tag: str, timeout: float = 5.0) -> SecurityConfig:
@@ -64,13 +71,24 @@ class ThreadSafeClient:
     def __init__(self, rig: "ThreadSafeRig") -> None:
         self.rig = rig
         self.closed = False
-        self.connection_pool = SimpleNamespace(
-            _available_connections=[], _in_use_connections=[]
-        )
+        self.dropped = False
+        self.connection_pool = self
+
+    @property
+    def _available_connections(self) -> list[object]:
+        # read by abandon_client when the client's loop is not the caller's
+        self.dropped = True
+        return []
+
+    @property
+    def _in_use_connections(self) -> list[object]:
+        return []
 
     async def ping(self) -> bool:
         if self.rig.mode == "fail":
             raise RedisConnectionError("down")
+        if self.rig.mode == "slow":
+            await asyncio.sleep(0.3)
         self.rig.started.set()
         deadline = monotonic() + 3.0
         while (
@@ -302,3 +320,34 @@ async def test_alternating_loops_make_a_bounded_number_of_reconnects(
             assert loop.run(get_ignoring_503(manager)) is None
         first.run(manager.close())
     assert len(builds) <= rounds + 1
+
+
+async def test_two_loops_reconnecting_at_once_leave_no_client_unreleased(
+    rig: ThreadSafeRig,
+) -> None:
+    rig.mode = "ok"
+    manager = RedisManager(config_for(fake_url(), "leak", TIMEOUT))
+
+    async def use() -> None:
+        async with manager.get_connection():
+            pass
+
+    with LoopThread() as bound, LoopThread() as first, LoopThread() as second:
+        bound.run(use())
+        assert len(rig.clients) == 1
+        rig.mode = "slow"
+        racers = [
+            asyncio.run_coroutine_threadsafe(use(), loop.loop)
+            for loop in (first, second)
+        ]
+        for racer in racers:
+            racer.result(10)
+        live = manager._redis
+        leaked = [
+            client
+            for client in rig.clients
+            if client is not live and not (client.closed or client.dropped)
+        ]
+        assert leaked == []
+        assert live is not None
+        bound.run(manager.close())

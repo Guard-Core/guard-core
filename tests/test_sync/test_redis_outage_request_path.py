@@ -98,6 +98,10 @@ class FakeClient:
             raise RedisConnectionError("down")
         if self.rig.mode == "stop":
             raise StopTheProcess
+        if self.rig.mode == "steal":
+            # Another loop's reconnect binds its own client while this one pings.
+            assert self.rig.manager is not None
+            self.rig.manager._redis = self.rig.stolen
         self.rig.started.set()
         deadline = monotonic() + BLOCK_LIMIT
         while (
@@ -122,6 +126,8 @@ class Rig:
         self.release = threading.Event()
         self.started = threading.Event()
         self.clients: list[FakeClient] = []
+        self.manager: RedisManager | None = None
+        self.stolen = FakeClient(self)
 
     def build(self, *args: object, **kwargs: object) -> FakeClient:
         client = FakeClient(self)
@@ -397,6 +403,19 @@ def test_a_custom_handler_spawn_that_fails_frees_the_gate(
     gate = initializer._recovery_own_gate
     assert gate is not None
     assert not gate._claim.locked()
+
+
+def test_a_client_bound_while_another_connect_pings_is_released(
+    rig: Rig,
+) -> None:
+    manager = RedisManager(config_for(fake_url(), "steal"))
+    rig.manager = manager
+    rig.mode = "steal"
+    manager.initialize()
+    assert rig.stolen.closed
+    assert manager._redis is rig.clients[0]
+    rig.mode = "ok"
+    manager.close()
 
 
 def test_a_spawn_that_fails_frees_the_window(

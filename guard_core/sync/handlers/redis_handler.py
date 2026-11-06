@@ -415,6 +415,9 @@ class RedisManager(RedisBanStrikeMixin):
                         self, new_redis, key, scope
                     )
                     shared = True
+                if self._redis is not None and self._redis is not new_redis:
+                    # Another loop's reconnect bound its client while this one pinged.
+                    self._discard_client()
                 self._redis = new_redis
                 self._pool_key = key
                 self._client_loop = running_loop_or_none()
