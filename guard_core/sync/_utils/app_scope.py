@@ -1,3 +1,4 @@
+import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
@@ -27,13 +28,25 @@ class AppScope:
     sets it around its own non-request work.
     """
 
-    __slots__ = ("agent_handler", "config", "redis_handler", "rule_exempt_networks")
+    # The config is held weakly: the scope is parked on the config's __dict__, so a
+    # strong reference is a cycle that frees a dropped config only at a gc pass.
+    __slots__ = (
+        "config_ref",
+        "agent_handler",
+        "redis_handler",
+        "rule_exempt_networks",
+    )
 
     def __init__(self, config: "SyncSecurityConfig") -> None:
-        self.config = config
+        self.config_ref = weakref.ref(config)
         self.agent_handler: SyncAgentHandlerProtocol | None = None
         self.redis_handler: SyncRedisHandlerProtocol | None = None
         self.rule_exempt_networks: tuple[_Network, ...] = ()
+
+    @property
+    def config(self) -> "SyncSecurityConfig | None":
+        """The app's config, ``None`` once the app that owned it is gone."""
+        return self.config_ref()
 
     def __copy__(self) -> "AppScope":
         return self
@@ -132,7 +145,7 @@ def app_scope_of(config: "SyncSecurityConfig") -> AppScope:
 
 def existing_app_scope_of(config: "SyncSecurityConfig") -> AppScope | None:
     found: AppScope | None = config.__dict__.get(_RECORD_ATTRIBUTE)
-    return found if found is not None and found.config is config else None
+    return found if found is not None and found.config_ref() is config else None
 
 
 def hold_app_scope(config: "SyncSecurityConfig") -> "Token[AppScope | None] | None":

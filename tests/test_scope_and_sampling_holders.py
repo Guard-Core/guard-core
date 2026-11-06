@@ -35,7 +35,8 @@ def test_a_class_reads_the_scoped_attribute_descriptor_itself() -> None:
 
 
 def test_releasing_no_token_leaves_the_scope_in_force() -> None:
-    scope = app_scope_of(SecurityConfig(enable_redis=False))
+    config = SecurityConfig(enable_redis=False)
+    scope = app_scope_of(config)
     token = _current_app_scope.set(scope)
     try:
         release_app_scope(None)
@@ -43,7 +44,7 @@ def test_releasing_no_token_leaves_the_scope_in_force() -> None:
         assert _current_app_scope.get() is scope
     finally:
         _current_app_scope.reset(token)
-    assert existing_app_scope_of(scope.config) is scope
+    assert existing_app_scope_of(config) is scope
 
 
 def test_marking_a_manager_shared_twice_keeps_both_apps() -> None:

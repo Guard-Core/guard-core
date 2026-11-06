@@ -36,12 +36,12 @@ _MAX_WARNED_UNENFORCED_BANS = 256
 _warned_unenforced_bans = PerApp("unenforced_bans", WarnedKeys)
 
 
-def _redacted_apps_of(scopes: list[AppScope]) -> str:
+def _redacted_apps_of(apps: list[tuple["SecurityConfig", AppScope]]) -> str:
     from guard_core.handlers.redis_handler import _redact_redis_url
 
     return ", ".join(
-        f"{scope.config.redis_prefix!r} ({_redact_redis_url(scope.config.redis_url)})"
-        for scope in scopes
+        f"{config.redis_prefix!r} ({_redact_redis_url(config.redis_url)})"
+        for config, _ in apps
     )
 
 
@@ -50,11 +50,13 @@ def _redis_still_open(handler: "RedisHandlerProtocol | None") -> bool:
 
 
 def _scope_through(
-    scope: AppScope, live_redis: "RedisHandlerProtocol | None"
+    config: "SecurityConfig",
+    scope: AppScope,
+    live_redis: "RedisHandlerProtocol | None",
 ) -> AppScope:
     """A copy of the app's scope that writes through a live sharing app's Redis
     handler and sends no agent event."""
-    through = AppScope(scope.config)
+    through = AppScope(config)
     through.redis_handler = live_redis
     through.rule_exempt_networks = scope.rule_exempt_networks
     return through
@@ -89,26 +91,33 @@ class IpBanSharedAppsMixin(
                 )
         return False
 
-    def _across_apps_scopes(self, method: str) -> list[AppScope]:
+    def _across_apps_scopes(
+        self, method: str
+    ) -> list[tuple["SecurityConfig", AppScope]]:
+        """Each live sharing app's config with its scope; the config is returned so
+        the caller holds it while it uses the scope, which holds it weakly."""
         global _warned_about_unscoped_calls
         sharing = self.__dict__.get(SHARED_BY_APPS) or {}
-        found = (existing_app_scope_of(config) for config in list(sharing.values()))
-        scopes = [scope for scope in found if scope is not None]
-        if scopes and not _warned_about_unscoped_calls:
+        found = [(config, existing_app_scope_of(config)) for config in sharing.values()]
+        apps = [(config, scope) for config, scope in found if scope is not None]
+        if apps and not _warned_about_unscoped_calls:
             _warned_about_unscoped_calls = True
-            self.logger.warning(_UNSCOPED_WARNING, _redacted_apps_of(scopes), method)
+            self.logger.warning(_UNSCOPED_WARNING, _redacted_apps_of(apps), method)
         live_redis = next(
-            (s.redis_handler for s in scopes if _redis_still_open(s.redis_handler)),
+            (s.redis_handler for _, s in apps if _redis_still_open(s.redis_handler)),
             None,
         )
-        return [_scope_through(scope, live_redis) for scope in scopes]
+        return [
+            (config, _scope_through(config, scope, live_redis))
+            for config, scope in apps
+        ]
 
     async def _ban_ip_across_sharing_apps(
         self, ip: str, duration: int, reason: str, grouped: bool
     ) -> bool:
-        scopes = self._across_apps_scopes("ban_ip")
+        apps = self._across_apps_scopes("ban_ip")
         ip = _canonicalize_ip(ip, nat64_table_of(self.config))
-        for scope in scopes:
+        for _, scope in apps:
             with in_app_scope(scope):
                 if (
                     self._refuse_rule_exempt_target(ip)
@@ -116,8 +125,8 @@ class IpBanSharedAppsMixin(
                 ):
                     return False
         targets: dict[str, AppScope] = {}
-        for scope in scopes:
-            identity = self._grouped_identity_of(ip, scope.config) if grouped else None
+        for config, scope in apps:
+            identity = self._grouped_identity_of(ip, config) if grouped else None
             targets.setdefault(identity or ip, scope)
         applied = True
         for target, scope in targets.items():
@@ -130,16 +139,16 @@ class IpBanSharedAppsMixin(
 
     async def _is_ip_banned_across_sharing_apps(self, ip: str) -> bool:
         banned = False
-        for scope in self._across_apps_scopes("is_ip_banned"):
+        for _, scope in self._across_apps_scopes("is_ip_banned"):
             with in_app_scope(scope):
                 banned = await self.is_ip_banned(ip) or banned
         return banned
 
     async def _unban_ip_across_sharing_apps(self, ip: str, reason: str) -> None:
         seen: set[str | None] = set()
-        for scope in self._across_apps_scopes("unban_ip"):
+        for config, scope in self._across_apps_scopes("unban_ip"):
             identity = self._grouped_identity_of(
-                _canonicalize_ip(ip, nat64_table_of(scope.config)), scope.config
+                _canonicalize_ip(ip, nat64_table_of(config)), config
             )
             if identity in seen:
                 continue
