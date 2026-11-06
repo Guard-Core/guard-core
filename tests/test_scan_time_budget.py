@@ -15,6 +15,7 @@ from guard_core._utils.detection_scan import (
 from guard_core.handlers import (
     _suspatterns_inline_matches,
     _suspatterns_lazy_rows,
+    _suspatterns_literals,
     _suspatterns_regex,
 )
 from guard_core.handlers._suspatterns_lazy_rows import PatternSource
@@ -472,6 +473,36 @@ async def test_a_budget_spent_by_the_last_scanned_row_is_reported_beside_a_tail(
     ):
         threats, matched, timeouts = await manager._check_regex_patterns(
             "benign text", "127.0.0.1", None
+        )
+
+    assert matched == timeouts == ["scan_time_budget_exhausted"]
+    assert [threat["pattern"] for threat in threats] == matched
+
+
+async def test_a_spent_pass_with_every_row_prefiltered_still_reports_the_budget() -> (
+    None
+):
+    row = (re.compile(r"zzneedle\d"), frozenset(), "xss")
+    content = "quarterly onboarding metrics " * 1000
+    folded = _suspatterns_literals.fold_for_literals(content)
+    assert (
+        list(
+            _suspatterns_literals.rows_with_required_literal([row], folded, frozenset())
+        )
+        == []
+    )
+    manager = SusPatternsManager()
+    manager.configure(SecurityConfig(detection_max_scan_seconds=1.0))
+
+    with (
+        _scan_value_budget(512, max_scan_seconds=1.0),
+        patch.object(
+            _suspatterns_regex, "_applicable_patterns", lambda *a, **k: ([row], False)
+        ),
+    ):
+        detection_scan._record_scan_time(1.5)
+        threats, matched, timeouts = await manager._check_regex_patterns(
+            content, "127.0.0.1", None
         )
 
     assert matched == timeouts == ["scan_time_budget_exhausted"]
