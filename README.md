@@ -194,6 +194,16 @@ Installation
 pip install guard-core
 ```
 
+The base install carries only `cachetools`, `pydantic` and `typing-extensions`. Redis, country rules and cloud-provider blocking need an extra, and configuring a feature whose extra is missing fails when `SecurityConfig` is built:
+
+| Extra | Installs | Needed for |
+|---|---|---|
+| `guard-core[redis]` | the Redis client | `enable_redis=True` |
+| `guard-core[geo]` | `maxminddb` and the downloader of the built-in GeoIP manager | country rules and `ipinfo_token` |
+| `guard-core[cloud]` | `aiohttp` and `requests` | `block_cloud_providers` |
+
+Combine them as needed, for example `pip install "guard-core[redis,geo]"`.
+
 ___
 
 For Adapter Developers
@@ -204,9 +214,16 @@ If you're building a framework adapter, add guard-core as a dependency:
 ```toml
 [project]
 dependencies = [
-    "guard-core",
+    "guard-core>=5.0.0,<6",
 ]
+
+[project.optional-dependencies]
+redis = ["guard-core[redis]"]
+geo = ["guard-core[geo]"]
+cloud = ["guard-core[cloud]"]
 ```
+
+Forward the three extras the way the shipped adapters do, so a user of your adapter gets Redis, GeoIP and cloud blocking with `your-adapter[redis]` and the like.
 
 Then implement the three protocols:
 

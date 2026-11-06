@@ -106,6 +106,7 @@ SKIP_TESTS = {
     "test_any_ratchet.py",
     "test_config_docs_parity.py",
     "test_release_notes_parity.py",
+    "test_readme_extras.py",
     "test_no_merge_conflict_markers.py",
     "test_modifier_replay_shape_error.py",
     "test_custom_callables_follow_the_type.py",
