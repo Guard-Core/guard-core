@@ -298,24 +298,26 @@ class RedisManager(RedisBanStrikeMixin):
     async def _connect_inline(self, url: str) -> None:
         # The first connect and the loop-change reconnect: callers wait for the one
         # attempt, as on v4.4.0, and the ones that waited use its result.
-        gate = self._reconnect_gate()
         seen = self._connect_generation
-        recovered = False
         async with self._connection_lock_here():
-            if self._connect_generation != seen and self._is_bound_to_this_loop():
-                return
-            if self._degraded:
-                raise GuardRedisError(503, "Redis connection failed")
-            gated = self._redis is None
-            if gated and not gate.enter():
-                raise GuardRedisError(503, "Redis connection failed")
-            try:
-                await self._open_connection(url)
-            finally:
-                if gated:
-                    recovered = gate.leave(self._redis is not None)
+            recovered = await self._connect_holding_the_lock(url, seen)
         if recovered:
             await self._report_recovery(url)
+
+    async def _connect_holding_the_lock(self, url: str, seen: int) -> bool:
+        if self._connect_generation != seen and self._is_bound_to_this_loop():
+            return False
+        if self._degraded:
+            raise GuardRedisError(503, "Redis connection failed")
+        gate = self._reconnect_gate()
+        gated = self._redis is None
+        if gated and not gate.enter():
+            raise GuardRedisError(503, "Redis connection failed")
+        try:
+            await self._open_connection(url)
+        finally:
+            recovered = gated and gate.leave(self._redis is not None)
+        return recovered
 
     async def _report_recovery(self, url: str) -> None:
         await self._send_redis_event(
