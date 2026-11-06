@@ -1,5 +1,6 @@
 import logging
 import warnings
+from unittest.mock import Mock
 
 import pytest
 from redis import Connection, ConnectionPool, Redis
@@ -8,6 +9,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import redis_handler
 from guard_core.sync.handlers.redis_handler import (
     _build_redis_client,
+    _client_owning_pool,
     _redis_over_owned_pool,
     close_redis_client,
     scan_unlink_through_new_client,
@@ -124,3 +126,15 @@ def test_the_pool_owning_client_of_the_fallback_closes_its_pool() -> None:
     assert client.auto_close_connection_pool is True
     close_redis_client(client)
     assert not _is_open(connection)
+
+
+def test_a_redis_py_with_from_pool_builds_the_owning_client_through_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owning = Mock()
+    from_pool = Mock(return_value=owning)
+    monkeypatch.setattr(Redis, "from_pool", from_pool, raising=False)
+    pool = Mock()
+
+    assert _client_owning_pool(pool) is owning
+    from_pool.assert_called_once_with(pool)

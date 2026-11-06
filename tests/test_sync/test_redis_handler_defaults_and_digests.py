@@ -6,6 +6,7 @@ import textwrap
 import time
 from collections.abc import Iterator
 from functools import partial
+from pathlib import Path
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -65,6 +66,42 @@ _SHA1_CALLS_PROBE = textwrap.dedent(
     print(len(calls), all(c == {"usedforsecurity": False} for c in calls))
     """
 )
+
+
+_CLASS_DEFAULTS_PROBE = textwrap.dedent(
+    """
+    from guard_core.sync.handlers.redis_handler import RedisManager
+
+    unbuilt = object.__new__(RedisManager)
+    print(
+        RedisManager._instance is None,
+        RedisManager._redis is None,
+        RedisManager._pool_key is None,
+        RedisManager._client_loop is None,
+        RedisManager._registered,
+        unbuilt._registered,
+    )
+    """
+)
+
+
+def test_a_manager_class_starts_with_no_instance_client_pool_loop_or_registration() -> (
+    None
+):
+    root = next(
+        p for p in Path(__file__).resolve().parents if (p / "pyproject.toml").is_file()
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", _CLASS_DEFAULTS_PROBE],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
+        cwd=root,
+    )
+
+    assert result.stdout.split() == ["True", "True", "True", "True", "False", "False"]
 
 
 def test_a_redis_event_names_the_redis_handler_as_its_source() -> None:
