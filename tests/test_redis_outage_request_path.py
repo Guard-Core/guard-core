@@ -364,6 +364,19 @@ async def test_a_custom_initialize_that_raises_is_logged_and_frees_the_gate(
     assert not gate._claim.locked()
 
 
+async def test_recovery_of_a_manager_that_is_not_degraded_connects_inline(
+    rig: Rig,
+) -> None:
+    rig.mode = "ok"
+    config = config_for(fake_url(), "plainrecover")
+    manager = RedisManager(config)
+    initializer = HandlerInitializer(config, redis_handler=manager)
+    initializer.bind_redis_recovery_pipeline(MagicMock(), MagicMock())
+    await initializer._initialize_redis_handler(manager)
+    assert manager.is_connected()
+    await manager.close()
+
+
 async def test_a_custom_handler_spawn_that_fails_frees_the_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -17,6 +17,7 @@ from guard_core.exceptions import GuardRedisError
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.app_scope import _current_app_scope, app_scope_of
 from guard_core.sync.handlers import redis_handler as redis_handler_module
+from guard_core.sync.handlers._redis_attempt import RedisAttemptSlot
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL, suite_redis_prefix
 
@@ -229,6 +230,10 @@ def test_a_child_forked_during_an_attempt_neither_blocks_nor_stays_degraded(
     rig.release.set()
     assert wait_for(manager.is_connected)
     manager.close()
+
+
+def test_stopping_a_slot_that_never_spawned_does_nothing() -> None:
+    RedisAttemptSlot().stop()
 
 
 def test_forgetting_the_parents_attempts_leaves_a_manager_without_a_gate_alone() -> (
