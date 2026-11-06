@@ -271,6 +271,7 @@ def hold_config_weakly(
     _reclaim_displaced_slot(manager, attribute)
     manager.__dict__.pop(attribute, None)
     manager.__dict__.pop(_held_key(attribute), None)
+    manager.__dict__.pop(_weak_key(attribute), None)
     try:
         manager.__dict__[_weak_key(attribute)] = weakref.ref(config)
     except TypeError:

@@ -2,7 +2,7 @@ import logging
 import threading
 from datetime import datetime, timezone
 from ipaddress import ip_address
-from typing import TYPE_CHECKING
+from typing import cast
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.app_managers import AppManagers as AppManagers
@@ -55,9 +55,8 @@ class DynamicRuleManager(
     DynamicRuleSnapshotMixin,
 ):
     _instance = None
-    config: SyncSecurityConfig
-    if not TYPE_CHECKING:
-        config = WeakableConfig()
+    # A WeakableConfig descriptor; instances read a SecurityConfig through it.
+    config: SyncSecurityConfig = cast("SyncSecurityConfig", WeakableConfig())
     agent_handler: SyncAgentHandlerProtocol | None = None
     redis_handler: SyncRedisHandlerProtocol | None = None
     logger: logging.Logger

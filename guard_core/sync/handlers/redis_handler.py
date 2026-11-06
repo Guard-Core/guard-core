@@ -7,7 +7,7 @@ import uuid
 from collections.abc import Callable, Hashable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, NoReturn, TypeGuard
+from typing import TYPE_CHECKING, NoReturn, TypeGuard, cast
 
 from guard_core._redis_abandoned_client import close_sync_client
 from guard_core._redis_client_loop import EventLoop, running_loop_or_none
@@ -158,11 +158,9 @@ class RedisManager(RedisBanStrikeMixin):
     _registered = False
     _connection_lock = threading.Lock()
     _closed = False
-    config: SyncSecurityConfig
-    if not TYPE_CHECKING:
-        # Strong when built by hand, as in v4.4.0; the engine hands the app its
-        # config once the app adopts this manager (hold_config_weakly).
-        config = WeakableConfig()
+    # Strong when built by hand, as in v4.4.0; the engine hands the app its
+    # config once the app adopts this manager (hold_config_weakly).
+    config: SyncSecurityConfig = cast("SyncSecurityConfig", WeakableConfig())
     logger: logging.Logger
     agent_handler: redis_types.EventSink | None = None
 

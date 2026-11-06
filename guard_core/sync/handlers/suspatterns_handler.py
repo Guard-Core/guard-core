@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime as datetime
 from datetime import timezone as timezone
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, TypedDict, cast
 from typing import NamedTuple as NamedTuple
 
 from guard_core._lazy_patterns import module_attribute_lookup
@@ -370,7 +370,7 @@ def _warn_if_legacy_detection(compiler: PatternCompiler | None) -> None:
 
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SecurityConfig, SyncSecurityConfig
     from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 
 __all__ = [
@@ -771,9 +771,10 @@ def _merge_raw_view_results(
 
 class SusPatternsManager(_SusPatternsViewsMixin):
     _instance = None
-    if not TYPE_CHECKING:
-        # The default manager serves the first app's config without owning it.
-        _config = WeakableConfig()
+    # The default manager serves the first app's config without owning it.
+    _config: "SyncSecurityConfig | None" = cast(
+        "SyncSecurityConfig | None", WeakableConfig()
+    )
 
     _pattern_definitions: list[tuple[str, frozenset[str], str]] = _PATTERN_DEFINITIONS
 
