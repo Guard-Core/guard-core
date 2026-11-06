@@ -28,7 +28,7 @@ from guard_core.scripts.sliding_window_lua import (
     SLIDING_WINDOW_HIT_REFUSAL_SCRIPT,
     SLIDING_WINDOW_HIT_SCRIPT,
 )
-from guard_core.sync._utils.app_scope import WeakableConfig, hold_config_weakly
+from guard_core.sync._utils.app_scope import WeakableConfig
 from guard_core.sync.core.events.event_types import (
     EVENT_REDIS_CONNECTION,
     EVENT_REDIS_ERROR,
@@ -160,7 +160,8 @@ class RedisManager(RedisBanStrikeMixin):
     _closed = False
     config: SyncSecurityConfig
     if not TYPE_CHECKING:
-        # The module singletons keep this manager, so it must not keep its app.
+        # Strong when built by hand, as in v4.4.0; the engine hands the app its
+        # config once the app adopts this manager (hold_config_weakly).
         config = WeakableConfig()
     logger: logging.Logger
     agent_handler: redis_types.EventSink | None = None
@@ -171,7 +172,7 @@ class RedisManager(RedisBanStrikeMixin):
             manager = super().__new__(cls)
             manager.logger = logging.getLogger("guard_core.sync.handlers.redis")
             manager.agent_handler = None
-            hold_config_weakly(manager, config)
+            manager.config = config
             manager._registered = True
             _redis_shared_clients.register_manager(config, manager, cls)
         manager._closed = False

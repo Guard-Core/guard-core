@@ -70,12 +70,14 @@ async def test_a_background_stop_of_a_gone_app_does_not_keep_its_config_alive() 
         config = SecurityConfig(
             enable_redis=True, redis_url=REDIS_URL, redis_prefix="wp467b-bg:"
         )
-        initializer = HandlerInitializer(config)
         held_by_a_module = RedisManager(config)
+        initializer = HandlerInitializer(config, redis_handler=held_by_a_module)
+        await initializer.initialize_redis_handlers()
         stop_before_redis_closes(held_by_a_module, initializer._stop_lazy_init)
         released = weakref.ref(config)
 
         del config, initializer
+        gc.collect()  # the initializer and its behavior tracker are one cycle
 
         assert released() is None
         assert list(held_by_a_module._background_user_set()) == []

@@ -8,8 +8,8 @@ from guard_core._utils.app_managers import AppManagers as AppManagers
 from guard_core._utils.app_scope import (
     WeakableConfig,
     app_scope_of,
-    hold_config_weakly,
     in_app_scope,
+    release_config_to_app,
     serve_config_of_the_live_app,
 )
 from guard_core._utils.nat64 import nat64_table_of
@@ -87,7 +87,6 @@ class DynamicRuleManager(
             return own
         if cls._instance is None:
             cls._instance = cls._fresh(config)
-            hold_config_weakly(cls._instance, config)
         manager = _APP_RULE_MANAGERS.bind(
             config, cls._instance, lambda: cls._fresh(config)
         )
@@ -355,3 +354,11 @@ class DynamicRuleManager(
 
 
 dynamic_rule_manager = DynamicRuleManager
+
+
+def dynamic_rule_manager_of_the_app(config: SecurityConfig) -> DynamicRuleManager:
+    """The manager an app's own initializer uses: the app owns the config, so a
+    module-held manager must not keep it alive."""
+    manager = DynamicRuleManager(config)
+    release_config_to_app(manager, config)
+    return manager

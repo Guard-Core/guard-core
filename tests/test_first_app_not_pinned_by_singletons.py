@@ -5,7 +5,10 @@ from contextlib import contextmanager
 
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.handlers.cloud_handler import cloud_handler, cloud_handler_for
-from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
+from guard_core.handlers.dynamic_rule_handler import (
+    DynamicRuleManager,
+    dynamic_rule_manager_of_the_app,
+)
 from guard_core.handlers.ipban_handler import ip_ban_manager, ip_ban_manager_for
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.security_headers_handler import security_headers_manager
@@ -34,7 +37,7 @@ def _redis_config(prefix: str) -> SecurityConfig:
 async def _start_app(prefix: str) -> SecurityConfig:
     config = _redis_config(prefix)
     await HandlerInitializer(config).initialize_redis_handlers()
-    DynamicRuleManager(config)
+    dynamic_rule_manager_of_the_app(config)
     return config
 
 
@@ -50,20 +53,32 @@ async def test_the_first_app_is_freed_by_refcount_once_it_is_gone() -> None:
 
 async def test_the_first_app_with_a_redis_handler_is_freed_by_refcount() -> None:
     with _no_gc():
-        first = await _start_app("wp467-redis:")
+        first = _redis_config("wp467-redis:")
         handler = RedisManager(first)
+        await HandlerInitializer(
+            first, redis_handler=handler
+        ).initialize_redis_handlers()
         ip_ban_manager.redis_handler = handler
         sus_patterns_handler.redis_handler = handler
         security_headers_manager.redis_handler = handler
         released = weakref.ref(first)
 
         del first
+        gc.collect()  # the initializer and its behavior tracker are one cycle
 
         assert released() is None
         assert "config" not in vars(handler)
         ip_ban_manager.redis_handler = None
         sus_patterns_handler.redis_handler = None
         security_headers_manager.redis_handler = None
+
+
+async def test_a_redis_manager_built_by_hand_keeps_its_config() -> None:
+    with _no_gc():
+        manager = RedisManager(_redis_config("wp467-hand:"))
+
+        assert manager.config is not None
+        assert manager.config.redis_prefix == "wp467-hand:"
 
 
 async def test_the_next_app_on_another_prefix_is_served_by_the_module_singletons() -> (

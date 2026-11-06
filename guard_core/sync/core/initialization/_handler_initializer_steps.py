@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING, Protocol
 from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
 from guard_core._staged_defaults import signal_changed_defaults
 from guard_core.exceptions import GuardRedisError
-from guard_core.sync._utils.app_scope import app_scope_of, in_app_scope
+from guard_core.sync._utils.app_scope import (
+    app_scope_of,
+    in_app_scope,
+    release_config_to_app,
+)
 from guard_core.sync._utils.geo_member_call import settle_geo_member_call
 from guard_core.sync._utils.sampling import PerApp, SampledKeys, observe_sampled_key
 from guard_core.sync.core.initialization._cloud_initialization import (
@@ -159,7 +163,9 @@ class _HandlerInitializerStepsMixin(
         signal_changed_defaults(self.config)
         ip_ban_manager = ip_ban_manager_for(self.config, bind=True)
         ip_ban_manager.set_capacity(self.config.banned_ips_max_entries)
-        sus_patterns_manager_for(self.config, bind=True).configure(self.config)
+        patterns = sus_patterns_manager_for(self.config, bind=True)
+        patterns.configure(self.config)
+        release_config_to_app(patterns, self.config, "_config")
         apply_nat64_prefixes(self.config, self.logger)
 
     def _warn_if_lazy_init_is_inert(self) -> None:
@@ -189,12 +195,17 @@ class _HandlerInitializerStepsMixin(
     def _initialize_connected_redis_handlers(self) -> None:
         from guard_core.sync.handlers.cloud_handler import cloud_handler_for
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+        from guard_core.sync.handlers.redis_handler import RedisManager
         from guard_core.sync.handlers.suspatterns_handler import (
             sus_patterns_manager_for,
         )
 
         redis_handler = self._require_redis_handler()
         app_scope_of(self.config).redis_handler = redis_handler
+        # The app owns its config now; module singletons that keep this manager
+        # must not keep the app alive through it.
+        if isinstance(redis_handler, RedisManager):
+            release_config_to_app(redis_handler, self.config)
         ip_ban_manager = ip_ban_manager_for(self.config, bind=True)
         if self.config.cloud_ip_store is not None:
             cloud_handler_for(self.config).set_store(self._resolve_cloud_ip_store())
@@ -243,10 +254,12 @@ class _HandlerInitializerStepsMixin(
         if self.config.purge_dynamic_rules_on_start is None:
             return
 
-        from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
+        from guard_core.sync.handlers.dynamic_rule_handler import (
+            dynamic_rule_manager_of_the_app,
+        )
         from guard_core.sync.handlers.redis_handler import is_connected_redis_manager
 
-        manager = DynamicRuleManager(self.config)
+        manager = dynamic_rule_manager_of_the_app(self.config)
         if is_connected_redis_manager(self.redis_handler):
             manager.initialize_redis(self.redis_handler)
         try:
@@ -298,9 +311,11 @@ class _HandlerInitializerStepsMixin(
             )
             return
 
-        from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
+        from guard_core.sync.handlers.dynamic_rule_handler import (
+            dynamic_rule_manager_of_the_app,
+        )
 
-        dynamic_rule_manager = DynamicRuleManager(self.config)
+        dynamic_rule_manager = dynamic_rule_manager_of_the_app(self.config)
         telemetry = self.composite_handler or self.agent_handler
 
         # The update loop task copies this scope, so its bans and pattern

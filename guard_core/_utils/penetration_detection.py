@@ -2,6 +2,7 @@ import functools
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
 
+from guard_core._utils.app_scope import release_config_to_app
 from guard_core._utils.body_content_scan import (
     _scan_headers,
     _scan_query_param_value,
@@ -405,6 +406,7 @@ def _ensure_detection_singleton_configured(
     bound = sus_patterns_manager_for(config, bind=True)
     if bound._detection_state.compiler is None or bound._config is not config:
         bound.configure(config)
+        release_config_to_app(bound, config, "_config")
     return bound
 
 

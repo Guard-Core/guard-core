@@ -149,6 +149,7 @@ class WeakableConfig:
     def __set_name__(self, owner: type, name: str) -> None:
         self._name = name
         self._weak_key = _weak_key(name)
+        self._held_key = _held_key(name)
 
     @overload
     def __get__(
@@ -169,6 +170,9 @@ class WeakableConfig:
         value: SecurityConfig | None = stored.get(self._name)
         if value is not None:
             return value
+        kept: SecurityConfig | None = stored.get(self._held_key)
+        if kept is not None:
+            return kept
         held: weakref.ref[SecurityConfig] | None = stored.get(self._weak_key)
         return None if held is None else held()
 
@@ -196,6 +200,10 @@ def _weak_key(attribute: str) -> str:
     return f"_guard_weak_{attribute}"
 
 
+def _held_key(attribute: str) -> str:
+    return f"_guard_held_{attribute}"
+
+
 def weakly_held_config(manager: object, attribute: str) -> "SecurityConfig | None":
     held: weakref.ref[SecurityConfig] | None = manager.__dict__.get(
         _weak_key(attribute)
@@ -211,10 +219,33 @@ def hold_config_weakly(
     A module singleton manager holds the config of the first app, so a strong
     reference keeps that app's config, scope and handlers for the life of the
     process, and every later app on another prefix is told the first is still
-    running. A plain assignment to the attribute stays strong.
+    running. A plain assignment to the attribute stays strong. A config that
+    cannot be weakly referenced stays held strongly.
     """
     manager.__dict__.pop(attribute, None)
-    manager.__dict__[_weak_key(attribute)] = weakref.ref(config)
+    manager.__dict__.pop(_held_key(attribute), None)
+    try:
+        manager.__dict__[_weak_key(attribute)] = weakref.ref(config)
+    except TypeError:
+        manager.__dict__[_held_key(attribute)] = config
+
+
+def hold_config_until_adopted(
+    manager: object, config: object, attribute: str = "config"
+) -> None:
+    """Keep the config strongly, as v4.4.0 did, without marking the manager as
+    one that owns an app of its own; ``release_config_to_app`` lets it go."""
+    manager.__dict__[_held_key(attribute)] = config
+
+
+def release_config_to_app(
+    manager: object, config: object, attribute: str = "config"
+) -> None:
+    """Once an app adopts a manager built with its config, the app owns the config
+    and the manager serves it weakly. A manager nobody adopted keeps it strong."""
+    stored = manager.__dict__
+    if stored.get(attribute) is config or stored.get(_held_key(attribute)) is config:
+        hold_config_weakly(manager, config, attribute)
 
 
 def serve_config_of_the_live_app(
@@ -224,6 +255,7 @@ def serve_config_of_the_live_app(
     from an app still alive."""
     if (
         attribute not in manager.__dict__
+        and _held_key(attribute) not in manager.__dict__
         and weakly_held_config(manager, attribute) is None
     ):
         hold_config_weakly(manager, config, attribute)
@@ -231,6 +263,7 @@ def serve_config_of_the_live_app(
 
 def forget_config(manager: object, attribute: str) -> None:
     manager.__dict__.pop(attribute, None)
+    manager.__dict__.pop(_held_key(attribute), None)
     manager.__dict__.pop(_weak_key(attribute), None)
 
 
