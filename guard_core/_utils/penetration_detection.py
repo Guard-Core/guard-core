@@ -2,6 +2,7 @@ import functools
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
 
+from guard_core._utils.app_scope import release_config_to_app
 from guard_core._utils.body_content_scan import (
     _scan_headers,
     _scan_query_param_value,
@@ -400,11 +401,21 @@ def _ensure_detection_singleton_configured(
     if config is None:
         return sus_patterns_handler
     manager = config._guard_pattern_manager
-    if manager is not None and manager._config is config:
-        return manager
+    # Not manager._config: that may be held weakly, and reading it is a call on
+    # every warm request.
+    if manager is not None:
+        configured_for = manager._configured_for
+        # A state reset to the legacy one (no compiler) is not configured.
+        if (
+            configured_for is not None
+            and configured_for() is config
+            and manager._detection_state.compiler is not None
+        ):
+            return manager
     bound = sus_patterns_manager_for(config, bind=True)
     if bound._detection_state.compiler is None or bound._config is not config:
         bound.configure(config)
+        release_config_to_app(bound, config, "_config")
     return bound
 
 

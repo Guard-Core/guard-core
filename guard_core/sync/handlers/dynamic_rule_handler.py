@@ -2,10 +2,17 @@ import logging
 import threading
 from datetime import datetime, timezone
 from ipaddress import ip_address
+from typing import TYPE_CHECKING
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.app_managers import AppManagers as AppManagers
-from guard_core.sync._utils.app_scope import app_scope_of, in_app_scope
+from guard_core.sync._utils.app_scope import (
+    WeakableConfig,
+    app_scope_of,
+    in_app_scope,
+    release_config_to_app,
+    serve_config_of_the_live_app,
+)
 from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync._utils.rule_attribution_shared import _APP_RULE_MANAGERS
 from guard_core.sync._utils.whitelist_match import is_listed
@@ -49,6 +56,8 @@ class DynamicRuleManager(
 ):
     _instance = None
     config: SyncSecurityConfig
+    if not TYPE_CHECKING:
+        config = WeakableConfig()
     agent_handler: SyncAgentHandlerProtocol | None = None
     redis_handler: SyncRedisHandlerProtocol | None = None
     logger: logging.Logger
@@ -78,9 +87,12 @@ class DynamicRuleManager(
             return own
         if cls._instance is None:
             cls._instance = cls._fresh(config)
-        return _APP_RULE_MANAGERS.bind(
+        manager = _APP_RULE_MANAGERS.bind(
             config, cls._instance, lambda: cls._fresh(config)
         )
+        if manager is cls._instance:
+            serve_config_of_the_live_app(manager, config)
+        return manager
 
     @classmethod
     def _fresh(
@@ -333,3 +345,11 @@ class DynamicRuleManager(
 
 
 dynamic_rule_manager = DynamicRuleManager
+
+
+def dynamic_rule_manager_of_the_app(config: SyncSecurityConfig) -> DynamicRuleManager:
+    """The manager an app's own initializer uses: the app owns the config, so a
+    module-held manager must not keep it alive."""
+    manager = DynamicRuleManager(config)
+    release_config_to_app(manager, config)
+    return manager

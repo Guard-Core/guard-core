@@ -1,7 +1,9 @@
 import re
+import weakref
 from typing import TYPE_CHECKING, TypedDict
 
 from guard_core._parked_records import PATTERN_MANAGER_RECORD
+from guard_core._utils.app_scope import hold_config_until_adopted
 from guard_core._utils.scan_config_scope import (
     _request_scan_window,
     configure_lock,
@@ -47,6 +49,7 @@ class _SusPatternsEnhancedMixin:
     _disabled_row_sources: frozenset[str] = frozenset()
     agent_handler: "AgentHandlerProtocol | None" = None
     _detection_state: _DetectionState
+    _configured_for: weakref.ref[object] | None = None
     _performance_monitor: PerformanceMonitor | None
     _semantic_threshold: float
     _sensitive_headers_union: frozenset[str] = frozenset()
@@ -87,8 +90,12 @@ class _SusPatternsEnhancedMixin:
         if "_config" in vars(self):
             self._config = config
         else:
-            cls._config = config
+            hold_config_until_adopted(self, config, "_config")
         self._detection_state = _build_enhanced_detection_state(config, self)
+        try:
+            self._configured_for = weakref.ref(config)
+        except TypeError:
+            self._configured_for = None
         try:
             object.__setattr__(config, PATTERN_MANAGER_RECORD, self)
         except (AttributeError, TypeError):

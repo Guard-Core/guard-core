@@ -21,7 +21,12 @@ from typing import NamedTuple as NamedTuple
 from guard_core._lazy_patterns import module_attribute_lookup
 from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync._utils.app_managers import AppManagers
-from guard_core.sync._utils.app_scope import ScopedAgentHandler, ScopedRedisHandler
+from guard_core.sync._utils.app_scope import (
+    ScopedAgentHandler,
+    ScopedRedisHandler,
+    WeakableConfig,
+    hold_config_weakly,
+)
 from guard_core.sync._utils.detection_scan import (
     LazyPreview,
     _context_header_is_semantic_excluded,
@@ -766,7 +771,9 @@ def _merge_raw_view_results(
 
 class SusPatternsManager(_SusPatternsViewsMixin):
     _instance = None
-    _config = None
+    if not TYPE_CHECKING:
+        # The default manager serves the first app's config without owning it.
+        _config = WeakableConfig()
 
     _pattern_definitions: list[tuple[str, frozenset[str], str]] = _PATTERN_DEFINITIONS
 
@@ -786,7 +793,8 @@ class SusPatternsManager(_SusPatternsViewsMixin):
     ) -> "SusPatternsManager":
         if cls._instance is None:
             cls._instance = cls._fresh()
-            cls._config = config
+            if config is not None:
+                hold_config_weakly(cls._instance, config, "_config")
             if _supports_enhanced_config(config):
                 cls._instance._detection_state = _build_enhanced_detection_state(
                     config, cls._instance
@@ -809,7 +817,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
     ) -> "SusPatternsManager":
         instance = cls._fresh()
         instance.patterns = [definition[0] for definition in cls._pattern_definitions]
-        instance._config = config
+        object.__setattr__(instance, "_config", config)
         instance._sensitive_headers_union = frozenset()
         instance._sensitive_params_union = frozenset()
         instance._sensitive_body_fields_union = frozenset()

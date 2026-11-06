@@ -1,5 +1,5 @@
 import weakref
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING, Generic, TypeVar, overload
@@ -72,6 +72,8 @@ class ScopedToApp(Generic[_V]):
     the Redis handler, never another app's.
     """
 
+    _weak_key: str | None = None
+
     def __init__(self, default: _V, writes_to_scope: bool = False) -> None:
         self._default = default
         self._writes_to_scope = writes_to_scope
@@ -104,7 +106,16 @@ class ScopedToApp(Generic[_V]):
         if self._name != "config" and stored.get(SHARED_BY_APPS):
             return self._default
         value: _V = stored.get(self._name, self._default)
+        if self._weak_key is not None:
+            return self._or_weakly_held(stored, value)
         return value
+
+    def _or_weakly_held(self, stored: Mapping[str, object], value: _V) -> _V:
+        if value is not None or self._weak_key is None:
+            return value
+        held = stored.get(self._weak_key)
+        resolved = held() if isinstance(held, weakref.ref) else None
+        return value if resolved is None else resolved
 
     def __set__(self, instance: object, value: _V) -> None:
         scope = _current_app_scope.get() if self._writes_to_scope else None
@@ -115,8 +126,89 @@ class ScopedToApp(Generic[_V]):
 
 
 class ScopedConfig(ScopedToApp["SyncSecurityConfig | None"]):
+    _config_weak_key: str
+
     def __init__(self) -> None:
         super().__init__(None)
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        super().__set_name__(owner, name)
+        self._weak_key = self._config_weak_key = _weak_key(name)
+
+    @overload
+    def __get__(self, instance: None, owner: type | None = None) -> "ScopedConfig": ...
+
+    @overload
+    def __get__(
+        self, instance: object, owner: type | None = None
+    ) -> "SyncSecurityConfig | None": ...
+
+    def __get__(
+        self, instance: object | None, owner: type | None = None
+    ) -> "ScopedConfig | SyncSecurityConfig | None":
+        # Hot path: no scope in force, so the config set last (strongly, else the
+        # weakly held one) answers; anything else takes the general rule.
+        if (
+            instance is not None
+            and _current_app_scope.get() is None
+            and _scan_config_scope.get() is None
+        ):
+            stored = instance.__dict__
+            value: SyncSecurityConfig | None = stored.get(self._name)
+            if value is None:
+                weak = stored.get(self._config_weak_key)
+                if weak is not None:
+                    value = weak()
+            if value is not None:
+                return value
+        return super().__get__(instance, owner)
+
+    def __set__(self, instance: object, value: "SyncSecurityConfig | None") -> None:
+        instance.__dict__.pop(_weak_key(self._name), None)
+        super().__set__(instance, value)
+
+
+class WeakableConfig:
+    """A config attribute a module singleton can serve without owning the app.
+
+    ``manager.attribute = value`` keeps the value strongly, as a plain attribute
+    does. ``hold_config_weakly`` serves it until the app that owns it is gone.
+    Read on the class it returns the descriptor itself.
+    """
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self._name = name
+        self._weak_key = _weak_key(name)
+        self._held_key = _held_key(name)
+
+    @overload
+    def __get__(
+        self, instance: None, owner: type | None = None
+    ) -> "WeakableConfig": ...
+
+    @overload
+    def __get__(
+        self, instance: object, owner: type | None = None
+    ) -> "SyncSecurityConfig | None": ...
+
+    def __get__(
+        self, instance: object | None, owner: type | None = None
+    ) -> "WeakableConfig | SyncSecurityConfig | None":
+        if instance is None:
+            return self
+        stored = instance.__dict__
+        value: SyncSecurityConfig | None = stored.get(self._name)
+        if value is not None:
+            return value
+        kept: SyncSecurityConfig | None = stored.get(self._held_key)
+        if kept is not None:
+            return kept
+        held: weakref.ref[SyncSecurityConfig] | None = stored.get(self._weak_key)
+        return None if held is None else held()
+
+    def __set__(self, instance: object, value: "SyncSecurityConfig | None") -> None:
+        instance.__dict__.pop(_weak_key(self._name), None)
+        instance.__dict__[self._name] = value
 
 
 class ScopedAgentHandler(ScopedToApp["SyncAgentHandlerProtocol | None"]):
@@ -132,6 +224,77 @@ class ScopedRedisHandler(ScopedToApp["SyncRedisHandlerProtocol | None"]):
 class ScopedRuleExemptNetworks(ScopedToApp["tuple[_Network, ...]"]):
     def __init__(self) -> None:
         super().__init__((), writes_to_scope=True)
+
+
+def _weak_key(attribute: str) -> str:
+    return f"_guard_weak_{attribute}"
+
+
+def _held_key(attribute: str) -> str:
+    return f"_guard_held_{attribute}"
+
+
+def weakly_held_config(manager: object, attribute: str) -> "SyncSecurityConfig | None":
+    held: weakref.ref[SyncSecurityConfig] | None = manager.__dict__.get(
+        _weak_key(attribute)
+    )
+    return None if held is None else held()
+
+
+def hold_config_weakly(
+    manager: object, config: object, attribute: str = "config"
+) -> None:
+    """Serve this config from a manager attribute without keeping its app alive.
+
+    A module singleton manager holds the config of the first app, so a strong
+    reference keeps that app's config, scope and handlers for the life of the
+    process, and every later app on another prefix is told the first is still
+    running. A plain assignment to the attribute stays strong. A config that
+    cannot be weakly referenced stays held strongly.
+    """
+    manager.__dict__.pop(attribute, None)
+    manager.__dict__.pop(_held_key(attribute), None)
+    try:
+        manager.__dict__[_weak_key(attribute)] = weakref.ref(config)
+    except TypeError:
+        manager.__dict__[_held_key(attribute)] = config
+
+
+def hold_config_until_adopted(
+    manager: object, config: object, attribute: str = "config"
+) -> None:
+    """Keep the config strongly, as v4.4.0 did, without marking the manager as
+    one that owns an app of its own; ``release_config_to_app`` lets it go."""
+    manager.__dict__[_held_key(attribute)] = config
+
+
+def release_config_to_app(
+    manager: object, config: object, attribute: str = "config"
+) -> None:
+    """Once an app adopts a manager built with its config, the app owns the config
+    and the manager serves it weakly. A manager nobody adopted keeps it strong."""
+    stored = manager.__dict__
+    if stored.get(attribute) is config or stored.get(_held_key(attribute)) is config:
+        hold_config_weakly(manager, config, attribute)
+
+
+def serve_config_of_the_live_app(
+    manager: object, config: "SyncSecurityConfig", attribute: str = "config"
+) -> None:
+    """Point a singleton whose app is gone at the app now using it, never away
+    from an app still alive."""
+    if (
+        attribute not in manager.__dict__
+        and _held_key(attribute) not in manager.__dict__
+        and weakly_held_config(manager, attribute) is None
+    ):
+        hold_config_weakly(manager, config, attribute)
+
+
+def forget_config(manager: object, attribute: str) -> None:
+    manager.__dict__.pop(attribute, None)
+    manager.__dict__.pop(_held_key(attribute), None)
+    manager.__dict__.pop(_weak_key(attribute), None)
 
 
 def app_scope_of(config: "SyncSecurityConfig") -> AppScope:

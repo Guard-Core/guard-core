@@ -271,3 +271,15 @@ def _override_keys(prefix: str) -> list[str]:
         return [key for key in client.scan_iter(match=f"{prefix}*override*", count=500)]
     finally:
         close_redis_client(client)
+
+
+def test_a_warm_config_whose_detection_state_was_reset_is_detected_again() -> None:
+    config = _config()
+    HandlerInitializer(config)
+    attack = _request("%253Cscript%253Ealert(1)%253C%252Fscript%253E")
+    assert (detect_penetration_attempt(attack, config)).is_threat
+    manager = config._guard_pattern_manager
+    assert manager is not None
+    manager._detection_state = type(manager)._fresh()._detection_state
+
+    assert (detect_penetration_attempt(attack, config)).is_threat

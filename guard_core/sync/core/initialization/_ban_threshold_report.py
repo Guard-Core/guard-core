@@ -4,6 +4,7 @@ from collections.abc import Callable, Collection
 from typing import TYPE_CHECKING
 
 from guard_core._misconfiguration import report_misconfiguration
+from guard_core._parked_records import BAN_THRESHOLD_CONTEXT_RECORD
 from guard_core.sync.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 
 if TYPE_CHECKING:
@@ -32,8 +33,6 @@ _CONFIG_SOURCES_FED_BEFORE_RATE_LIMITING = (
     "trusted_proxies",
 )
 
-_remembered_context: "_BanThresholdContext | None" = None
-
 
 class _BanThresholdContext:
     def __init__(
@@ -48,9 +47,10 @@ class _BanThresholdContext:
 def remember_ban_threshold_context(
     route_configs: Callable[[], Collection["RouteConfig"]],
     redis_shared: Callable[[], bool],
+    config: "SyncSecurityConfig",
 ) -> None:
-    global _remembered_context
-    _remembered_context = _BanThresholdContext(route_configs, redis_shared)
+    context = _BanThresholdContext(route_configs, redis_shared)
+    object.__setattr__(config, BAN_THRESHOLD_CONTEXT_RECORD, context)
 
 
 def _redis_outage_lets_requests_past_the_limit(
@@ -149,7 +149,8 @@ def report_unreachable_ban_thresholds(
 def log_unreachable_ban_thresholds_after_rule_change(
     config: "SyncSecurityConfig", logger: logging.Logger
 ) -> None:
-    if _remembered_context is None:
+    context = getattr(config, BAN_THRESHOLD_CONTEXT_RECORD, None)
+    if context is None:
         return
-    for problem in unreachable_ban_threshold_problems(config, _remembered_context):
+    for problem in unreachable_ban_threshold_problems(config, context):
         logger.warning("Dynamic rule: %s", problem)

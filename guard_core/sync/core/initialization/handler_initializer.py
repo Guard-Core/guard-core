@@ -102,9 +102,11 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
 
         dynamic_rule_handler: object | None = None
         if self.config.enable_dynamic_rules:
-            from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
+            from guard_core.sync.handlers.dynamic_rule_handler import (
+                dynamic_rule_manager_of_the_app,
+            )
 
-            dynamic_rule_handler = DynamicRuleManager(self.config)
+            dynamic_rule_handler = dynamic_rule_manager_of_the_app(self.config)
 
         behavior_tracker = self.behavior_tracker
         if behavior_tracker is None:

@@ -28,12 +28,14 @@ from guard_core.scripts.sliding_window_lua import (
     SLIDING_WINDOW_HIT_REFUSAL_SCRIPT,
     SLIDING_WINDOW_HIT_SCRIPT,
 )
+from guard_core.sync._utils.app_scope import WeakableConfig
 from guard_core.sync.core.events.event_types import (
     EVENT_REDIS_CONNECTION,
     EVENT_REDIS_ERROR,
 )
 from guard_core.sync.handlers import _redis_handler_support as redis_types
 from guard_core.sync.handlers import _redis_shared_clients
+from guard_core.sync.handlers._background_stop import BackgroundUsers
 from guard_core.sync.handlers._dynamic_rule_persistence import (
     BAN_FLOORS_NAMESPACE,
     DYNAMIC_RULES_REDIS_NAMESPACE,
@@ -157,6 +159,10 @@ class RedisManager(RedisBanStrikeMixin):
     _connection_lock = threading.Lock()
     _closed = False
     config: SyncSecurityConfig
+    if not TYPE_CHECKING:
+        # Strong when built by hand, as in v4.4.0; the engine hands the app its
+        # config once the app adopts this manager (hold_config_weakly).
+        config = WeakableConfig()
     logger: logging.Logger
     agent_handler: redis_types.EventSink | None = None
 
@@ -336,10 +342,10 @@ class RedisManager(RedisBanStrikeMixin):
         out while ``aclose`` runs and none is left open behind it."""
         self._background_user_set().add(stop)
 
-    def _background_user_set(self) -> set[Callable[[], None]]:
+    def _background_user_set(self) -> BackgroundUsers:
         # Created on first use: a subclass that overrides __new__ skips it.
-        users: set[Callable[[], None]] = vars(self).setdefault(
-            "_background_users", set()
+        users: BackgroundUsers = vars(self).setdefault(
+            "_background_users", BackgroundUsers()
         )
         return users
 

@@ -16,6 +16,7 @@ from guard_core._redis_exceptions import (
     NoScriptError,
     RedisConnectionError,
 )
+from guard_core._utils.app_scope import WeakableConfig
 from guard_core.core.events.event_types import (
     EVENT_REDIS_CONNECTION,
     EVENT_REDIS_ERROR,
@@ -23,6 +24,7 @@ from guard_core.core.events.event_types import (
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers import _redis_handler_support as redis_types
 from guard_core.handlers import _redis_shared_clients
+from guard_core.handlers._background_stop import BackgroundUsers
 from guard_core.handlers._dynamic_rule_persistence import (
     BAN_FLOORS_NAMESPACE,
     DYNAMIC_RULES_REDIS_NAMESPACE,
@@ -153,6 +155,10 @@ class RedisManager(RedisBanStrikeMixin):
     _connection_lock = asyncio.Lock()
     _closed = False
     config: SecurityConfig
+    if not TYPE_CHECKING:
+        # Strong when built by hand, as in v4.4.0; the engine hands the app its
+        # config once the app adopts this manager (hold_config_weakly).
+        config = WeakableConfig()
     logger: logging.Logger
     agent_handler: redis_types.EventSink | None = None
 
@@ -332,10 +338,10 @@ class RedisManager(RedisBanStrikeMixin):
         out while ``aclose`` runs and none is left open behind it."""
         self._background_user_set().add(stop)
 
-    def _background_user_set(self) -> set[Callable[[], Awaitable[None]]]:
+    def _background_user_set(self) -> BackgroundUsers:
         # Created on first use: a subclass that overrides __new__ skips it.
-        users: set[Callable[[], Awaitable[None]]] = vars(self).setdefault(
-            "_background_users", set()
+        users: BackgroundUsers = vars(self).setdefault(
+            "_background_users", BackgroundUsers()
         )
         return users
 

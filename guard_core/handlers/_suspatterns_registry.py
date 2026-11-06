@@ -8,6 +8,7 @@ from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Concatenate, Generic, ParamSpec, TypeVar
 
+from guard_core._utils.app_scope import forget_config
 from guard_core._utils.detection_scan import _redact_pattern_source
 from guard_core.detection_engine import PatternCompiler, PerformanceMonitor
 from guard_core.handlers._suspatterns_lazy_rows import _SusPatternsLazyRowsMixin
@@ -355,4 +356,4 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
             ):
                 await cls._instance._performance_monitor.clear_stats()
 
-            cls._config = None
+            forget_config(cls._instance, "_config")
