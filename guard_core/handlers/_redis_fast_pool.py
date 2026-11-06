@@ -34,6 +34,11 @@ class _RecordCount(Protocol):
     ) -> None: ...
 
 
+class PoolExhaustedError(RedisConnectionError):
+    """The bounded wait for a free connection ran out. A subclass so that it is no
+    outage for the manager, which marks only the exact redis error types degraded."""
+
+
 _PoolName = Callable[[ConnectionPool], str]
 _WaitRecorder = tuple[_RecordWait, _PoolName]
 _CountRecorder = tuple[_RecordCount, _ConnectionStates, _PoolName, ModuleType]
@@ -304,7 +309,7 @@ class FastPathConnectionPool(ConnectionPool):
         try:
             await asyncio.wait_for(self._wait_on_the_condition(), remaining)
         except asyncio.TimeoutError as error:
-            raise RedisConnectionError(_TIMEOUT_MESSAGE) from error
+            raise PoolExhaustedError(_TIMEOUT_MESSAGE) from error
 
     async def _wait_on_the_condition(self) -> None:
         async with self._condition:

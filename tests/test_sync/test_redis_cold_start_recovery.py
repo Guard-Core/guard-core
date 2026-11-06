@@ -25,6 +25,7 @@ from guard_core.sync.core.checks.pipeline import (
     SecurityCheckPipeline,
 )
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
+from guard_core.sync.handlers._redis_reconnect_gate import RedisReconnectGate
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.sync.handlers.redis_handler import (
     RedisHandlerBase,
@@ -235,6 +236,33 @@ def config_for(
     )
 
 
+def settle_gates(*gates: RedisReconnectGate | None) -> None:
+    # A reconnect runs off the request path: the request that won the window is
+    # answered at once and the attempt it started ends here, before the next call.
+    end = monotonic() + 5
+    while monotonic() < end and any(
+        gate is not None and gate._claim.locked() for gate in gates
+    ):
+        time.sleep(0.01)
+
+
+def settle(manager: RedisManager) -> None:
+    settle_gates(manager._reconnect_gate())
+
+
+def serve(
+    pipeline: SecurityCheckPipeline,
+    initializer: HandlerInitializer,
+    handler: object = None,
+) -> object:
+    answer = pipeline.execute(request_of())
+    manager_gate = (
+        handler._reconnect_gate() if isinstance(handler, RedisManager) else None
+    )
+    settle_gates(initializer._recovery_own_gate, manager_gate)
+    return answer
+
+
 class App:
     def __init__(self, config: SyncSecurityConfig, with_handler: bool = True) -> None:
         self.config = config
@@ -251,7 +279,13 @@ class App:
         self.initializer.initialize_redis_handlers()
 
     def request(self, **state: object) -> object:
-        return self.pipeline.execute(request_of(**state))
+        answer = self.pipeline.execute(request_of(**state))
+        self.settle()
+        return answer
+
+    def settle(self) -> None:
+        manager_gate = self.redis._reconnect_gate() if self.redis is not None else None
+        settle_gates(self.initializer._recovery_own_gate, manager_gate)
 
     def ban(self) -> None:
         manager = ip_ban_manager_for(self.config)
@@ -276,6 +310,7 @@ def test_redis_is_used_after_the_retry_interval_when_it_comes_back(
 
     forwarder.on()
     time.sleep(REDIS_OUTAGE_RETRY_AFTER + 0.3)
+    assert app.request() is None
     assert app.request() is None
 
     app.ban()
@@ -364,6 +399,7 @@ def test_a_second_failure_keeps_failing_open_and_retries_next_window(
         clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
         assert app.request() is None
         assert attempts.call_count == 4
+        assert app.request() is None
         assert app.names() == []
 
         clock.now += REDIS_OUTAGE_RETRY_AFTER * 3
@@ -439,6 +475,7 @@ def test_a_manager_another_caller_reconnected_is_bound_without_a_connect(
         caplog.at_level(logging.WARNING),
     ):
         assert app.request() is None
+        assert app.request() is None
     assert "Redis recovery after a cold start failed" in caplog.text
     assert app.names() == [RECOVERY_CHECK]
 
@@ -478,6 +515,8 @@ def test_a_new_start_with_redis_back_removes_the_check(
     assert app.names() == [RECOVERY_CHECK]
     forwarder.on()
     clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
+    app.start()
+    app.settle()
     app.start()
     assert app.names() == []
 
@@ -522,6 +561,7 @@ def test_a_pipeline_rebuild_keeps_the_check_until_redis_recovers(
         forwarder.on()
         clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
         assert app.request() is None
+        assert app.request() is None
         assert app.names() == []
 
         app.config.rate_limit = 8
@@ -556,6 +596,7 @@ def test_a_blocked_request_alone_brings_redis_back(
     forwarder.on()
     clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
     assert app.request() is not None
+    assert app.request() is not None
     assert app.names() == ["blocker"]
     app.ban()
     assert keys_under(prefix) > 0
@@ -572,6 +613,7 @@ def test_an_excluded_path_probe_alone_brings_redis_back(
     app.pipeline.add_check(enforced_nowhere)
     forwarder.on()
     clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
+    assert app.request(guard_exclusion_scoped=True) is None
     assert app.request(guard_exclusion_scoped=True) is None
     assert enforced_nowhere.seen == []
     assert app.names() == ["ordinary"]
@@ -638,6 +680,7 @@ def test_a_black_hole_that_hangs_for_seconds_is_tried_once_per_5_s(
         with pytest.raises(GuardRedisError):
             with manager.get_connection():
                 pass
+        settle(manager)
 
     with patch.object(manager, "_open_connection", hangs_like_the_defaults):
         call()
@@ -676,6 +719,7 @@ def test_fail_closed_gets_its_503_fast_during_an_outage(
         with pytest.raises(GuardRedisError):
             with app.redis.get_connection():
                 pass
+        settle(app.redis)
         assert attempts.call_count == 2
 
 
@@ -792,6 +836,7 @@ def test_a_refused_outage_held_30_s_is_tried_at_most_12_times_and_reported_7(
             with pytest.raises(GuardRedisError):
                 with manager.get_connection():
                     pass
+            settle(manager)
             clock.now += 0.1
     assert 8 <= attempts.call_count <= 12
     assert 1 <= events.count("connection_failed") <= 7
@@ -867,14 +912,14 @@ def test_a_super_calling_handler_is_asked_once_per_window_and_connects(
     assert pipeline.get_check_names() == [RECOVERY_CHECK]
 
     for _ in range(300):
-        assert pipeline.execute(request_of()) is None
+        assert serve(pipeline, initializer, handler) is None
         clock.now += 0.1
     assert 8 <= SuperCallingHandler.initialize_calls <= 13
     assert pipeline.get_check_names() == [RECOVERY_CHECK]
 
     forwarder.on()
     for _ in range(80):
-        assert pipeline.execute(request_of()) is None
+        assert serve(pipeline, initializer, handler) is None
         clock.now += 0.1
         if not pipeline.get_check_names():
             break
@@ -896,6 +941,10 @@ def test_a_recovered_connection_sends_one_recovered_event(
             pass
     forwarder.on()
     clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
+    with pytest.raises(GuardRedisError):
+        with manager.get_connection():
+            pass
+    settle(manager)
     with manager.get_connection() as connection:
         assert connection.ping()
     assert events.count("connection_recovered") == 1
@@ -940,14 +989,14 @@ def test_an_initialize_that_swallows_the_failure_keeps_the_backoff(
     initializer.initialize_redis_handlers()
     SwallowingHandler.swallow = True
     for _ in range(300):
-        assert pipeline.execute(request_of()) is None
+        assert serve(pipeline, initializer, handler) is None
         clock.now += 0.1
     assert 8 <= SwallowingHandler.initialize_calls <= 13
     assert pipeline.get_check_names() == [RECOVERY_CHECK]
 
     forwarder.on()
     for _ in range(80):
-        assert pipeline.execute(request_of()) is None
+        assert serve(pipeline, initializer, handler) is None
         clock.now += 0.1
         if not pipeline.get_check_names():
             break
@@ -971,6 +1020,10 @@ def test_a_second_outage_after_a_recovery_reports_its_first_failure(
     assert events.count("connection_failed") == 1
     forwarder.on()
     clock.now += 0.3
+    with pytest.raises(GuardRedisError):
+        with manager.get_connection():
+            pass
+    settle(manager)
     with manager.get_connection() as connection:
         assert connection.ping()
     forwarder.off()
@@ -1050,7 +1103,7 @@ def test_a_handler_with_its_client_elsewhere_recovers_through_is_connected(
 
     forwarder.on()
     for _ in range(80):
-        assert pipeline.execute(request_of()) is None
+        assert serve(pipeline, initializer, handler) is None
         clock.now += 0.1
         if not pipeline.get_check_names():
             break
@@ -1094,7 +1147,7 @@ def test_a_handler_with_only_redis_attribute_starts_clean_and_recovers(
 
     forwarder.on()
     for _ in range(80):
-        assert pipeline.execute(request_of()) is None
+        assert serve(pipeline, initializer, handler) is None
         clock.now += 0.1
         if not pipeline.get_check_names():
             break

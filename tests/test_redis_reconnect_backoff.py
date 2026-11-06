@@ -96,6 +96,8 @@ async def test_concurrent_callers_share_one_attempt(  # async-only
     manager, events = partitioned_manager(silent)
     durations = list(await asyncio.gather(*(refused_after(manager) for _ in range(10))))
     durations.sort()
+    # The callers of a first connect wait for that one attempt, as on v4.4.0 (D-290
+    # item 1), and none starts a second: one failure is reported.
     assert durations[-1] < CONNECT_TIMEOUT * 1 + 1.0
-    assert all(duration < 0.1 for duration in durations[:-1])
+    assert durations[0] >= CONNECT_TIMEOUT * 0.5
     assert events.count("connection_failed") == 1

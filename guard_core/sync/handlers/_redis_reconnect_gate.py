@@ -52,6 +52,13 @@ class RedisReconnectGate:
         self._claim.release()
         return recovered
 
+    def reset_after_fork(self) -> None:
+        """A forked child has none of the parent's threads: a claim one of them held
+        stays held for good. The child gets a free claim and an open window, never a
+        release of the parent's lock."""
+        self._claim = threading.Lock()
+        self._not_before = 0.0
+
     def report_due(self) -> bool:
         """True at most once per REDIS_RECONNECT_WINDOW_SECONDS: the caller reports
         a failure (log line, event) only when it is."""

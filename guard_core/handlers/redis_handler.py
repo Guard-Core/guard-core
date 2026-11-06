@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
+import os
 import uuid
+import weakref
 from collections.abc import AsyncIterator, Awaitable, Callable, Hashable, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -15,8 +18,9 @@ from guard_core._redis_enablement import configured_redis_url, redis_is_configur
 from guard_core._redis_exceptions import (
     NoScriptError,
     RedisConnectionError,
+    RedisTimeoutError,
 )
-from guard_core._utils.app_scope import WeakableConfig
+from guard_core._utils.app_scope import WeakableConfig, app_scope_of, in_app_scope
 from guard_core.core.events.event_types import (
     EVENT_REDIS_CONNECTION,
     EVENT_REDIS_ERROR,
@@ -30,6 +34,7 @@ from guard_core.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
     OWNED_BANS_KEY,
 )
+from guard_core.handlers._redis_attempt import ConnectionLocks, RedisAttemptSlot
 from guard_core.handlers._redis_ban_strike import RedisBanStrikeMixin
 from guard_core.handlers._redis_handler_support import (
     _redact_redis_url,
@@ -146,14 +151,32 @@ _SUM_INDEXED_WINDOW_HITS_SHA = hashlib.sha1(
 ).hexdigest()
 
 
+_LIVE_MANAGERS: weakref.WeakSet[RedisManager] = weakref.WeakSet()
+
+
+def _forget_the_parents_attempts() -> None:
+    # A forked child has none of the parent's threads: a gate claim, a connection lock
+    # or an attempt one of them held stays held for good. Every manager gets new ones
+    # and none is released.
+    for manager in tuple(_LIVE_MANAGERS):
+        manager._forget_the_parents_attempts()
+
+
+with contextlib.suppress(AttributeError):
+    os.register_at_fork(after_in_child=_forget_the_parents_attempts)
+
+
 class RedisManager(RedisBanStrikeMixin):
     _instance = None
     _redis: Redis | None = None
     _pool_key: Hashable | None = None
     _client_loop: EventLoop | None = None
     _registered = False
-    _connection_lock = asyncio.Lock()
     _closed = False
+    # Set while the last connect or the live client failed; cleared by a connect.
+    _degraded = False
+    # Counts successful connects: a caller that waited for the lock sees one.
+    _connect_generation = 0
     # Strong when built by hand, as in v4.4.0; the engine hands the app its
     # config once the app adopts this manager (hold_config_weakly).
     config: SecurityConfig = cast("SecurityConfig", WeakableConfig())
@@ -168,6 +191,7 @@ class RedisManager(RedisBanStrikeMixin):
             manager.agent_handler = None
             manager.config = config
             manager._registered = True
+            _LIVE_MANAGERS.add(manager)
             _redis_shared_clients.register_manager(config, manager, cls)
         manager._closed = False
         cls._instance = manager
@@ -246,29 +270,119 @@ class RedisManager(RedisBanStrikeMixin):
         if url is None:
             if config.enable_redis:
                 self.logger.warning("Redis URL is None, skipping connection")
-            async with self._connection_lock:
+            async with self._connection_lock_here():
                 await self._discard_client()
             return
 
         self._closed = False
 
-        gate = self._reconnect_gate()
-        gated = self._redis is None
-        if gated and not gate.enter():
+        if self._degraded:
+            # Nobody connects on the request path while degraded: the caller that
+            # wins the window starts the attempt, and every caller is refused at once.
+            self._start_the_attempt_if_the_window_is_open(url)
             raise GuardRedisError(503, "Redis connection failed")
+        await self._connect_inline(url)
+
+    def _start_the_attempt_if_the_window_is_open(self, url: str) -> None:
+        gate = self._reconnect_gate()
+        if gate.enter():
+            try:
+                self.register_background_user(self._attempts().stop)
+                self._attempts().spawn(lambda: self._attempt_in_background(url))
+            except BaseException:
+                # No attempt will ever release the claim: do it here, or no caller
+                # would ever enter again.
+                gate.leave(False)
+                raise
+
+    async def _connect_inline(self, url: str) -> None:
+        # The first connect and the loop-change reconnect: callers wait for the one
+        # attempt, as on v4.4.0, and the ones that waited use its result.
+        gate = self._reconnect_gate()
+        seen = self._connect_generation
+        recovered = False
+        async with self._connection_lock_here():
+            if self._connect_generation != seen and self._is_bound_to_this_loop():
+                return
+            if self._degraded:
+                raise GuardRedisError(503, "Redis connection failed")
+            gated = self._redis is None
+            if gated and not gate.enter():
+                raise GuardRedisError(503, "Redis connection failed")
+            try:
+                await self._open_connection(url)
+            finally:
+                if gated:
+                    recovered = gate.leave(self._redis is not None)
+        if recovered:
+            await self._report_recovery(url)
+
+    async def _report_recovery(self, url: str) -> None:
+        await self._send_redis_event(
+            event_type=EVENT_REDIS_CONNECTION,
+            action_taken="connection_recovered",
+            reason="Redis connection recovered after failed attempts",
+            redis_url=_redact_redis_url(url),
+        )
+
+    def _is_bound_to_this_loop(self) -> bool:
+        return self._redis is not None and (
+            self._client_loop is None or self._client_loop is running_loop_or_none()
+        )
+
+    async def _attempt_in_background(self, url: str) -> None:
+        gate = self._reconnect_gate()
         recovered = False
         try:
-            await self._open_connection(url)
+            with in_app_scope(app_scope_of(self.config)):
+                async with self._connection_lock_here():
+                    try:
+                        await self._open_connection(url)
+                    except GuardRedisError:
+                        pass
+                    if self._closed:
+                        await self._discard_client()
         finally:
-            if gated:
-                recovered = gate.leave(self._redis is not None)
+            recovered = gate.leave(self._redis is not None)
         if recovered:
-            await self._send_redis_event(
-                event_type=EVENT_REDIS_CONNECTION,
-                action_taken="connection_recovered",
-                reason="Redis connection recovered after failed attempts",
-                redis_url=_redact_redis_url(url),
-            )
+            await self._report_recovery(url)
+
+    async def _mark_degraded(self, client: Redis | None) -> None:
+        if client is None or self._redis is not client:
+            # Already discarded or replaced: the usual case for the errors of the
+            # requests that were in flight when the outage began.
+            return
+        async with self._connection_lock_here():
+            if client is None or self._redis is not client:
+                return
+            await self._discard_client()
+            self._degraded = True
+            gate = self._reconnect_gate()
+            if gate.enter():
+                gate.leave(False)
+
+    async def _degrade_on_outage(self, client: Redis | None, error: Exception) -> None:
+        if type(error) in (RedisConnectionError, RedisTimeoutError):
+            await self._mark_degraded(client)
+
+    def _connection_lock_here(self) -> asyncio.Lock:
+        locks: ConnectionLocks = vars(self).setdefault(
+            "_connection_locks", ConnectionLocks()
+        )
+        return locks.here()
+
+    def _attempts(self) -> RedisAttemptSlot:
+        slot: RedisAttemptSlot = vars(self).setdefault(
+            "_redis_attempt_slot", RedisAttemptSlot()
+        )
+        return slot
+
+    def _forget_the_parents_attempts(self) -> None:
+        gate = vars(self).get("_reconnect_gate_of_this_manager")
+        if gate is not None:
+            gate.reset_after_fork()
+        vars(self).pop("_connection_locks", None)
+        vars(self).pop("_redis_attempt_slot", None)
 
     def _reconnect_gate(self) -> RedisReconnectGate:
         # Created on first use: a subclass that overrides __new__ skips __init__ work.
@@ -279,56 +393,67 @@ class RedisManager(RedisBanStrikeMixin):
 
     async def _open_connection(self, url: str) -> None:
         config = self.config
-        async with self._connection_lock:
-            await self._discard_client()
+        await self._discard_client()
 
-            new_redis: Redis | None = None
-            key: Hashable | None = None
-            shared = False
-            try:
-                new_redis, key, scope, shared = _redis_shared_clients.open_client(
-                    self, url, config, _build_redis_client, _DEFAULT_POOL_SIZE
+        new_redis: Redis | None = None
+        key: Hashable | None = None
+        shared = False
+        try:
+            new_redis, key, scope, shared = _redis_shared_clients.open_client(
+                self, url, config, _build_redis_client, _DEFAULT_POOL_SIZE
+            )
+            if new_redis is not None:
+                await new_redis.ping()
+                if not shared:
+                    new_redis = await _redis_shared_clients.register_client(
+                        self, new_redis, key, scope
+                    )
+                    shared = True
+                self._redis = new_redis
+                self._pool_key = key
+                self._client_loop = running_loop_or_none()
+                self._degraded = False
+                self._connect_generation += 1
+                self._mark_most_recently_initialized()
+                self.logger.info("Redis connection established")
+
+                await self._send_redis_event(
+                    event_type=EVENT_REDIS_CONNECTION,
+                    action_taken="connection_established",
+                    reason="Redis connection successfully established",
+                    redis_url=_redact_redis_url(url),
                 )
-                if new_redis is not None:
-                    await new_redis.ping()
-                    if not shared:
-                        new_redis = await _redis_shared_clients.register_client(
-                            self, new_redis, key, scope
-                        )
-                        shared = True
-                    self._redis = new_redis
-                    self._pool_key = key
-                    self._client_loop = running_loop_or_none()
-                    self._mark_most_recently_initialized()
-                    self.logger.info("Redis connection established")
 
-                    await self._send_redis_event(
-                        event_type=EVENT_REDIS_CONNECTION,
-                        action_taken="connection_established",
-                        reason="Redis connection successfully established",
-                        redis_url=_redact_redis_url(url),
-                    )
+        except Exception as e:
+            if self._reconnect_gate().report_due():
+                self.logger.error(f"Redis connection failed: {str(e)}")
 
-            except Exception as e:
-                if self._reconnect_gate().report_due():
-                    self.logger.error(f"Redis connection failed: {str(e)}")
+                await self._send_redis_event(
+                    event_type=EVENT_REDIS_ERROR,
+                    action_taken="connection_failed",
+                    reason=f"Redis connection failed: {str(e)}",
+                    redis_url=_redact_redis_url(url),
+                    error_type="connection_error",
+                )
 
-                    await self._send_redis_event(
-                        event_type=EVENT_REDIS_ERROR,
-                        action_taken="connection_failed",
-                        reason=f"Redis connection failed: {str(e)}",
-                        redis_url=_redact_redis_url(url),
-                        error_type="connection_error",
-                    )
+            await self._release_unbound_client(new_redis, key, shared)
+            raise GuardRedisError(503, "Redis connection failed") from e
+        except BaseException:
+            # A cancel during the ping or the registration still closes and releases.
+            await self._release_unbound_client(new_redis, key, shared)
+            raise
 
-                if new_redis is not None and (
-                    not shared
-                    or key is None
-                    or _redis_shared_clients.release(key, new_redis, self)
-                ):
-                    await self._safe_aclose(new_redis)
-                self._redis = None
-                raise GuardRedisError(503, "Redis connection failed") from e
+    async def _release_unbound_client(
+        self, new_redis: Redis | None, key: Hashable | None, shared: bool
+    ) -> None:
+        if new_redis is not None and (
+            not shared
+            or key is None
+            or _redis_shared_clients.release(key, new_redis, self)
+        ):
+            await self._safe_aclose(new_redis)
+        self._redis = None
+        self._degraded = True
 
     def register_background_user(self, stop: Callable[[], Awaitable[None]]) -> None:
         """Add a task that may hold one of this client's connections; ``close``
@@ -352,6 +477,8 @@ class RedisManager(RedisBanStrikeMixin):
 
     async def close(self) -> None:
         await self._stop_background_users()
+        self._closed = True
+        self._degraded = False
         if self._redis:
             await self._discard_client()
             self.logger.info("Redis connection closed")
@@ -361,10 +488,10 @@ class RedisManager(RedisBanStrikeMixin):
                 action_taken="connection_closed",
                 reason="Redis connection closed gracefully",
             )
-        self._closed = True
 
     @asynccontextmanager
     async def get_connection(self) -> AsyncIterator[Redis]:
+        client: Redis | None = None
         try:
             if self._closed:
                 await self._send_redis_event(
@@ -390,8 +517,10 @@ class RedisManager(RedisBanStrikeMixin):
                 )
                 raise GuardRedisError(503, "Redis connection failed")
 
-            yield self._redis
+            client = self._redis
+            yield client
         except (RedisConnectionError, AttributeError) as e:
+            await self._degrade_on_outage(client, e)
             self.logger.error(f"Redis operation failed: {str(e)}")
 
             await self._send_redis_event(
@@ -402,6 +531,9 @@ class RedisManager(RedisBanStrikeMixin):
             )
 
             raise GuardRedisError(503, "Redis connection failed") from e
+        except RedisTimeoutError as e:
+            await self._degrade_on_outage(client, e)
+            raise
 
     async def _raise_operation_failure(self, error: Exception, name: str) -> NoReturn:
         self.logger.error(f"Redis operation failed: {str(error)}")
