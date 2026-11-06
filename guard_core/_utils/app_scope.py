@@ -1,5 +1,5 @@
 import weakref
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING, Generic, TypeVar, overload
@@ -106,11 +106,16 @@ class ScopedToApp(Generic[_V]):
         if self._name != "config" and stored.get(SHARED_BY_APPS):
             return self._default
         value: _V = stored.get(self._name, self._default)
-        if value is None and self._weak_key is not None:
-            held: weakref.ref[_V] | None = stored.get(self._weak_key)
-            resolved = None if held is None else held()
-            return value if resolved is None else resolved
+        if self._weak_key is not None:
+            return self._or_weakly_held(stored, value)
         return value
+
+    def _or_weakly_held(self, stored: Mapping[str, object], value: _V) -> _V:
+        if value is not None or self._weak_key is None:
+            return value
+        held = stored.get(self._weak_key)
+        resolved = held() if isinstance(held, weakref.ref) else None
+        return value if resolved is None else resolved
 
     def __set__(self, instance: object, value: _V) -> None:
         scope = _current_app_scope.get() if self._writes_to_scope else None
