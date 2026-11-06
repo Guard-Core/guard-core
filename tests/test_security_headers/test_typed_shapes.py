@@ -106,6 +106,37 @@ def test_a_security_headers_setting_of_the_wrong_shape_raises_a_type_error(
         _config(**{setting: value})
 
 
+@pytest.mark.parametrize(
+    ("setting", "value", "message"),
+    [
+        (
+            "csp",
+            ["default-src"],
+            "the csp setting must map each directive to its sources",
+        ),
+        (
+            "custom",
+            ["X-A"],
+            "the custom setting must map header names to values",
+        ),
+        ("hsts", "on", "the hsts setting must be a mapping of its options"),
+        ("frame_options", 1, "the frame_options setting must be a string"),
+    ],
+)
+def test_the_type_error_of_a_wrongly_shaped_setting_says_exactly_what_to_fix(
+    setting: str, value: object, message: str
+) -> None:
+    manager = SecurityHeadersManager.isolated()
+    unvalidated = SecurityConfig.model_construct(
+        enable_redis=False, security_headers={"enabled": True, setting: value}
+    )
+
+    with pytest.raises(TypeError) as raised:
+        manager.resolve_headers(unvalidated)
+
+    assert str(raised.value) == message
+
+
 def test_a_cors_override_with_values_of_the_wrong_type_keeps_the_apps_own() -> None:
     base = CorsParams(True, ("https://a.example",), False, ("GET",), ("X",), 600, ())
 
