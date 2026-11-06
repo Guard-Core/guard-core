@@ -16,6 +16,7 @@ from guard_core.sync._utils.capability import (
     has_callable,
     serves_attributes_dynamically,
 )
+from guard_core.sync._utils.sampling import PerApp, WarnedRequestKinds
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
@@ -121,46 +122,63 @@ _PREFIX = "read_body_prefix"
 _FULL_BODY = "body"
 
 _reader_kind_by_class: WeakKeyDictionary[type, str] = WeakKeyDictionary()
-_fallback_warned_kinds: WeakKeyDictionary[type, set[str]] = WeakKeyDictionary()
+_fallback_warned_kinds = PerApp("body_reader_fallbacks", WarnedRequestKinds)
 
 
-def _first_fallback_of_kind(request: SyncGuardRequest, kind: str) -> bool:
-    warned = _fallback_warned_kinds.setdefault(type(request), set())
-    first = kind not in warned
+def _first_fallback_of_kind(
+    request: SyncGuardRequest, kind: str, config: "SyncSecurityConfig | None"
+) -> bool:
+    table = _fallback_warned_kinds.for_app(config)
+    warned = table.get(type(request))
+    if warned is None:
+        warned = table[type(request)] = set()
+    if kind in warned:
+        return False
     warned.add(kind)
-    return first
+    return True
 
 
 def _resolve_body_reader_kind(request: SyncGuardRequest) -> str:
-    adapter = type(request).__name__
     if has_callable(request, _PREFIX_UNTIL_IDLE):
         return _PREFIX_UNTIL_IDLE
     if has_callable(request, _PREFIX):
-        if _first_fallback_of_kind(request, _PREFIX):
-            logger.warning(
-                "%s has no read_body_prefix_until_idle; its read_body_prefix is "
-                "read in full with no idle deadline, so a client that stops "
-                "sending holds the request until the server's own timeout",
-                adapter,
-            )
         return _PREFIX
-    if _first_fallback_of_kind(request, _FULL_BODY):
-        logger.warning(
-            "%s has neither read_body_prefix_until_idle nor read_body_prefix; "
-            "body() is read in full with no idle deadline, so a client that "
-            "stops sending holds the request until the server's own timeout",
-            adapter,
-        )
     return _FULL_BODY
 
 
-def _body_reader_kind(request: SyncGuardRequest) -> str:
+def _warn_body_reader_fallback_once_per_app(
+    request: SyncGuardRequest, kind: str, config: "SyncSecurityConfig | None"
+) -> None:
+    if not _first_fallback_of_kind(request, kind, config):
+        return
+    adapter = type(request).__name__
+    if kind == _PREFIX:
+        logger.warning(
+            "%s has no read_body_prefix_until_idle; its read_body_prefix is "
+            "read in full with no idle deadline, so a client that stops "
+            "sending holds the request until the server's own timeout",
+            adapter,
+        )
+        return
+    logger.warning(
+        "%s has neither read_body_prefix_until_idle nor read_body_prefix; "
+        "body() is read in full with no idle deadline, so a client that "
+        "stops sending holds the request until the server's own timeout",
+        adapter,
+    )
+
+
+def _body_reader_kind(
+    request: SyncGuardRequest, config: "SyncSecurityConfig | None" = None
+) -> str:
     cls = type(request)
     kind = _reader_kind_by_class.get(cls)
     if kind is None:
         kind = _resolve_body_reader_kind(request)
         if not serves_attributes_dynamically(cls):
             _reader_kind_by_class[cls] = kind
+    if kind != _PREFIX_UNTIL_IDLE:
+        _warn_body_reader_fallback_once_per_app(request, kind, config)
     return kind
 
 
@@ -280,8 +298,9 @@ def _read_capped_body_prefix(
     max_concurrent: int | None,
     *,
     patterns: "SusPatternsManager | None" = None,
+    config: "SyncSecurityConfig | None" = None,
 ) -> bytes | None:
-    kind = _body_reader_kind(request)
+    kind = _body_reader_kind(request, config)
     if kind == _FULL_BODY:
         return None
 
@@ -334,8 +353,9 @@ def _read_oversized_declared_body(
     client_ip: str,
     *,
     patterns: "SusPatternsManager | None" = None,
+    config: "SyncSecurityConfig | None" = None,
 ) -> bytes | None:
-    kind = _body_reader_kind(request)
+    kind = _body_reader_kind(request, config)
     content_type = request.headers.get("content-type")
     if kind == _FULL_BODY:
         _warn_body_inspect_bytes_cap_reached_no_bounded_reader(
@@ -358,8 +378,9 @@ def _read_declared_body(
     max_bytes: int,
     timeout: float,
     max_concurrent: int | None,
+    config: "SyncSecurityConfig | None" = None,
 ) -> bytes | None:
-    kind = _body_reader_kind(request)
+    kind = _body_reader_kind(request, config)
     return _read_and_cache_body(
         request,
         max_bytes,
@@ -414,16 +435,19 @@ def read_body_for_inspection(
                         max_concurrent,
                         client_ip,
                         patterns=patterns,
+                        config=config,
                     ),
                     True,
                 )
             return (
-                _read_declared_body(request, max_bytes, timeout, max_concurrent),
+                _read_declared_body(
+                    request, max_bytes, timeout, max_concurrent, config
+                ),
                 False,
             )
 
     prefix = _read_capped_body_prefix(
-        request, max_bytes, timeout, max_concurrent, patterns=patterns
+        request, max_bytes, timeout, max_concurrent, patterns=patterns, config=config
     )
     return prefix, prefix is not None and len(prefix) > max_bytes
 
@@ -471,7 +495,7 @@ def read_prefix_beyond_limit(
     failed = getattr(request.state, _FAILED_LIMIT_READ_STATE_ATTR, None)
     if failed is not None and failed[0] is request:
         raise failed[1]
-    kind = _body_reader_kind(request)
+    kind = _body_reader_kind(request, config)
     fetch_bytes = limit + 1
     try:
         return _read_and_cache_body(

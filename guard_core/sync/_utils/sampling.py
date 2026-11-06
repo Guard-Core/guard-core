@@ -3,6 +3,7 @@ import time
 import weakref
 from collections import OrderedDict
 from typing import Generic, Protocol, TypeVar
+from weakref import WeakKeyDictionary
 
 from guard_core.sync._utils.app_managers import (
     _HELD_ATTRIBUTE,
@@ -57,6 +58,10 @@ class RefusalReports(dict[str, float]):
 
 class WarnedKeys(set[str]):
     """The warnings one app already logged, for log-once warnings."""
+
+
+class WarnedRequestKinds(WeakKeyDictionary[type, set[str]]):
+    """The body-reader fallbacks one app already warned about, by request class."""
 
 
 class PerApp(Generic[_T]):
