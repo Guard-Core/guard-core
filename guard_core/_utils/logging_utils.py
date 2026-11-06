@@ -244,7 +244,7 @@ _OWN_HANDLER_ATTR = "_guard_core_installed"
 def _retire_own_handler(logger: logging.Logger, handler: logging.Handler) -> None:
     logger.removeHandler(handler)
     handler.close()
-    if isinstance(handler, logging.FileHandler):
+    if hasattr(handler, "mode"):
         # CPython's FileHandler.emit reopens a closed handler's file unless
         # mode is "w" and it was closed, so a late record from a thread that
         # still holds this handler would leak an open file. Costs nothing per
