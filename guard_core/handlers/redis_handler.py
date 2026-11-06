@@ -16,6 +16,7 @@ from guard_core._redis_exceptions import (
     NoScriptError,
     RedisConnectionError,
 )
+from guard_core._utils.app_scope import WeakableConfig, hold_config_weakly
 from guard_core.core.events.event_types import (
     EVENT_REDIS_CONNECTION,
     EVENT_REDIS_ERROR,
@@ -153,6 +154,9 @@ class RedisManager(RedisBanStrikeMixin):
     _connection_lock = asyncio.Lock()
     _closed = False
     config: SecurityConfig
+    if not TYPE_CHECKING:
+        # The module singletons keep this manager, so it must not keep its app.
+        config = WeakableConfig()
     logger: logging.Logger
     agent_handler: redis_types.EventSink | None = None
 
@@ -162,7 +166,7 @@ class RedisManager(RedisBanStrikeMixin):
             manager = super().__new__(cls)
             manager.logger = logging.getLogger("guard_core.handlers.redis")
             manager.agent_handler = None
-            manager.config = config
+            hold_config_weakly(manager, config)
             manager._registered = True
             _redis_shared_clients.register_manager(config, manager, cls)
         manager._closed = False

@@ -8,6 +8,8 @@ from guard_core.sync.core.initialization.handler_initializer import HandlerIniti
 from guard_core.sync.handlers.cloud_handler import cloud_handler, cloud_handler_for
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager, ip_ban_manager_for
+from guard_core.sync.handlers.redis_handler import RedisManager
+from guard_core.sync.handlers.security_headers_handler import security_headers_manager
 from guard_core.sync.handlers.suspatterns_handler import (
     sus_patterns_handler,
     sus_patterns_manager_for,
@@ -46,6 +48,24 @@ def test_the_first_app_is_freed_by_refcount_once_it_is_gone() -> None:
         del first
 
         assert released() is None
+
+
+def test_the_first_app_with_a_redis_handler_is_freed_by_refcount() -> None:
+    with _no_gc():
+        first = _start_app("wp467-redis:")
+        handler = RedisManager(first)
+        ip_ban_manager.redis_handler = handler
+        sus_patterns_handler.redis_handler = handler
+        security_headers_manager.redis_handler = handler
+        released = weakref.ref(first)
+
+        del first
+
+        assert released() is None
+        assert "config" not in vars(handler)
+        ip_ban_manager.redis_handler = None
+        sus_patterns_handler.redis_handler = None
+        security_headers_manager.redis_handler = None
 
 
 def test_the_next_app_on_another_prefix_is_served_by_the_module_singletons() -> None:
