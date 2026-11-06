@@ -61,7 +61,7 @@ from guard_core.protocols.request_protocol import RequestState
 from guard_core.sync.core.checks import _strike_forget as _sync_strike_forget_module
 from guard_core.sync.handlers import ipban_handler as _sync_ipban_module
 from guard_core.sync.handlers import suspatterns_handler as _sync_suspatterns_module
-from tests import network_guard
+from tests import network_guard, thread_guard
 from tests.engine_redis_commands import unwatch_all_engine_commands
 
 if TYPE_CHECKING:
@@ -87,6 +87,7 @@ class _AlreadyLogged(PerApp[WarnedKeys]):
 
 
 network_guard.install()
+thread_guard.install()
 _suspatterns_module._legacy_detection_warned = True
 _staged_defaults_module._default_prefix_warned = True
 _staged_defaults_module._changed_defaults_logged = _AlreadyLogged(
@@ -1140,3 +1141,8 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         "models were never muted: " + ", ".join(unmuted)
     )
     _enforce_test_duration_ceiling(session)
+    thread_guard.stop_the_shared_regex_pools()
+    leaked = thread_guard.leaked_threads()
+    if leaked:
+        sys.stderr.write(f"\nthreads the tests left running: {leaked}\n")
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
