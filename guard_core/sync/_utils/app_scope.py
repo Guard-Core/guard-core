@@ -72,6 +72,8 @@ class ScopedToApp(Generic[_V]):
     the Redis handler, never another app's.
     """
 
+    _weak_key: str | None = None
+
     def __init__(self, default: _V, writes_to_scope: bool = False) -> None:
         self._default = default
         self._writes_to_scope = writes_to_scope
@@ -104,6 +106,10 @@ class ScopedToApp(Generic[_V]):
         if self._name != "config" and stored.get(SHARED_BY_APPS):
             return self._default
         value: _V = stored.get(self._name, self._default)
+        if value is None and self._weak_key is not None:
+            held: weakref.ref[_V] | None = stored.get(self._weak_key)
+            resolved = None if held is None else held()
+            return value if resolved is None else resolved
         return value
 
     def __set__(self, instance: object, value: _V) -> None:
@@ -118,23 +124,9 @@ class ScopedConfig(ScopedToApp["SyncSecurityConfig | None"]):
     def __init__(self) -> None:
         super().__init__(None)
 
-    @overload
-    def __get__(self, instance: None, owner: type | None = None) -> "ScopedConfig": ...
-
-    @overload
-    def __get__(
-        self, instance: object, owner: type | None = None
-    ) -> "SyncSecurityConfig | None": ...
-
-    def __get__(
-        self, instance: object | None, owner: type | None = None
-    ) -> "ScopedConfig | SyncSecurityConfig | None":
-        if instance is None:
-            return self
-        served = super().__get__(instance, owner)
-        if served is not None:
-            return served
-        return weakly_held_config(instance, self._name)
+    def __set_name__(self, owner: type, name: str) -> None:
+        super().__set_name__(owner, name)
+        self._weak_key = _weak_key(name)
 
     def __set__(self, instance: object, value: "SyncSecurityConfig | None") -> None:
         instance.__dict__.pop(_weak_key(self._name), None)
@@ -151,6 +143,7 @@ class WeakableConfig:
 
     def __set_name__(self, owner: type, name: str) -> None:
         self._name = name
+        self._weak_key = _weak_key(name)
 
     @overload
     def __get__(
@@ -167,10 +160,12 @@ class WeakableConfig:
     ) -> "WeakableConfig | SyncSecurityConfig | None":
         if instance is None:
             return self
-        stored: SyncSecurityConfig | None = instance.__dict__.get(self._name)
-        if stored is not None:
-            return stored
-        return weakly_held_config(instance, self._name)
+        stored = instance.__dict__
+        value: SyncSecurityConfig | None = stored.get(self._name)
+        if value is not None:
+            return value
+        held: weakref.ref[SyncSecurityConfig] | None = stored.get(self._weak_key)
+        return None if held is None else held()
 
     def __set__(self, instance: object, value: "SyncSecurityConfig | None") -> None:
         instance.__dict__.pop(_weak_key(self._name), None)

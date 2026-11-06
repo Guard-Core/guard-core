@@ -52,7 +52,8 @@ class _SusPatternsLazyRowsMixin:
     _disabled_row_sources: frozenset[str] = frozenset()
 
     def _scan_config(self) -> "SecurityConfig | None":
-        return scoped_config(self, self._config)
+        scoped = scoped_config(self, None)
+        return self._config if scoped is None else scoped
 
     @cached_property
     def compiled_patterns(self) -> list[tuple[re.Pattern, frozenset[str], str]]:
