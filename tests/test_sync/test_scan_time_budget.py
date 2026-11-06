@@ -415,3 +415,29 @@ def test_clean_route_raised_json_ends_in_the_budget_outcome() -> None:
     assert result.is_threat is True
     assert "Pattern exceeded scan time budget" in result.trigger_info
     assert charged[0] <= cap + longest_pass[0]
+
+
+def test_a_pass_that_starts_with_the_budget_spent_charges_no_cpu() -> None:
+    # LEDGER 6.694: such a pass folded its whole content for the literal prefilter
+    # inside the charged window, so each late pass added milliseconds past the cap.
+    manager = SusPatternsManager()
+    manager.configure(SyncSecurityConfig(detection_max_scan_seconds=1.0))
+    charged = [0.0]
+    real_record = detection_scan._record_scan_time
+
+    def recording(elapsed: float) -> None:
+        charged[0] += elapsed
+        real_record(elapsed)
+
+    with (
+        _scan_value_budget(512, max_scan_seconds=1.0),
+        patch.object(detection_scan, "_record_scan_time", recording),
+    ):
+        real_record(1.5)
+        threats, matched, timeouts = manager._check_regex_patterns(
+            "quarterly onboarding metrics " * 100_000, "127.0.0.1", None
+        )
+
+    assert charged[0] == 0.0
+    assert matched == timeouts == ["scan_time_budget_exhausted"]
+    assert [threat["pattern"] for threat in threats] == matched
