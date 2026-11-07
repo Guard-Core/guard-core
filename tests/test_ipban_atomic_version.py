@@ -1,5 +1,7 @@
+import asyncio
 import os
 from collections.abc import AsyncGenerator, Generator
+from time import monotonic
 from unittest.mock import patch
 
 import pytest
@@ -33,8 +35,22 @@ async def live_redis() -> AsyncGenerator[RedisManager, None]:
     manager = RedisManager(config)
     await manager.initialize()
     yield manager
+    await _once_redis_answers_again(manager)
     await manager.delete_pattern("*")
     await manager.close()
+
+
+async def _once_redis_answers_again(redis: RedisManager) -> None:
+    # A ConnectionError on the live client degrades the manager (LEDGER 6.696): the
+    # reads that follow are refused until its background reconnect has finished.
+    end = monotonic() + 5
+    while monotonic() < end:
+        try:
+            await redis.get_key("ban_version", "counter")
+            return
+        except GuardRedisError:
+            await asyncio.sleep(0.05)
+    raise AssertionError("Redis did not answer again within 5 s")
 
 
 def _worker(redis: RedisManager) -> IPBanManager:
@@ -57,6 +73,7 @@ async def test_a_failed_exec_leaves_no_unannounced_cidr_ban(
     with patch(EVALSHA, side_effect=RedisConnectionError("lost")):
         await worker.ban_ip(NETWORK, 600, "operator")
 
+    await _once_redis_answers_again(live_redis)
     assert await live_redis.get_key("banned_networks", NETWORK) is None
     assert await _version(live_redis) == 0
     assert len(worker.banned_networks) == 1
@@ -73,6 +90,7 @@ async def test_a_failed_exec_keeps_the_ban_when_the_unban_fails(
         with pytest.raises(GuardRedisError):
             await holder.unban_ip(HOST)
 
+    await _once_redis_answers_again(live_redis)
     assert await live_redis.get_key("banned_ips", HOST) is not None
     assert await _version(live_redis) == 0
     assert await holder.is_ip_banned(HOST) is True
