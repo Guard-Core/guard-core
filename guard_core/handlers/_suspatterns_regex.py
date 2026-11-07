@@ -2,7 +2,7 @@ import concurrent.futures
 import logging
 import re
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from typing import TYPE_CHECKING
 
 from guard_core._utils._scan_outcomes import (
@@ -153,6 +153,12 @@ def _build_regex_threat(
 
 def _scan_budget_spent(time_cap: float | None, rows_pending: bool = True) -> bool:
     return rows_pending and time_cap is not None and _scan_time_budget_exhausted()
+
+
+def _pass_starts_spent(
+    time_cap: float | None, rows: Sequence[object], skipped_tail: bool
+) -> bool:
+    return _scan_budget_spent(time_cap, bool(rows) or skipped_tail)
 
 
 def _validator_context(context: str, normalized: str) -> str:
@@ -450,6 +456,19 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             return "unknown"
         return normalized
 
+    async def _record_pass_metrics(
+        self,
+        state: _DetectionState,
+        metric_rows: list[tuple[str, float, int, bool, bool]],
+        correlation_id: str | None,
+    ) -> None:
+        if state.performance_monitor and metric_rows:
+            await state.performance_monitor.record_metrics(
+                metric_rows,
+                agent_handler=self._events_agent_handler,
+                correlation_id=correlation_id,
+            )
+
     async def _check_regex_patterns(
         self,
         content: str,
@@ -489,6 +508,11 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             applicable_patterns, _CONTEXT_SENSITIVE_ROW_SOURCES
         )
         time_cap = _scan_time_cap.get()
+        if _pass_starts_spent(time_cap, applicable_patterns, skipped_tail):
+            # A pass that starts with the budget spent must not charge the CPU of
+            # folding its content for the literal prefilter (LEDGER 6.694).
+            _record_budget_exhaustion(ip_address, threats, matched_patterns, timeouts)
+            return threats, matched_patterns, timeouts
         slice_start, request_scoped = _pass_slice_start()
         mark_token = _open_cpu_pass()
 
@@ -558,11 +582,6 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         finally:
             _close_cpu_pass(mark_token)
 
-        if performance_monitor and metric_rows:
-            await performance_monitor.record_metrics(
-                metric_rows,
-                agent_handler=self._events_agent_handler,
-                correlation_id=correlation_id,
-            )
+        await self._record_pass_metrics(state, metric_rows, correlation_id)
 
         return threats, matched_patterns, timeouts

@@ -17,6 +17,7 @@ from guard_core.sync._utils.detection_scan import (
 from guard_core.sync.handlers import (
     _suspatterns_inline_matches,
     _suspatterns_lazy_rows,
+    _suspatterns_literals,
     _suspatterns_regex,
 )
 from guard_core.sync.handlers._suspatterns_lazy_rows import PatternSource
@@ -415,3 +416,86 @@ def test_clean_route_raised_json_ends_in_the_budget_outcome() -> None:
     assert result.is_threat is True
     assert "Pattern exceeded scan time budget" in result.trigger_info
     assert charged[0] <= cap + longest_pass[0]
+
+
+def test_a_pass_that_starts_with_the_budget_spent_charges_no_cpu() -> None:
+    # LEDGER 6.694: such a pass folded its whole content for the literal prefilter
+    # inside the charged window, so each late pass added milliseconds past the cap.
+    manager = SusPatternsManager()
+    manager.configure(SyncSecurityConfig(detection_max_scan_seconds=1.0))
+    charged = [0.0]
+    real_record = detection_scan._record_scan_time
+
+    def recording(elapsed: float) -> None:
+        charged[0] += elapsed
+        real_record(elapsed)
+
+    with (
+        _scan_value_budget(512, max_scan_seconds=1.0),
+        patch.object(detection_scan, "_record_scan_time", recording),
+    ):
+        real_record(1.5)
+        threats, matched, timeouts = manager._check_regex_patterns(
+            "quarterly onboarding metrics " * 100_000, "127.0.0.1", None
+        )
+
+    assert charged[0] == 0.0
+    assert matched == timeouts == ["scan_time_budget_exhausted"]
+    assert [threat["pattern"] for threat in threats] == matched
+
+
+def test_a_budget_spent_by_the_last_scanned_row_is_reported_beside_a_tail() -> None:
+    manager = SusPatternsManager()
+    manager.configure(SyncSecurityConfig(detection_max_scan_seconds=1.0))
+    rows = manager._rows_to_scan()
+
+    def spends_the_budget(*args: object, **kwargs: object) -> tuple[None, bool]:
+        detection_scan._record_scan_time(2.0)
+        return None, False
+
+    with (
+        _scan_value_budget(512, max_scan_seconds=1.0),
+        patch.object(
+            _suspatterns_regex, "_applicable_patterns", lambda *a, **k: (rows[:1], True)
+        ),
+        patch.object(
+            _suspatterns_regex,
+            "rows_with_required_literal",
+            lambda found, *a: iter(found),
+        ),
+        patch.object(manager, "_check_regex_pattern", spends_the_budget),
+    ):
+        threats, matched, timeouts = manager._check_regex_patterns(
+            "benign text", "127.0.0.1", None
+        )
+
+    assert matched == timeouts == ["scan_time_budget_exhausted"]
+    assert [threat["pattern"] for threat in threats] == matched
+
+
+def test_a_spent_pass_with_every_row_prefiltered_still_reports_the_budget() -> None:
+    row = (re.compile(r"zzneedle\d"), frozenset(), "xss")
+    content = "quarterly onboarding metrics " * 1000
+    folded = _suspatterns_literals.fold_for_literals(content)
+    assert (
+        list(
+            _suspatterns_literals.rows_with_required_literal([row], folded, frozenset())
+        )
+        == []
+    )
+    manager = SusPatternsManager()
+    manager.configure(SyncSecurityConfig(detection_max_scan_seconds=1.0))
+
+    with (
+        _scan_value_budget(512, max_scan_seconds=1.0),
+        patch.object(
+            _suspatterns_regex, "_applicable_patterns", lambda *a, **k: ([row], False)
+        ),
+    ):
+        detection_scan._record_scan_time(1.5)
+        threats, matched, timeouts = manager._check_regex_patterns(
+            content, "127.0.0.1", None
+        )
+
+    assert matched == timeouts == ["scan_time_budget_exhausted"]
+    assert [threat["pattern"] for threat in threats] == matched

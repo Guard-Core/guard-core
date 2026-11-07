@@ -1,6 +1,6 @@
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import TypeVar
 
 from guard_core.detection_engine._redos_cost_arbiter import (
@@ -44,3 +44,20 @@ def timed_normalized(run: Callable[[], _T]) -> tuple[_T, float]:
     start = time.process_time()
     result = run()
     return result, (time.process_time() - start) / _fastest_factor
+
+
+def minimum_normalized(
+    calls: Sequence[Callable[[], object]], rounds: int
+) -> list[float]:
+    # Every round times each call once, the order reversed on odd rounds, and a call
+    # keeps its lowest normalized reading. Five readings in a row at one size fell on a
+    # core that ran 4 times slower for the whole stretch and made a linear scan fail the
+    # growth check in the loaded cell (LEDGER 6.503); interleaving spreads such a
+    # stretch over every size, and a scan whose work grows faster than its size still
+    # shows in the minimum.
+    lowest = [float("inf")] * len(calls)
+    for round_index in range(rounds):
+        order = range(len(calls))
+        for index in order if round_index % 2 == 0 else reversed(order):
+            lowest[index] = min(lowest[index], timed_normalized(calls[index])[1])
+    return lowest

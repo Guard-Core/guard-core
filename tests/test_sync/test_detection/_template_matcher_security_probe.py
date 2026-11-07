@@ -1,13 +1,11 @@
 import json
 import re
-import statistics
 import sys
-from collections.abc import Callable
 from functools import partial
 
 from guard_core.sync.handlers import _suspatterns_matchers as matchers
 from guard_core.sync.handlers._suspatterns_sources import _SSTI_HASH_BRACE_SHAPE_RE
-from tests.host_load_factor import timed_normalized
+from tests.host_load_factor import minimum_normalized
 
 _CASES = {
     "curly_keyword": ("CURLY_KEYWORD", "{{", "}}", "xsystem"),
@@ -33,11 +31,7 @@ def _payloads(opening: str, closing: str, attack: str, size: int) -> dict[str, s
     }
 
 
-def _cpu_median(call: Callable[[], object]) -> float:
-    samples = []
-    for _ in range(5):
-        samples.append(timed_normalized(call)[1])
-    return statistics.median(samples)
+_ROUNDS = 9
 
 
 def measure(label: str) -> dict[str, list[float]]:
@@ -50,10 +44,12 @@ def measure(label: str) -> dict[str, list[float]]:
     compiled = re.compile(source, re.I)
     scanner = getattr(matchers, "_template_" + label + "_scan_matches")
     result: dict[str, list[float]] = {}
-    for size in _SIZES:
-        for shape, text in _payloads(opening, closing, attack, size).items():
-            elapsed = _cpu_median(partial(scanner, text, compiled))
-            result.setdefault(shape, []).append(elapsed)
+    payloads = {size: _payloads(opening, closing, attack, size) for size in _SIZES}
+    for shape in payloads[_SIZES[0]]:
+        result[shape] = minimum_normalized(
+            [partial(scanner, payloads[size][shape], compiled) for size in _SIZES],
+            _ROUNDS,
+        )
     return result
 
 
