@@ -316,6 +316,14 @@ def forget_config(manager: object, attribute: str) -> None:
     manager.__dict__.pop(_weak_key(attribute), None)
 
 
+def forget_handlers_of_the_gone_app(manager: object) -> None:
+    """Drop the Redis and agent handlers a default manager kept for an app that is
+    gone, so the next app is not served a handler built for the previous one."""
+    for name in ("redis_handler", "agent_handler"):
+        if isinstance(inspect.getattr_static(type(manager), name, None), ScopedToApp):
+            manager.__dict__.pop(name, None)
+
+
 def app_scope_of(config: "SyncSecurityConfig") -> AppScope:
     """The scope record parked on the config, created on first use."""
     scope = existing_app_scope_of(config)

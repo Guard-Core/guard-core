@@ -10,7 +10,10 @@ from guard_core._redis_enablement import (
     configured_redis_url,
     redis_is_configured,
 )
-from guard_core.sync._utils.app_scope import SHARED_BY_APPS
+from guard_core.sync._utils.app_scope import (
+    SHARED_BY_APPS,
+    forget_handlers_of_the_gone_app,
+)
 from guard_core.sync._utils.config_registry import ConfigHandlerRegistry
 
 if TYPE_CHECKING:
@@ -263,6 +266,16 @@ class AppManagers(Generic[_M]):
         own = self.own(config)
         return own if own is not None else default
 
+    def _serve_from_default(
+        self, config: "SecurityConfig[RequestT]", default: _M
+    ) -> _M:
+        if self._served is not None and self._served() is None:
+            forget_handlers_of_the_gone_app(default)
+        self._default_apps.register(config, default, self.kind)
+        self._served = weakref.ref[_PrefixedRedisConfig](config)
+        self._served_key = _connection_key_of(config)
+        return default
+
     def bind(
         self, config: "SecurityConfig[RequestT]", default: _M, fresh: Callable[[], _M]
     ) -> _M:
@@ -271,10 +284,7 @@ class AppManagers(Generic[_M]):
             return own
         served = self._default_serves()
         if served is None or served is config:
-            self._default_apps.register(config, default, self.kind)
-            self._served = weakref.ref[_PrefixedRedisConfig](config)
-            self._served_key = _connection_key_of(config)
-            return default
+            return self._serve_from_default(config, default)
         if self.uses_default(config):
             self._default_apps.register(config, default, self.kind)
             return default
