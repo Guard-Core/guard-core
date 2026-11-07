@@ -11,6 +11,7 @@ TEST_DIR = ROOT / "tests"
 TEST_SYNC_DIR = ROOT / "tests" / "test_sync"
 
 CHECK_TMP_PREFIX = ".unasync_check_tmp_"
+STALE_CHECK_TMP_SECONDS = 3600
 
 SKIP_SRC = {
     "_redis_abandoned_client.py",
@@ -1336,9 +1337,11 @@ def _compare_against_generated(
 
 def _sweep_stale_check_tmp_dirs() -> None:
     import shutil
+    import time
 
+    cutoff = time.time() - STALE_CHECK_TMP_SECONDS
     for stale in ROOT.glob(f"{CHECK_TMP_PREFIX}*"):
-        if stale.is_dir():
+        if stale.is_dir() and stale.stat().st_mtime < cutoff:
             shutil.rmtree(stale, ignore_errors=True)
 
 

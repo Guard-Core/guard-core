@@ -1,8 +1,10 @@
 import importlib.util
+import os
 import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
@@ -114,24 +116,57 @@ def test_check_flags_an_orphaned_sync_mirror_instead_of_hiding_it(
         orphan.unlink(missing_ok=True)
 
 
+def _run_check(sandbox: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(sandbox / "scripts" / "unasync.py"), "--check"],
+        cwd=sandbox,
+        capture_output=True,
+        text=True,
+    )
+
+
 def test_check_sweeps_a_stale_tmp_dir_from_a_previous_crashed_run(
     sandbox_repo: Path,
 ) -> None:
-    root = sandbox_repo
-    stale = root / ".unasync_check_tmp_stale_probe"
+    stale = sandbox_repo / ".unasync_check_tmp_stale_probe"
     stale.mkdir()
     (stale / "leftover.txt").write_text("debris")
+    two_hours_ago = time.time() - 7200
+    os.utime(stale, (two_hours_ago, two_hours_ago))
+    _run_check(sandbox_repo)
+    assert not stale.exists()
+
+
+def test_check_leaves_another_runs_live_tmp_dir_alone(sandbox_repo: Path) -> None:
+    live = sandbox_repo / ".unasync_check_tmp_other_run"
+    live.mkdir()
     try:
-        subprocess.run(
-            [sys.executable, str(root / "scripts" / "unasync.py"), "--check"],
-            cwd=root,
-            capture_output=True,
+        (live / "work.txt").write_text("in use")
+        result = _run_check(sandbox_repo)
+        assert result.returncode == 0, result.stdout
+        assert (live / "work.txt").read_text() == "in use"
+        assert sorted(p.name for p in sandbox_repo.glob(".unasync_check_tmp_*")) == [
+            live.name
+        ]
+    finally:
+        shutil.rmtree(live, ignore_errors=True)
+
+
+def test_two_concurrent_checks_in_one_checkout_both_pass(sandbox_repo: Path) -> None:
+    command = [sys.executable, str(sandbox_repo / "scripts" / "unasync.py"), "--check"]
+    runs = [
+        subprocess.Popen(
+            command,
+            cwd=sandbox_repo,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
         )
-        assert not stale.exists()
-    finally:
-        if stale.exists():
-            shutil.rmtree(stale)
+        for _ in range(2)
+    ]
+    outputs = [run.communicate()[0] for run in runs]
+    assert [run.returncode for run in runs] == [0, 0], outputs
+    assert not list(sandbox_repo.glob(".unasync_check_tmp_*"))
 
 
 def test_permission_error_creating_tmp_dir_gives_a_clean_message(
