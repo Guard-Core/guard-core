@@ -28,6 +28,22 @@ def _load_unasync_module() -> ModuleType:
     return module
 
 
+@pytest.fixture(scope="module")
+def sandbox_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A per-run copy of what unasync.py reads, so probe files never touch the repo.
+
+    Two test runs in one checkout used to write the same probe names at the repo
+    root and sweep each other's check directories (LEDGER 6.703).
+    """
+    root = _repo_root()
+    sandbox = tmp_path_factory.mktemp("unasync_sandbox")
+    ignore = shutil.ignore_patterns("__pycache__", "*.pyc", ".unasync_check_tmp_*")
+    for name in ("scripts", "guard_core", "tests"):
+        shutil.copytree(root / name, sandbox / name, ignore=ignore)
+    shutil.copy2(root / "pyproject.toml", sandbox / "pyproject.toml")
+    return sandbox
+
+
 def _git_status_short(root: Path) -> str:
     result = subprocess.run(
         ["git", "status", "--short"],
@@ -54,8 +70,10 @@ def test_generation_fails_when_a_formatter_fails(failure_at: int) -> None:
     assert run.call_count == failure_at + 1
 
 
-def test_check_flags_a_missing_sync_mirror_instead_of_hiding_it() -> None:
-    root = _repo_root()
+def test_check_flags_a_missing_sync_mirror_instead_of_hiding_it(
+    sandbox_repo: Path,
+) -> None:
+    root = sandbox_repo
     probe = root / "tests" / "test_unasync_check_gate_probe.py"
     probe_mirror = root / "tests" / "test_sync" / "test_unasync_check_gate_probe.py"
     assert not probe.exists()
@@ -76,8 +94,10 @@ def test_check_flags_a_missing_sync_mirror_instead_of_hiding_it() -> None:
         probe_mirror.unlink(missing_ok=True)
 
 
-def test_check_flags_an_orphaned_sync_mirror_instead_of_hiding_it() -> None:
-    root = _repo_root()
+def test_check_flags_an_orphaned_sync_mirror_instead_of_hiding_it(
+    sandbox_repo: Path,
+) -> None:
+    root = sandbox_repo
     orphan = root / "tests" / "test_sync" / "test_unasync_check_gate_orphan_probe.py"
     assert not orphan.exists()
     orphan.write_text("def test_probe() -> None:\n    assert True\n")
@@ -94,8 +114,10 @@ def test_check_flags_an_orphaned_sync_mirror_instead_of_hiding_it() -> None:
         orphan.unlink(missing_ok=True)
 
 
-def test_check_sweeps_a_stale_tmp_dir_from_a_previous_crashed_run() -> None:
-    root = _repo_root()
+def test_check_sweeps_a_stale_tmp_dir_from_a_previous_crashed_run(
+    sandbox_repo: Path,
+) -> None:
+    root = sandbox_repo
     stale = root / ".unasync_check_tmp_stale_probe"
     stale.mkdir()
     (stale / "leftover.txt").write_text("debris")
@@ -154,8 +176,13 @@ def test_hand_maintained_provider_lifecycle_pairs_test_names_match() -> None:
         )
 
 
-def test_check_leaves_the_working_tree_byte_identical_on_a_dirty_repo() -> None:
-    root = _repo_root()
+def test_check_leaves_the_working_tree_byte_identical_on_a_dirty_repo(
+    sandbox_repo: Path,
+) -> None:
+    root = sandbox_repo
+    for command in (["init", "-q"], ["add", "-A"]):
+        subprocess.run(["git", *command], cwd=root, check=True, capture_output=True)
+    (root / "untracked_dirt.txt").write_text("dirt")
     status_before = _git_status_short(root)
 
     result = subprocess.run(
