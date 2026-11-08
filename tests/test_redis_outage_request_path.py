@@ -640,10 +640,20 @@ async def test_one_connection_error_on_a_healthy_redis_costs_one_reconnect(
     await banner.ban_ip(CLIENT_IP, 60, "blip test")
     assert len(builds) == 1
     sink.actions.clear()
+    probes: list[str] = []
+
+    async def spy(url: str) -> bool:
+        probes.append(url)
+        return True
+
+    monkeypatch.setattr(
+        "guard_core.handlers._redis_outage.redis_answers_within_the_deadline", spy
+    )
 
     with pytest.raises(GuardRedisError):
         async with manager.get_connection():
             raise RedisConnectionError("one blip")
+    assert probes == []
 
     banner.banned_ips.clear()
     started = monotonic()
