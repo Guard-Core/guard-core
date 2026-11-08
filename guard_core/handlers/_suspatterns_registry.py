@@ -16,6 +16,7 @@ from guard_core.handlers._suspatterns_sources import (
     _CTX_ALL,
     _scan_window_bytes,
 )
+from guard_core.handlers._suspatterns_state import _LEGACY_DETECTION_STATE
 
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
@@ -337,6 +338,18 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
         return self._without_disabled_rows(self.compiled_patterns) + list(
             self.compiled_custom_patterns
         )
+
+    def forget_state_of_the_gone_app(self) -> None:
+        """Back to the state of a manager no app has configured: the gone app's
+        custom patterns, its detection state (compiler cache, preprocessor,
+        semantic analyzer, performance monitor), its disabled rows and its config
+        record go; the built-in rows stay."""
+        self.custom_patterns.clear()
+        self.compiled_custom_patterns.clear()
+        self._detection_state = _LEGACY_DETECTION_STATE
+        self.__dict__.pop("_disabled_row_sources", None)
+        self.__dict__.pop("_configured_for", None)
+        forget_config(self, "_config")
 
     @classmethod
     async def reset(cls) -> None:

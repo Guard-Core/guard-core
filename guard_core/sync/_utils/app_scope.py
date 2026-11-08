@@ -318,10 +318,15 @@ def forget_config(manager: object, attribute: str) -> None:
 
 def forget_handlers_of_the_gone_app(manager: object) -> None:
     """Drop the Redis and agent handlers a default manager kept for an app that is
-    gone, so the next app is not served a handler built for the previous one."""
+    gone, so the next app is not served a handler built for the previous one, and
+    whatever else the manager keeps per app (it says so in
+    ``forget_state_of_the_gone_app``)."""
     for name in ("redis_handler", "agent_handler"):
         if isinstance(inspect.getattr_static(type(manager), name, None), ScopedToApp):
             manager.__dict__.pop(name, None)
+    forget_other_state = getattr(manager, "forget_state_of_the_gone_app", None)
+    if forget_other_state is not None:
+        forget_other_state()
 
 
 def app_scope_of(config: "SyncSecurityConfig") -> AppScope:
