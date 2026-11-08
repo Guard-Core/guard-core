@@ -20,7 +20,7 @@ from guard_core.sync.handlers import (
     _suspatterns_literals,
     _suspatterns_regex,
 )
-from guard_core.sync.handlers._suspatterns_lazy_rows import PatternSource
+from guard_core.sync.handlers._suspatterns_lazy_rows import PatternRow, PatternSource
 from guard_core.sync.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_handler,
@@ -474,7 +474,7 @@ def test_a_budget_spent_by_the_last_scanned_row_is_reported_beside_a_tail() -> N
 
 
 def test_a_spent_pass_with_every_row_prefiltered_still_reports_the_budget() -> None:
-    row = (re.compile(r"zzneedle\d"), frozenset(), "xss")
+    row: PatternRow = (re.compile(r"zzneedle\d"), frozenset(), "xss")
     content = "quarterly onboarding metrics " * 1000
     folded = _suspatterns_literals.fold_for_literals(content)
     assert (
@@ -499,3 +499,50 @@ def test_a_spent_pass_with_every_row_prefiltered_still_reports_the_budget() -> N
 
     assert matched == timeouts == ["scan_time_budget_exhausted"]
     assert [threat["pattern"] for threat in threats] == matched
+
+
+def test_a_spent_pass_with_every_row_filtered_out_reports_the_budget() -> None:
+    # LEDGER 6.701: v4.4.0 recorded the budget outcome on its first loop check, before
+    # any per-row skip, so a pass with zero applicable rows still reported it.
+    manager = SusPatternsManager()
+    manager.configure(SyncSecurityConfig(detection_max_scan_seconds=1.0))
+    rows = manager._rows_to_scan()
+    applicable, skipped_tail = _suspatterns_regex._applicable_patterns(
+        rows,
+        raw_view_only=None,
+        url_decoded_view_only=None,
+        skip_filter=False,
+        normalized_context="query_param",
+        enabled_categories={"no_such_category"},
+    )
+    assert rows
+    assert applicable == []
+    assert skipped_tail is True
+
+    with _scan_value_budget(512, max_scan_seconds=1.0):
+        detection_scan._record_scan_time(1.5)
+        threats, matched, timeouts = manager._check_regex_patterns(
+            "hello", "127.0.0.1", None, "query_param", {"no_such_category"}
+        )
+
+    assert matched == timeouts == ["scan_time_budget_exhausted"]
+    assert [threat["pattern"] for threat in threats] == matched
+
+
+def test_a_spent_pass_over_an_empty_row_table_stays_clean() -> None:
+    manager = SusPatternsManager()
+    manager.configure(SyncSecurityConfig(detection_max_scan_seconds=1.0))
+
+    def no_rows() -> list[object]:
+        return []
+
+    with (
+        _scan_value_budget(512, max_scan_seconds=1.0),
+        patch.object(manager, "_rows_to_scan", no_rows),
+    ):
+        detection_scan._record_scan_time(1.5)
+        threats, matched, timeouts = manager._check_regex_patterns(
+            "hello", "127.0.0.1", None
+        )
+
+    assert threats == matched == timeouts == []
