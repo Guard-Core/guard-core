@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from guard_core._redis_abandoned_client import close_sync_client
 from guard_core._redis_client_loop import EventLoop, running_loop_or_none
+from guard_core._redis_enablement import configured_redis_url
 from guard_core._redis_exceptions import RedisConnectionError, RedisTimeoutError
 from guard_core.exceptions import GuardRedisError
 from guard_core.sync._utils.app_scope import app_scope_of, in_app_scope
@@ -14,6 +15,7 @@ from guard_core.sync.core.events.event_types import EVENT_REDIS_CONNECTION
 from guard_core.sync.handlers import _redis_shared_clients
 from guard_core.sync.handlers._redis_attempt import ConnectionLocks, RedisAttemptSlot
 from guard_core.sync.handlers._redis_handler_support import _redact_redis_url
+from guard_core.sync.handlers._redis_probe import redis_answers_within_the_deadline
 from guard_core.sync.handlers._redis_reconnect_gate import RedisReconnectGate
 
 if TYPE_CHECKING:
@@ -87,16 +89,19 @@ class RedisOutageMixin:
             close_sync_client(old_redis, old_loop)
 
     def _start_the_attempt_if_the_window_is_open(self, url: str) -> None:
-        gate = self._reconnect_gate()
-        if gate.enter():
-            try:
-                self.register_background_user(self._attempts().stop)
-                self._attempts().spawn(lambda: self._attempt_in_background(url))
-            except BaseException:
-                # No attempt will ever release the claim: do it here, or no caller
-                # would ever enter again.
-                gate.leave(False)
-                raise
+        if self._reconnect_gate().enter():
+            self._spawn_the_attempt(url)
+
+    def _spawn_the_attempt(self, url: str) -> None:
+        # The caller holds the gate claim and the attempt releases it.
+        try:
+            self.register_background_user(self._attempts().stop)
+            self._attempts().spawn(lambda: self._attempt_in_background(url))
+        except BaseException:
+            # No attempt will ever release the claim: do it here, or no caller
+            # would ever enter again.
+            self._reconnect_gate().leave(False)
+            raise
 
     def _connect_inline(self, url: str) -> None:
         # The first connect and the loop-change reconnect: callers wait for the one
@@ -152,23 +157,46 @@ class RedisOutageMixin:
         if recovered:
             self._report_recovery(url)
 
-    def _mark_degraded(self, client: Redis | None) -> None:
+    def _discard_if_current(self, client: Redis | None) -> bool:
         if client is None or self._redis is not client:
             # Already discarded or replaced: the usual case for the errors of the
             # requests that were in flight when the outage began.
-            return
+            return False
         with self._connection_lock_here():
-            if client is None or self._redis is not client:
-                return
+            if self._redis is not client:
+                return False
             self._discard_client()
+            return True
+
+    def _probe_then_decide(self) -> None:
+        # Holds the gate claim while it probes, so no caller connects meanwhile, and
+        # never calls a connect: both locks are not reentrant.
+        url = configured_redis_url(self.config)
+        gate = self._reconnect_gate()
+        if url is None or not gate.enter():
             self._degraded = True
-            gate = self._reconnect_gate()
-            if gate.enter():
-                gate.leave(False)
+            return
+        try:
+            answered = redis_answers_within_the_deadline(url)
+        except BaseException:
+            self._degraded = True
+            gate.leave(False)
+            raise
+        if answered:
+            gate.leave(True)
+            return
+        self._degraded = True
+        self._spawn_the_attempt(url)
 
     def _degrade_on_outage(self, client: Redis | None, error: Exception) -> None:
-        if type(error) in (RedisConnectionError, RedisTimeoutError):
-            self._mark_degraded(client)
+        # D-291. A refusal is cheap to find out about: drop the client and the next
+        # caller connects (v4.4.0). A timeout is a possible black hole: drop it, ask
+        # once whether Redis answers, and only a silent one degrades the manager.
+        error_type = type(error)
+        if error_type is RedisConnectionError:
+            self._discard_if_current(client)
+        elif error_type is RedisTimeoutError and self._discard_if_current(client):
+            self._probe_then_decide()
 
     def _connection_lock_here(self) -> threading.Lock:
         locks: ConnectionLocks = vars(self).setdefault(

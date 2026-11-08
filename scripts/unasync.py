@@ -162,6 +162,7 @@ HAND_MAINTAINED = {
     SYNC_DIR / "handlers" / "ratelimit_handler.py",
     SYNC_DIR / "handlers" / "_redis_fast_pool.py",
     SYNC_DIR / "handlers" / "_redis_attempt.py",
+    SYNC_DIR / "handlers" / "_redis_probe.py",
     SYNC_DIR / "handlers" / "_dynamic_rule_persistence.py",
     TEST_SYNC_DIR / "test_core" / "test_check_rate_limit_by_ip_autoban.py",
     TEST_SYNC_DIR / "test_redis_pool_timeout_threads.py",

@@ -242,3 +242,21 @@ def test_forgetting_the_parents_attempts_leaves_a_manager_without_a_gate_alone()
     manager = manager_for("nogate")
     manager._forget_the_parents_attempts()
     assert "_reconnect_gate_of_this_manager" not in vars(manager)
+
+
+def test_a_waiter_past_the_window_gets_503_and_builds_nothing(rig: Rig) -> None:
+    rig.mode = "ok"
+    manager = manager_for("waiter")
+    outcomes: list[str] = []
+    waiter = threading.Thread(
+        target=lambda: outcomes.append(get_ignoring_503(manager)), daemon=True
+    )
+    with manager._connection_lock_here():
+        waiter.start()
+        time.sleep(0.1)
+        assert outcomes == []
+        manager._degraded = True
+        manager._reconnect_gate()._not_before = time.monotonic() - 1.0
+    waiter.join(5)
+    assert outcomes == ["503"]
+    assert rig.clients == []

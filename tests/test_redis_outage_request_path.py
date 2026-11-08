@@ -17,12 +17,16 @@ from redis.exceptions import TimeoutError as RedisTimeoutError
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers import redis_handler as redis_handler_module
+from guard_core.handlers._redis_probe import (
+    PROBE_DEADLINE_SECONDS,
+    redis_answers_within_the_deadline,
+)
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL, MockGuardResponse, suite_redis_prefix
-from tests.redis_outage_standins import HangableProxy, HungListener
+from tests.redis_outage_standins import HangableProxy, HungListener, WatchedListener
 
 BAR = 0.5
 BLOCK_LIMIT = 3.0
@@ -245,23 +249,40 @@ async def test_a_recovered_redis_serves_again_after_the_spawned_attempt(
     await manager.close()
 
 
-@pytest.mark.parametrize("error", [RedisConnectionError, RedisTimeoutError])
-async def test_a_connection_or_timeout_error_marks_the_manager_degraded(
-    rig: Rig, error: type[Exception]
+async def test_a_timeout_error_on_a_silent_redis_marks_the_manager_degraded(
+    rig: Rig,
 ) -> None:
     rig.mode = "ok"
     manager = RedisManager(config_for(fake_url(), "marks"))
     await manager.initialize()
     assert manager.is_connected()
-    expected = GuardRedisError if error is RedisConnectionError else error
-    with pytest.raises(expected):
+    rig.mode = "fail"
+    with pytest.raises(RedisTimeoutError):
         async with manager.get_connection():
-            raise error("down")
+            raise RedisTimeoutError("down")
     assert not manager.is_connected()
     assert rig.clients[0].closed
     gate = manager._reconnect_gate()
-    assert gate._failures == 1
+    assert await wait_until(lambda: gate._failures == 1)
     assert gate.enter() is False
+    await manager.close()
+
+
+async def test_a_connection_error_only_discards_the_client(rig: Rig) -> None:
+    rig.mode = "ok"
+    manager = RedisManager(config_for(fake_url(), "discards"))
+    await manager.initialize()
+    assert manager.is_connected()
+    with pytest.raises(GuardRedisError):
+        async with manager.get_connection():
+            raise RedisConnectionError("down")
+    assert not manager.is_connected()
+    assert rig.clients[0].closed
+    gate = manager._reconnect_gate()
+    assert gate._failures == 0
+    assert gate.enter() is True
+    gate.leave(True)
+    assert not manager._degraded
     await manager.close()
 
 
@@ -577,3 +598,214 @@ async def test_a_manager_closed_while_its_attempt_connects_drops_the_client(
     rig.release.set()
     assert await wait_until(lambda: rig.clients[-1].closed)
     assert not manager.is_connected()
+
+
+class Sink:
+    """The agent handler of a test: the action of every event it is sent."""
+
+    def __init__(self) -> None:
+        self.actions: list[str] = []
+
+    async def send_event(self, event: object) -> None:
+        self.actions.append(str(getattr(event, "action_taken", "")))
+
+
+def count_builds(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    builds: list[int] = []
+    real_build = redis_handler_module._build_redis_client
+
+    def counting(url: str, size: int, pool_timeout: float, **kwargs: object) -> object:
+        builds.append(1)
+        return real_build(url, size, pool_timeout, **kwargs)
+
+    monkeypatch.setattr(redis_handler_module, "_build_redis_client", counting)
+    return builds
+
+
+async def test_one_connection_error_on_a_healthy_redis_costs_one_reconnect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    builds = count_builds(monkeypatch)
+    config = config_for(REDIS_URL, "blip", timeout=5.0)
+    manager = RedisManager(config)
+    sink = Sink()
+    manager.agent_handler = sink
+    await manager.initialize()
+    await manager.set_key("outage", "k", "v", ttl=30)
+    banner = IPBanManager()
+    banner.redis_handler = None
+    await banner.reset()
+    banner.config = config
+    await banner.initialize_redis(manager)
+    await banner.ban_ip(CLIENT_IP, 60, "blip test")
+    assert len(builds) == 1
+    sink.actions.clear()
+
+    with pytest.raises(GuardRedisError):
+        async with manager.get_connection():
+            raise RedisConnectionError("one blip")
+
+    banner.banned_ips.clear()
+    started = monotonic()
+    banned = await banner.is_ip_banned(CLIENT_IP)
+    stored = await manager.get_key("outage", "k")
+    took = monotonic() - started
+    await banner.unban_ip(CLIENT_IP)
+    await manager.delete("outage", "k")
+    await manager.close()
+    assert banned
+    assert stored == "v"
+    assert took < 1.0
+    assert len(builds) == 2
+    assert [a for a in sink.actions if a != "connection_closed"] == [
+        "operation_failed",
+        "connection_established",
+    ]
+    assert "connection_recovered" not in sink.actions
+
+
+async def test_a_refused_redis_after_a_blip_costs_one_attempt_then_answers_at_once(
+    rig: Rig,
+) -> None:
+    rig.mode = "ok"
+    manager = RedisManager(config_for(fake_url(), "refused"))
+    await manager.initialize()
+    assert len(rig.clients) == 1
+    with pytest.raises(GuardRedisError):
+        async with manager.get_connection():
+            raise RedisConnectionError("down")
+    rig.mode = "fail"
+    assert (await timed_get(manager))[1] == "503"
+    assert len(rig.clients) == 2
+    waits: list[float] = []
+    end = monotonic() + 0.15
+    while monotonic() < end:
+        waits.append((await timed_get(manager))[0])
+        await asyncio.sleep(0.02)
+    assert len(waits) > 3
+    assert max(waits) < 0.1
+    assert len(rig.clients) == 2
+    await asyncio.sleep(0.3)
+    assert (await timed_get(manager))[1] == "503"
+    assert await wait_until(lambda: len(rig.clients) == 3)
+    await manager.close()
+
+
+async def test_a_timeout_on_a_healthy_redis_is_no_outage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    builds = count_builds(monkeypatch)
+    manager = RedisManager(config_for(REDIS_URL, "slowcmd", timeout=5.0))
+    sink = Sink()
+    manager.agent_handler = sink
+    await manager.initialize()
+    await manager.set_key("outage", "k", "v", ttl=30)
+    sink.actions.clear()
+
+    async def one_command_past_the_socket_timeout(conn: object) -> None:
+        raise RedisTimeoutError("one slow command")
+
+    with pytest.raises(GuardRedisError):
+        await manager.safe_operation(one_command_past_the_socket_timeout)
+    gate = manager._reconnect_gate()
+    assert gate._failures == 0
+    assert not manager._degraded
+    assert not gate._claim.locked()
+    started = monotonic()
+    stored = await manager.get_key("outage", "k")
+    took = monotonic() - started
+    await manager.delete("outage", "k")
+    await manager.close()
+    assert stored == "v"
+    assert took < 1.0
+    assert len(builds) == 2
+    assert [a for a in sink.actions if a != "connection_closed"] == [
+        "safe_operation_failed",
+        "connection_established",
+    ]
+
+
+async def test_a_timeout_while_another_attempt_holds_the_claim_only_degrades(
+    rig: Rig,
+) -> None:
+    rig.mode = "ok"
+    manager = RedisManager(config_for(fake_url(), "probeless"))
+    await manager.initialize()
+    gate = manager._reconnect_gate()
+    assert gate.enter()
+    with pytest.raises(RedisTimeoutError):
+        async with manager.get_connection():
+            raise RedisTimeoutError("slow")
+    assert manager._degraded
+    assert gate._failures == 0
+    gate.leave(True)
+    await manager.close()
+
+
+async def test_an_interrupt_during_the_probe_frees_the_claim_and_degrades(
+    rig: Rig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rig.mode = "ok"
+    manager = RedisManager(config_for(fake_url(), "probestop"))
+    await manager.initialize()
+
+    async def interrupted(url: str) -> bool:
+        raise StopTheProcess
+
+    monkeypatch.setattr(
+        "guard_core.handlers._redis_outage.redis_answers_within_the_deadline",
+        interrupted,
+    )
+    with pytest.raises(StopTheProcess):
+        async with manager.get_connection():
+            raise RedisTimeoutError("slow")
+    gate = manager._reconnect_gate()
+    assert manager._degraded
+    assert not gate._claim.locked()
+    assert gate._failures == 1
+    await manager.close()
+
+
+async def test_a_waiter_past_the_window_gets_503_and_builds_nothing(  # async-only
+    rig: Rig,
+) -> None:
+    rig.mode = "ok"
+    manager = RedisManager(config_for(fake_url(), "waiter"))
+    async with manager._connection_lock_here():
+        waiter = asyncio.create_task(timed_get(manager))
+        await asyncio.sleep(0.1)
+        assert not waiter.done()
+        manager._degraded = True
+        manager._reconnect_gate()._not_before = monotonic() - 1.0
+    assert (await waiter)[1] == "503"
+    assert rig.clients == []
+
+
+async def test_the_probe_ends_at_its_own_deadline_whatever_the_url_says() -> None:
+    with WatchedListener() as silent:
+        url = silent.url("?socket_timeout=5&socket_connect_timeout=5")
+        started = monotonic()
+        answered = await redis_answers_within_the_deadline(url)
+        took = monotonic() - started
+        assert not answered
+        assert took <= PROBE_DEADLINE_SECONDS + 0.15
+        assert silent.accepted == 1
+        assert silent.wait_until_closed(1)
+
+
+async def test_the_probe_answers_true_for_a_live_redis_and_false_for_a_bad_url() -> (
+    None
+):
+    assert await redis_answers_within_the_deadline(REDIS_URL)
+    assert not await redis_answers_within_the_deadline("not a redis url")
+    assert not await redis_answers_within_the_deadline("redis://127.0.0.1:1/0")
+
+
+async def test_a_probe_cancelled_midway_still_closes_its_client() -> None:  # async-only
+    with WatchedListener() as silent:
+        probe = asyncio.create_task(redis_answers_within_the_deadline(silent.url()))
+        assert await wait_until(lambda: silent.accepted == 1)
+        probe.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await probe
+        assert silent.wait_until_closed(1)

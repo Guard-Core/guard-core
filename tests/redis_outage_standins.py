@@ -5,6 +5,7 @@ a mid-life outage). Plain threads and sockets, so both trees' tests share them."
 import asyncio
 import socket
 import threading
+import time
 from urllib.parse import urlparse
 
 from tests.conftest import REDIS_URL
@@ -22,6 +23,70 @@ class HungListener:
         return self
 
     def __exit__(self, *exc_info: object) -> None:
+        self._sock.close()
+
+
+class WatchedListener:
+    """Accepts connections and never answers; counts the accepted connections the peer
+    has closed, so a test can see that a client was closed and not just dropped."""
+
+    def __enter__(self) -> "WatchedListener":
+        self._sock = socket.socket()
+        self._sock.bind(("127.0.0.1", 0))
+        self._sock.listen(16)
+        self._sock.settimeout(0.1)
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self.accepted = 0
+        self.closed = 0
+        self._port = self._sock.getsockname()[1]
+        self._thread = threading.Thread(target=self._accept, daemon=True)
+        self._thread.start()
+        return self
+
+    def url(self, query: str = "") -> str:
+        return f"redis://127.0.0.1:{self._port}/0{query}"
+
+    def _accept(self) -> None:
+        while not self._stop.is_set():
+            try:
+                connection, _ = self._sock.accept()
+            except TimeoutError:
+                continue
+            except OSError:
+                return
+            with self._lock:
+                self.accepted += 1
+            threading.Thread(
+                target=self._watch, args=(connection,), daemon=True
+            ).start()
+
+    def _watch(self, connection: socket.socket) -> None:
+        connection.settimeout(3.0)
+        peer_closed = True
+        try:
+            while connection.recv(4096):
+                pass
+        except TimeoutError:
+            peer_closed = False
+        except OSError:
+            pass
+        connection.close()
+        if peer_closed:
+            with self._lock:
+                self.closed += 1
+
+    def wait_until_closed(self, count: int, seconds: float = 2.0) -> bool:
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            if self.closed >= count:
+                return True
+            time.sleep(0.02)
+        return self.closed >= count
+
+    def __exit__(self, *exc_info: object) -> None:
+        self._stop.set()
+        self._thread.join(2)
         self._sock.close()
 
 

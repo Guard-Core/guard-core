@@ -85,6 +85,9 @@ class ThreadSafeClient:
         return []
 
     async def ping(self) -> bool:
+        if self.rig.mode == "slowfail":
+            await asyncio.sleep(0.1)
+            raise RedisConnectionError("down")
         if self.rig.mode == "fail":
             raise RedisConnectionError("down")
         trap = self.rig.trap
@@ -422,3 +425,28 @@ async def test_two_threads_binding_between_a_check_and_a_write_release_the_first
         assert leaked == []
         assert live is not None
         bound.run(manager.close())
+
+
+async def test_requests_on_another_loop_after_the_connects_fail_make_one_attempt(
+    rig: ThreadSafeRig,
+) -> None:
+    rig.mode = "ok"
+    manager = RedisManager(config_for(fake_url(), "loopbfails", TIMEOUT))
+
+    async def bind_here() -> None:
+        await manager.initialize()
+
+    await on_a_new_loop(bind_here)
+    assert len(rig.clients) == 1
+    rig.mode = "slowfail"
+
+    async def timed(one: RedisManager) -> tuple[float, object]:
+        started = monotonic()
+        answer = await get_ignoring_503(one)
+        return monotonic() - started, answer
+
+    answers = await asyncio.gather(*(timed(manager) for _ in range(8)))
+    assert len(rig.clients) == 2
+    assert {answer for _, answer in answers} == {"503"}
+    assert max(wait for wait, _ in answers) < 0.5
+    await manager.close()
