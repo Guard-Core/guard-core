@@ -26,6 +26,12 @@ from pathlib import Path
 from fixture_types import SafetyCase
 
 from guard_core import __version__ as engine_version
+from guard_core.detection_engine._redos_cost_arbiter import (
+    _LOAD_FACTOR_CEILING,
+    _REFERENCE_SCAN_PATTERN,
+    _REFERENCE_SCAN_PROBE_LENGTH,
+    _REFERENCE_SCAN_SECONDS,
+)
 from guard_core.detection_engine._redos_work_counter import (
     WORK_COUNTER_SOURCE,
     WORK_UNIT_SECONDS,
@@ -130,7 +136,8 @@ TEST_STRINGS = ["abcdefghij", "attack-test-string-123", "x"]
 # (3.10) of CPU whatever the load, a 2.4x spread that no single string can fit between a
 # 5x margin over the threshold and a 5x margin under the kill, so a host that reads CPU
 # time (no instruction counter) needs 2x over the threshold and 5x under the kill; the
-# load only ever adds CPU time, which moves the reading away from the threshold.
+# CPU reading is divided by the host load factor (the reference scan, as the validator
+# does), so a slower core does not move it toward the kill (LEDGER 6.472).
 SAFETY_BUDGET_SECONDS = 0.05
 PROBE_THRESHOLD_SECONDS = 0.05
 PROBE_KILL_SECONDS = 2.0
@@ -334,6 +341,28 @@ _EXTRAPOLATED = re.compile(
 )
 
 
+def _reference_scan_seconds() -> float:
+    compiled = re.compile(_REFERENCE_SCAN_PATTERN)
+    text = "/" + "0" * _REFERENCE_SCAN_PROBE_LENGTH
+    best = float("inf")
+    for _ in range(3):
+        start = time.process_time()
+        compiled.search(text)
+        best = min(best, time.process_time() - start)
+    return best
+
+
+def _host_load_factor() -> float:
+    # The validator's own normalization (LEDGER 6.503): CPU seconds on a slower core
+    # (efficiency core, loaded host) are divided by how much slower the reference scan
+    # ran than on the calibration host, never multiplied on a faster one, so the
+    # margins below judge the work of the case and not the speed of the core.
+    return min(
+        max(_reference_scan_seconds() / _REFERENCE_SCAN_SECONDS, 1.0),
+        _LOAD_FACTOR_CEILING,
+    )
+
+
 def _string_timeout_cost_seconds(case: dict) -> tuple[float, float]:
     compiled = re.compile(case["pattern"], re.IGNORECASE | re.MULTILINE)
     probe = case["test_strings"][0]
@@ -344,9 +373,10 @@ def _string_timeout_cost_seconds(case: dict) -> tuple[float, float]:
         return counter(
             compiled, probe
         ) * WORK_UNIT_SECONDS, STRING_TIMEOUT_COUNTED_MARGIN
+    load_factor = _host_load_factor()
     start = time.process_time()
     compiled.search(probe)
-    return time.process_time() - start, STRING_TIMEOUT_MARGIN
+    return (time.process_time() - start) / load_factor, STRING_TIMEOUT_MARGIN
 
 
 def _fixed_reference(case: dict, reason: str) -> dict:
