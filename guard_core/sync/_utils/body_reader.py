@@ -209,16 +209,16 @@ def _straddle_overlap_bytes(*, patterns: "SusPatternsManager | None" = None) -> 
     from guard_core.sync.handlers.suspatterns_handler import active_sus_patterns
 
     try:
-        compiled = (
+        rows = (
             patterns if patterns is not None else active_sus_patterns()
-        ).get_all_compiled_patterns()
+        )._rows_to_scan()
     except Exception:
         return 0
 
-    if not compiled:
+    if not rows:
         return 0
 
-    longest = max(len(pattern.pattern) for pattern, _contexts, _category in compiled)
+    longest = max(len(pattern.pattern) for pattern, _contexts, _category in rows)
     return min(longest, _MAX_STRADDLE_OVERLAP_BYTES)
 
 

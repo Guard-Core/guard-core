@@ -7,6 +7,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._suspatterns_inline_matches import _INLINE_FINDERS
 from guard_core.sync.handlers._suspatterns_lazy_rows import COMPILED_BUILTIN_PATTERNS
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
+from guard_core.sync.utils import _MAX_STRADDLE_OVERLAP_BYTES, _straddle_overlap_bytes
 
 _FCK_PATH = "/" + "fckeditor/editor/filemanager/" * 250
 
@@ -40,6 +41,26 @@ def test_new_manager_compiles_no_builtin_row(
 ) -> None:
     assert "compiled_patterns" not in vars(fresh_manager)
     assert not COMPILED_BUILTIN_PATTERNS
+
+
+def test_straddle_overlap_reads_source_lengths_and_compiles_no_row(
+    fresh_manager: SusPatternsManager,
+) -> None:
+    overlap = _straddle_overlap_bytes(patterns=fresh_manager)
+
+    assert "compiled_patterns" not in vars(fresh_manager)
+    assert not COMPILED_BUILTIN_PATTERNS
+    assert overlap == min(
+        max(
+            len(source)
+            for source, _contexts, _category in fresh_manager._pattern_definitions
+        ),
+        _MAX_STRADDLE_OVERLAP_BYTES,
+    )
+    assert overlap == min(
+        max(len(row[0].pattern) for row in fresh_manager.compiled_patterns),
+        _MAX_STRADDLE_OVERLAP_BYTES,
+    )
 
 
 def test_first_detect_compiles_only_the_rows_it_searches(
