@@ -508,6 +508,50 @@ def test_a_connection_error_inside_a_connection_is_logged_and_reported(
     assert event.metadata == {"error_type": "operation_error"}
 
 
+@pytest.mark.parametrize(
+    "failure", [RedisConnectionError("reset"), AttributeError("gone")]
+)
+def test_a_connection_failure_at_checkout_is_refused_degraded_and_reported(
+    monkeypatch: pytest.MonkeyPatch, failure: Exception
+) -> None:
+    handler = _handler()
+    degrade = MagicMock()
+    monkeypatch.setattr(handler, "_degrade_on_outage", degrade)
+    monkeypatch.setattr(handler, "_check_out_client", MagicMock(side_effect=failure))
+
+    with pytest.raises(GuardRedisError) as raised:
+        with handler.get_connection():
+            raise AssertionError("the body must not run")
+
+    assert raised.value.status_code == 503
+    assert raised.value.detail == "Redis connection failed"
+    assert raised.value.__cause__ is failure
+    degrade.assert_called_once_with(None, failure)
+    (event,) = _events(handler)
+    assert event.event_type == "redis_error"
+    assert event.action_taken == "operation_failed"
+    assert event.reason == f"Redis operation failed: {failure}"
+    assert event.metadata == {"error_type": "operation_error"}
+
+
+def test_a_timeout_at_checkout_degrades_and_is_raised_as_it_was(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _handler()
+    degrade = MagicMock()
+    failure = RedisTimeoutError("slow")
+    monkeypatch.setattr(handler, "_degrade_on_outage", degrade)
+    monkeypatch.setattr(handler, "_check_out_client", MagicMock(side_effect=failure))
+
+    with pytest.raises(RedisTimeoutError) as raised:
+        with handler.get_connection():
+            raise AssertionError("the body must not run")
+
+    assert raised.value is failure
+    degrade.assert_called_once_with(None, failure)
+    assert _events(handler) == []
+
+
 def test_a_failing_safe_operation_is_logged_reported_and_named(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
