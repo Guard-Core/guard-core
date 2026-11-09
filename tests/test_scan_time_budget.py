@@ -1,7 +1,9 @@
 import asyncio
+import json
 import re
 import threading
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
@@ -19,6 +21,7 @@ from guard_core.handlers import (
     _suspatterns_regex,
 )
 from guard_core.handlers._suspatterns_lazy_rows import PatternRow, PatternSource
+from guard_core.handlers._suspatterns_state import _DetectionState
 from guard_core.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_handler,
@@ -554,3 +557,162 @@ async def test_a_spent_pass_over_an_empty_row_table_stays_clean() -> None:
         )
 
     assert threats == matched == timeouts == []
+
+
+_UNIT_TEXT = "caf\u00e9 zzmark"
+_PAST_THE_VALUE_CAP = 512
+_CATEGORIES_THE_UNIT_PASS_EMPTIES = [
+    "code_injection",
+    "sqli",
+    "xss",
+    "template",
+    "ldap",
+    "http_split",
+]
+
+
+def _is_the_unit_text(content: str) -> bool:
+    return content.strip().lower().replace("\u00e9", "e") == "cafe zzmark"
+
+
+@contextmanager
+def _spending_the_budget(point: str) -> Iterator[None]:
+    """Patches that record 2.0 s of scan time at ``point`` of the unit text's scan:
+    ``pre`` in its preprocessing, ``after_pass_N`` once its Nth regex pass returned."""
+    real_preprocess = SusPatternsManager._preprocess_content
+    real_pass = SusPatternsManager._check_regex_patterns
+    passes: list[str] = []
+
+    async def preprocess(
+        self: SusPatternsManager,
+        content: str,
+        correlation_id: str | None,
+        *,
+        state: _DetectionState | None = None,
+    ) -> tuple[str, bool, str | None]:
+        if point == "pre" and content == _UNIT_TEXT:
+            detection_scan._record_scan_time(2.0)
+        return await real_preprocess(self, content, correlation_id, state=state)
+
+    async def one_pass(
+        self: SusPatternsManager,
+        content: str,
+        ip_address: str,
+        correlation_id: str | None,
+        context: str = "unknown",
+        enabled_categories: set[str] | None = None,
+        *,
+        state: _DetectionState | None = None,
+        raw_view_only: bool | None = None,
+        url_decoded_view_only: bool | None = None,
+        nul_tail_rows: bool = False,
+    ) -> tuple[list[dict], list[str], list[str]]:
+        out = await real_pass(
+            self,
+            content,
+            ip_address,
+            correlation_id,
+            context,
+            enabled_categories,
+            state=state,
+            raw_view_only=raw_view_only,
+            url_decoded_view_only=url_decoded_view_only,
+            nul_tail_rows=nul_tail_rows,
+        )
+        if _is_the_unit_text(content):
+            passes.append(content)
+            if point == f"after_pass_{len(passes)}":
+                detection_scan._record_scan_time(2.0)
+        return out
+
+    with (
+        patch.object(SusPatternsManager, "_preprocess_content", preprocess),
+        patch.object(SusPatternsManager, "_check_regex_patterns", one_pass),
+    ):
+        yield
+
+
+def _json_request(values: dict[str, str], content_type: str) -> MockGuardRequest:
+    body = json.dumps(values).encode()
+    return MockGuardRequest(
+        method="POST",
+        headers={"content-type": content_type, "content-length": str(len(body))},
+        body_content=body,
+    )
+
+
+def _unit_past_the_value_cap() -> MockGuardRequest:
+    values = {f"a{i}": "x" for i in range(_PAST_THE_VALUE_CAP)}
+    return _json_request({**values, "u": _UNIT_TEXT}, "application/json")
+
+
+def _config_for(category: str) -> SecurityConfig:
+    return SecurityConfig(
+        enable_redis=False,
+        enable_penetration_detection=True,
+        detection_max_scan_seconds=1.0,
+        enabled_detection_categories={category},
+    )
+
+
+@pytest.mark.parametrize("point", ["pre", "after_pass_1", "after_pass_2"])
+@pytest.mark.parametrize("category", _CATEGORIES_THE_UNIT_PASS_EMPTIES)
+async def test_a_unit_pass_the_budget_ended_before_is_an_incomplete_scan(
+    category: str, point: str
+) -> None:
+    # LEDGER 6.701: the unit's whole-value passes drop rows after the tail was judged.
+    # Every pass that follows a spent budget still records it (rows or a skipped tail),
+    # so the request ends in the budget outcome, never clean, as v4.4.0 would.
+    with _spending_the_budget(point):
+        result = await detect_penetration_attempt(
+            _unit_past_the_value_cap(), _config_for(category)
+        )
+
+    assert result.body_read_error
+    assert result.is_threat is False
+
+
+async def test_a_unit_pass_the_budget_ended_after_its_last_pass_stays_clean() -> None:
+    with _spending_the_budget("after_pass_3"):
+        result = await detect_penetration_attempt(
+            _unit_past_the_value_cap(), _config_for("sqli")
+        )
+
+    assert result.body_read_error is None
+    assert result.is_threat is False
+
+
+@pytest.mark.parametrize("category", _CATEGORIES_THE_UNIT_PASS_EMPTIES)
+async def test_a_unit_pass_with_budget_left_stays_clean(category: str) -> None:
+    result = await detect_penetration_attempt(
+        _unit_past_the_value_cap(), _config_for(category)
+    )
+
+    assert result.body_read_error is None
+    assert result.is_threat is False
+
+
+@pytest.mark.parametrize("category", ["code_injection", "sqli", "xss"])
+async def test_the_same_unit_inside_the_value_cap_reports_the_budget(
+    category: str,
+) -> None:
+    request = _json_request({"u": _UNIT_TEXT, "a": "x"}, "application/json")
+
+    with _spending_the_budget("pre"):
+        result = await detect_penetration_attempt(request, _config_for(category))
+
+    assert result.is_threat is True
+    assert "scan_time_budget_exhausted" in result.trigger_info
+
+
+@pytest.mark.parametrize("category", ["dir_traversal", "sensitive_file"])
+async def test_a_blob_leaf_pass_the_budget_ended_before_reports_the_budget(
+    category: str,
+) -> None:
+    request = _json_request({"k": _UNIT_TEXT}, "text/plain")
+
+    with _spending_the_budget("pre"):
+        result = await detect_penetration_attempt(request, _config_for(category))
+
+    assert result.is_threat is True
+    assert "scan_time_budget_exhausted" in result.trigger_info
