@@ -1,21 +1,27 @@
 import json
+import logging
 import re
 import threading
 import time
 from collections.abc import Callable, Generator, Iterator
-from contextlib import contextmanager
-from unittest.mock import patch
+from contextlib import AbstractContextManager, contextmanager
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.agent_protocol import JsonValue
-from guard_core.sync._utils import detection_scan
+from guard_core.sync._utils import detection_scan, scan_remainder
 from guard_core.sync._utils.detection_scan import (
     _scan_time_budget_exhausted,
     _scan_value_budget,
 )
+from guard_core.sync.core.checks.implementations.suspicious_activity import (
+    SuspiciousActivityCheck,
+)
+from guard_core.sync.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
+from guard_core.sync.detection_engine.binary_prefix import BinaryPrefix
 from guard_core.sync.handlers import (
     _suspatterns_inline_matches,
     _suspatterns_lazy_rows,
@@ -708,3 +714,230 @@ def test_a_blob_leaf_pass_the_budget_ended_before_reports_the_budget(
 
     assert result.is_threat is True
     assert "scan_time_budget_exhausted" in result.trigger_info
+
+
+def test_a_budget_spent_by_the_last_row_the_prefilter_yields_is_reported() -> None:
+    # LEDGER 6.714: v4.4.0 budget-checked every table row, so a budget spent inside
+    # the last row the literal prefilter yields was recorded at the next row's check.
+    manager = SusPatternsManager()
+    manager.configure(SyncSecurityConfig(detection_max_scan_seconds=1.0))
+    rows = manager._rows_to_scan()
+    applicable, skipped_tail = _suspatterns_regex._applicable_patterns(
+        rows,
+        raw_view_only=None,
+        url_decoded_view_only=None,
+        skip_filter=True,
+        normalized_context="request_body",
+        enabled_categories=None,
+    )
+    yielded = list(
+        _suspatterns_literals.rows_with_required_literal(
+            applicable,
+            _suspatterns_literals.fold_for_literals("hello"),
+            _suspatterns_regex._LITERAL_EXCLUDED_SOURCES,
+        )
+    )
+    assert skipped_tail is False
+    assert yielded[-1] is not applicable[-1]
+    last_yielded = yielded[-1][0]
+    scan_row = manager._check_regex_pattern
+
+    def spends_after_the_last_yielded_row(
+        pattern: PatternSource,
+        content: str,
+        ip_address: str,
+        pattern_start: float,
+        category: str,
+        *,
+        state: _DetectionState | None = None,
+        context: str = "unknown",
+        binary_prefix: BinaryPrefix | None = None,
+    ) -> tuple[dict | None, bool]:
+        out = scan_row(
+            pattern,
+            content,
+            ip_address,
+            pattern_start,
+            category,
+            state=state,
+            context=context,
+            binary_prefix=binary_prefix,
+        )
+        if pattern is last_yielded:
+            detection_scan._record_scan_time(1.5)
+        return out
+
+    with (
+        _scan_value_budget(512, max_scan_seconds=1.0),
+        patch.object(
+            manager, "_check_regex_pattern", spends_after_the_last_yielded_row
+        ),
+    ):
+        threats, matched, timeouts = manager._check_regex_patterns(
+            "hello", "127.0.0.1", None, "request_body", None
+        )
+
+    assert matched == timeouts == ["scan_time_budget_exhausted"]
+    assert [threat["pattern"] for threat in threats] == matched
+
+
+@pytest.mark.parametrize(
+    ("flag", "source"),
+    [
+        (scan_remainder._scanning_whole_value_rows_only, r"zzzcustom\d"),
+        (detection_scan._skipping_whole_value_path_rows, r"\A[/\\]zzzcustom\d"),
+    ],
+    ids=["rows_only", "path_rows_skipped"],
+)
+def test_a_spent_pass_whose_whole_value_filter_dropped_the_tail_reports_it(
+    flag: Callable[[], AbstractContextManager[None]], source: str
+) -> None:
+    # LEDGER 6.701: the whole-value filter emptied a table whose tail was applicable,
+    # and the tail was judged before the filter, so the spent budget was not recorded.
+    manager = SusPatternsManager()
+    manager.configure(SyncSecurityConfig(detection_max_scan_seconds=1.0))
+    manager.add_pattern(source)
+
+    with _scan_value_budget(512, max_scan_seconds=1.0), flag():
+        detection_scan._record_scan_time(1.5)
+        threats, matched, timeouts = manager._check_regex_patterns(
+            "hello", "127.0.0.1", None, "query_param", {"custom"}
+        )
+
+    assert matched == timeouts == ["scan_time_budget_exhausted"]
+    assert [threat["pattern"] for threat in threats] == matched
+
+
+def test_a_spent_pass_with_budget_left_and_filtered_tail_stays_clean() -> None:
+    manager = SusPatternsManager()
+    manager.configure(SyncSecurityConfig(detection_max_scan_seconds=1.0))
+    manager.add_pattern(r"zzzcustom\d")
+
+    with (
+        _scan_value_budget(512, max_scan_seconds=1.0),
+        scan_remainder._scanning_whole_value_rows_only(),
+    ):
+        threats, matched, timeouts = manager._check_regex_patterns(
+            "hello", "127.0.0.1", None, "query_param", {"custom"}
+        )
+
+    assert threats == matched == timeouts == []
+
+
+def _status_check(
+    config: SyncSecurityConfig,
+) -> tuple[SuspiciousActivityCheck, MagicMock]:
+    middleware = MagicMock()
+    middleware.config = config
+    middleware.logger = logging.getLogger("test_scan_time_budget")
+    middleware.suspicious_request_counts = {}
+    middleware.event_bus.send_middleware_event = MagicMock()
+    middleware.create_error_response = MagicMock(
+        side_effect=lambda status_code, default_message: MagicMock(
+            status_code=status_code
+        )
+    )
+    middleware.route_resolver.should_bypass_check = lambda *_: False
+    return SuspiciousActivityCheck(middleware), middleware
+
+
+def _with_client(request: SyncMockGuardRequest) -> SyncMockGuardRequest:
+    request.state.client_ip = "203.0.113.9"
+    request.state.route_config = None
+    return request
+
+
+@contextmanager
+def _spending_in_the_nth_scanned_row(
+    nth: int | None, counted: list[int]
+) -> Iterator[None]:
+    """Records 2.0 s of scan time as the ``nth`` regex row of the request returns."""
+    real_row = SusPatternsManager._check_regex_pattern
+
+    def one_row(
+        self: SusPatternsManager,
+        pattern: PatternSource,
+        content: str,
+        ip_address: str,
+        pattern_start: float,
+        category: str,
+        *,
+        state: _DetectionState | None = None,
+        context: str = "unknown",
+        binary_prefix: BinaryPrefix | None = None,
+    ) -> tuple[dict | None, bool]:
+        out = real_row(
+            self,
+            pattern,
+            content,
+            ip_address,
+            pattern_start,
+            category,
+            state=state,
+            context=context,
+            binary_prefix=binary_prefix,
+        )
+        counted[0] += 1
+        if counted[0] == nth:
+            detection_scan._record_scan_time(2.0)
+        return out
+
+    with patch.object(SusPatternsManager, "_check_regex_pattern", one_row):
+        yield
+
+
+def test_a_default_request_spent_in_its_last_scanned_row_answers_400() -> None:
+    # LEDGER 6.714, request level: the budget is spent inside the last regex row the
+    # default-config request (all categories) scans. v4.4.0 and head both answer 400
+    # with the budget outcome (WP502 raw/request-*.txt); the last pass of a real
+    # request always has a skipped tail, so the pass-level pins above carry the RED.
+    config = SyncSecurityConfig(
+        enable_redis=False, detection_max_scan_seconds=1.0, fail_secure=True
+    )
+    sus_patterns_handler.configure(config)
+    counted = [0]
+    with _spending_in_the_nth_scanned_row(None, counted):
+        detect_penetration_attempt(
+            _with_client(
+                SyncMockGuardRequest(path="/api", query_params={"q": "hello"})
+            ),
+            config,
+        )
+    last_row = counted[0]
+    check, middleware = _status_check(config)
+
+    with _spending_in_the_nth_scanned_row(last_row, [0]):
+        response = check.check(
+            _with_client(SyncMockGuardRequest(path="/api", query_params={"q": "hello"}))
+        )
+
+    assert response is not None
+    assert response.status_code == 400
+    assert "scan_time_budget_exhausted" in str(
+        middleware.event_bus.send_middleware_event.call_args.kwargs
+    )
+
+
+def test_a_unit_pass_after_a_custom_tail_row_answers_400_with_no_strike() -> None:
+    # LEDGER 6.701 + D-88 item 1: the table ends in an unanchored custom row, the
+    # remainder unit pass drops it, the budget is spent after the unit's first pass:
+    # D-17's flag (400, one event, no strike), never a pass.
+    config = SyncSecurityConfig(
+        enable_redis=False,
+        enable_penetration_detection=True,
+        detection_max_scan_seconds=1.0,
+        fail_secure=True,
+    )
+    sus_patterns_handler.configure(config)
+    sus_patterns_handler.add_pattern(r"zzzcustom\d")
+    check, middleware = _status_check(config)
+
+    with _spending_the_budget("after_pass_1"):
+        response = check.check(_with_client(_unit_past_the_value_cap()))
+
+    assert response is not None
+    assert response.status_code == 400
+    event = middleware.event_bus.send_middleware_event.call_args.kwargs
+    assert event["event_type"] == EVENT_SUSPICIOUS_REQUEST
+    assert event["action_taken"] == "request_blocked"
+    assert middleware.suspicious_request_counts == {}
