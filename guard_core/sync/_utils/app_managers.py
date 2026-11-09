@@ -244,6 +244,7 @@ class AppManagers(Generic[_M]):
         self._own: ConfigHandlerRegistry[_M] = ConfigHandlerRegistry()
         self._default_apps: ConfigHandlerRegistry[_M] = ConfigHandlerRegistry()
         self._served: weakref.ref[_PrefixedRedisConfig] | None = None
+        self._served_default: weakref.ref[_M] | None = None
 
     def _default_serves(self) -> _PrefixedRedisConfig | None:
         served = self._served() if self._served is not None else None
@@ -274,6 +275,7 @@ class AppManagers(Generic[_M]):
             remember_state_before_the_first_app(default)
         elif self._served() is None:
             forget_handlers_of_the_gone_app(default)
+        self._served_default = weakref.ref(default)
         self._default_apps.register(config, default, self.kind)
         self._served = weakref.ref[_PrefixedRedisConfig](config)
         self._served_key = _connection_key_of(config)
@@ -305,10 +307,19 @@ class AppManagers(Generic[_M]):
         hold_for_app(config, self.kind, manager)
         return manager
 
+    def _forget_the_gone_apps_state_before_a_new_first_bind(self) -> None:
+        """A first bind records what the default holds, so a gone app's leftovers
+        must not be there to record."""
+        default = self._served_default() if self._served_default is not None else None
+        if default is not None and self._served is not None and self._served() is None:
+            forget_handlers_of_the_gone_app(default)
+        self._served_default = None
+
     def forget_default(self) -> None:
         shared = self._shared_default() if self._shared_default is not None else None
         if shared is not None:
             unmark_shared_by_apps(shared)
         self._shared_default = None
+        self._forget_the_gone_apps_state_before_a_new_first_bind()
         self._served = None
         self._served_key = None
