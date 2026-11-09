@@ -84,6 +84,13 @@ def _alternation_by_first_character(chains: tuple[str, ...]) -> str:
     )
 
 
+def _first_character_lookahead(chains: tuple[str, ...]) -> str:
+    # Every alternative starts with one of these characters, so a segment that starts
+    # with anything else is refused by one set test instead of one test per alternative.
+    firsts = sorted({e[0] for chain in chains for e in _expand_leading_group(chain)})
+    return "(?=[" + "".join(firsts) + "])"
+
+
 _FIRST_FCKEDITOR_START = (
     rf"(?=(?P<fckeditor_start>(?:{_CHAR}+{_SEP})*?{_FCKEDITOR_PREFIX}))"
     r"(?P=fckeditor_start)"
@@ -91,7 +98,8 @@ _FIRST_FCKEDITOR_START = (
 
 PROBE_CHAIN_ROW = (
     rf"\A{_SEP}?(?:{_ROOT_TMP_SCRIPT}"
-    rf"|{_SEGMENTS}(?:{_alternation_by_first_character(_NESTED_CHAINS[1:])}){_CHAIN_END}"
+    rf"|{_SEGMENTS}{_first_character_lookahead(_NESTED_CHAINS[1:])}"
+    rf"(?:{_alternation_by_first_character(_NESTED_CHAINS[1:])}){_CHAIN_END}"
     rf"|{_FIRST_FCKEDITOR_START}{_SEGMENTS}{_FCKEDITOR_TARGET}{_CHAIN_END})"
 )
 

@@ -229,7 +229,7 @@ _SENSITIVE_SOURCE_EXTENSIONS = (
     _SENSITIVE_SOURCE_BARE_EXTENSIONS + _EXTENSION_TRICK_SUFFIX
 )
 _RECON_EXTENSIONS = (
-    r"\.(?:asp|aspx|j(?:s[pa]|html)|shtml|c(?:fm|gi|er)|do|lua|inc|woa|nsf|esp"
+    r"\.(?=[ajscdliwne])(?:asp|aspx|j(?:s[pa]|html)|shtml|c(?:fm|gi|er)|do|lua|inc|woa|nsf|esp"
     r"|a(?:sa|shx|smx|scx|ction))" + _EXTENSION_TRICK_SUFFIX
 )
 
