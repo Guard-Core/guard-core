@@ -51,6 +51,7 @@ from guard_core.detection_engine.compiler import (
 )
 from guard_core.handlers._suspatterns_applicable import (
     _applicable_patterns,
+    _tail_was_skipped,
 )
 from guard_core.handlers._suspatterns_applicable import (
     _pattern_excluded_from_view as _pattern_excluded_from_view,
@@ -74,6 +75,7 @@ from guard_core.handlers._suspatterns_lazy_rows import (
     COMPILED_BUILTIN_PATTERNS as COMPILED_BUILTIN_PATTERNS,
 )
 from guard_core.handlers._suspatterns_lazy_rows import (
+    PatternRow,
     PatternSource,
 )
 from guard_core.handlers._suspatterns_lazy_rows import _SourceRow as _SourceRow
@@ -159,6 +161,19 @@ def _pass_starts_spent(
     time_cap: float | None, rows: Sequence[object], skipped_tail: bool
 ) -> bool:
     return _scan_budget_spent(time_cap, bool(rows) or skipped_tail)
+
+
+def _rows_left_unchecked(
+    rows: Sequence[PatternRow], last_scanned: PatternSource | None
+) -> bool:
+    return bool(rows) and (last_scanned is None or rows[-1][0] is not last_scanned)
+
+
+def _whole_value_rows_and_tail(
+    rows: list[PatternRow], skipped_tail: bool
+) -> tuple[list[PatternRow], bool]:
+    kept = rows_for_a_whole_value_pass(rows, _CONTEXT_SENSITIVE_ROW_SOURCES)
+    return kept, skipped_tail or _tail_was_skipped(rows, kept)
 
 
 def _validator_context(context: str, normalized: str) -> str:
@@ -504,8 +519,8 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             nul_tail_rows=nul_tail_rows,
         )
 
-        applicable_patterns = rows_for_a_whole_value_pass(
-            applicable_patterns, _CONTEXT_SENSITIVE_ROW_SOURCES
+        applicable_patterns, skipped_tail = _whole_value_rows_and_tail(
+            applicable_patterns, skipped_tail
         )
         time_cap = _scan_time_cap.get()
         if _pass_starts_spent(time_cap, applicable_patterns, skipped_tail):
@@ -519,6 +534,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         metric_rows: list[tuple[str, float, int, bool, bool]] = []
         content_length = len(content)
 
+        pattern: PatternSource | None = None
         try:
             for pattern, _contexts, category in rows_with_required_literal(
                 applicable_patterns,
@@ -574,7 +590,10 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
                         )
                     )
             else:
-                if _scan_budget_spent(time_cap, skipped_tail):
+                if _scan_budget_spent(
+                    time_cap,
+                    skipped_tail or _rows_left_unchecked(applicable_patterns, pattern),
+                ):
                     _record_budget_exhaustion(
                         ip_address, threats, matched_patterns, timeouts
                     )
