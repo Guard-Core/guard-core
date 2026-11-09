@@ -42,9 +42,11 @@ _STRAY_VERIFY_FILL_COUNTS = (1, 2, 8)
 _STRAY_VERIFY_TIMEOUT_SECONDS = 30.0
 _STRAY_VERIFY_CPU_BUDGET_SECONDS = 0.5
 _STRAY_VERIFY_CHILD_SCRIPT = (
-    "import json, re, signal, sys\n"
+    "import signal, time\n"
     "if hasattr(signal, 'setitimer'):\n"
-    f"    signal.setitimer(signal.ITIMER_PROF, {_STRAY_VERIFY_CPU_BUDGET_SECONDS})\n"
+    "    signal.setitimer(signal.ITIMER_PROF, "
+    f"max({_STRAY_VERIFY_CPU_BUDGET_SECONDS} - time.process_time(), 0.001))\n"
+    "import json, re, sys\n"
     "pattern, flags, cases = json.loads(sys.stdin.read())\n"
     "try:\n"
     "    compiled = re.compile(pattern, flags)\n"

@@ -1,3 +1,5 @@
+import resource
+
 import pytest
 
 from guard_core.detection_engine import _redos_stray_chooser as chooser
@@ -43,3 +45,24 @@ def test_a_catastrophic_pattern_is_still_rejected() -> None:
 
     with pytest.raises(TimeoutError):
         _first_bounded_forcing_candidate(context, ["\x00"], probes)
+
+
+def test_the_cpu_budget_covers_the_child_start_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    burn_then_spin = (
+        "import time\n"
+        "start = time.process_time()\n"
+        "while time.process_time() - start < 0.3:\n    pass\n"
+        + chooser._STRAY_VERIFY_CHILD_SCRIPT.split("pattern, flags")[0]
+        + "while True:\n    pass\n"
+    )
+    monkeypatch.setattr(chooser, "_STRAY_VERIFY_CHILD_SCRIPT", burn_then_spin)
+    before = resource.getrusage(resource.RUSAGE_CHILDREN)
+
+    with pytest.raises(TimeoutError, match="CPU budget"):
+        _verify()
+
+    after = resource.getrusage(resource.RUSAGE_CHILDREN)
+    child_cpu = (after.ru_utime + after.ru_stime) - (before.ru_utime + before.ru_stime)
+    assert child_cpu < chooser._STRAY_VERIFY_CPU_BUDGET_SECONDS + 0.1
