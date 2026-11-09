@@ -1488,8 +1488,8 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/redis_handler.py:RedisManager.close": (
         "line 172: connection-close lifecycle log, infra only"
     ),
-    "handlers/redis_handler.py:RedisManager.get_connection": (
-        "line 207: connection-acquire failure, infra only"
+    "handlers/redis_handler.py:RedisManager._fail_on_connection_error": (
+        "line 450: connection failure at checkout or in the body, infra only"
     ),
     "handlers/redis_handler.py:RedisManager._open_connection": (
         "connection lifecycle/failure log, infra only"
