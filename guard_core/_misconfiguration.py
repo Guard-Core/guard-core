@@ -3,9 +3,6 @@ from typing import TYPE_CHECKING
 
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core._security_headers_defaults import unknown_security_headers_keys
-from guard_core.core.validation.path_matching import (
-    _has_routing_anomaly_in_any_decoding,
-)
 
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
@@ -71,6 +68,10 @@ def _glob_exclude_path_problems(config: "SecurityConfig[RequestT]") -> list[str]
 
 
 def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
+    from guard_core.core.validation.path_matching import (
+        _has_routing_anomaly_in_any_decoding,
+    )
+
     spelling = (
         "has a dot segment, an empty segment, a backslash or an encoded dot or "
         "separator (in any decoding round), a spelling the router does not "
