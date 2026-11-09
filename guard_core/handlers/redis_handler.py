@@ -6,10 +6,12 @@ import logging
 import os
 import uuid
 import weakref
-from collections.abc import AsyncIterator, Awaitable, Callable, Hashable, Sequence
-from contextlib import asynccontextmanager
+from collections.abc import Awaitable, Callable, Hashable, Sequence
 from datetime import datetime, timezone
+from types import TracebackType
 from typing import TYPE_CHECKING, NoReturn, TypeGuard, cast
+
+from typing_extensions import AsyncContextManager
 
 from guard_core._redis_client_loop import EventLoop, running_loop_or_none
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
@@ -162,6 +164,39 @@ def _forget_the_parents_attempts() -> None:
 
 with contextlib.suppress(AttributeError):
     os.register_at_fork(after_in_child=_forget_the_parents_attempts)
+
+
+_CONNECTION_FAILURES = (RedisConnectionError, AttributeError, RedisTimeoutError)
+
+
+class _ConnectionScope:
+    """``async with manager.get_connection() as client``. A class, not an
+    ``@asynccontextmanager`` generator, because the generator costs a helper, a
+    context object and two ``anext`` steps on every Redis operation. A failure at
+    checkout or in the body is handled as the generator handled it."""
+
+    __slots__ = ("_manager", "_client")
+
+    def __init__(self, manager: RedisManager) -> None:
+        self._manager = manager
+        self._client: Redis | None = None
+
+    async def __aenter__(self) -> Redis:
+        try:
+            self._client = await self._manager._check_out_client()
+        except _CONNECTION_FAILURES as error:
+            await self._manager._fail_on_connection_error(None, error)
+            raise
+        return self._client
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if isinstance(exc, _CONNECTION_FAILURES):
+            await self._manager._fail_on_connection_error(self._client, exc)
 
 
 class RedisManager(RedisOutageMixin, RedisBanStrikeMixin):
@@ -375,51 +410,54 @@ class RedisManager(RedisOutageMixin, RedisBanStrikeMixin):
                 reason="Redis connection closed gracefully",
             )
 
-    @asynccontextmanager
-    async def get_connection(self) -> AsyncIterator[Redis]:
-        client: Redis | None = None
-        try:
-            if self._closed:
-                await self._send_redis_event(
-                    event_type=EVENT_REDIS_ERROR,
-                    action_taken="operation_failed",
-                    reason="Attempted to use closed Redis connection",
-                    error_type="connection_closed",
-                )
-                raise GuardRedisError(503, "Redis connection closed")
+    def get_connection(self) -> AsyncContextManager[Redis]:
+        return _ConnectionScope(self)
 
-            if not self._redis or (
-                self._client_loop is not None
-                and self._client_loop is not running_loop_or_none()
-            ):
-                await self.initialize()
+    async def _check_out_client(self) -> Redis:
+        if self._closed:
+            await self._send_redis_event(
+                event_type=EVENT_REDIS_ERROR,
+                action_taken="operation_failed",
+                reason="Attempted to use closed Redis connection",
+                error_type="connection_closed",
+            )
+            raise GuardRedisError(503, "Redis connection closed")
 
-            if self._redis is None:
-                await self._send_redis_event(
-                    event_type=EVENT_REDIS_ERROR,
-                    action_taken="operation_failed",
-                    reason="Redis connection is None after initialization",
-                    error_type="initialization_failed",
-                )
-                raise GuardRedisError(503, "Redis connection failed")
+        if not self._redis or (
+            self._client_loop is not None
+            and self._client_loop is not running_loop_or_none()
+        ):
+            await self.initialize()
 
-            client = self._redis
-            yield client
-        except (RedisConnectionError, AttributeError) as e:
-            await self._degrade_on_outage(client, e)
-            self.logger.error(f"Redis operation failed: {str(e)}")
+        if self._redis is None:
+            await self._send_redis_event(
+                event_type=EVENT_REDIS_ERROR,
+                action_taken="operation_failed",
+                reason="Redis connection is None after initialization",
+                error_type="initialization_failed",
+            )
+            raise GuardRedisError(503, "Redis connection failed")
+
+        return self._redis
+
+    async def _fail_on_connection_error(
+        self, client: Redis | None, error: Exception
+    ) -> None:
+        """A connection error becomes ``GuardRedisError``; a timeout only degrades
+        the client and returns, so the caller re-raises it as it was."""
+        if isinstance(error, RedisConnectionError | AttributeError):
+            await self._degrade_on_outage(client, error)
+            self.logger.error(f"Redis operation failed: {str(error)}")
 
             await self._send_redis_event(
                 event_type=EVENT_REDIS_ERROR,
                 action_taken="operation_failed",
-                reason=f"Redis operation failed: {str(e)}",
+                reason=f"Redis operation failed: {str(error)}",
                 error_type="operation_error",
             )
 
-            raise GuardRedisError(503, "Redis connection failed") from e
-        except RedisTimeoutError as e:
-            await self._degrade_on_outage(client, e)
-            raise
+            raise GuardRedisError(503, "Redis connection failed") from error
+        await self._degrade_on_outage(client, error)
 
     async def _raise_operation_failure(self, error: Exception, name: str) -> NoReturn:
         self.logger.error(f"Redis operation failed: {str(error)}")
@@ -452,15 +490,18 @@ class RedisManager(RedisOutageMixin, RedisBanStrikeMixin):
             await self._raise_operation_failure(e, getattr(func, "__name__", "unknown"))
 
     async def get_key(self, namespace: str, key: str) -> str | None:
-        if not redis_is_configured(self.config):
+        config = self.config
+        if not redis_is_configured(config):
             return None
 
-        async def _get(conn: Redis) -> str | None:
-            full_key = f"{self.config.redis_prefix}{namespace}:{key}"
-            value: str | None = await conn.get(full_key)
-            return value
-
-        return await self.safe_operation(_get)
+        try:
+            async with self.get_connection() as conn:
+                value: str | None = await conn.get(
+                    f"{config.redis_prefix}{namespace}:{key}"
+                )
+                return value
+        except Exception as e:
+            await self._raise_operation_failure(e, "_get")
 
     async def get_many(self, pairs: Sequence[tuple[str, str]]) -> list[str | None]:
         if not redis_is_configured(self.config):

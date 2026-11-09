@@ -170,12 +170,13 @@ class FastPathConnectionPool(ConnectionPool):
         self, *_args: object, **_kwargs: object
     ) -> AbstractConnection:
         try:
-            connection = await self._plain_get_connection()
+            connection = await super().get_connection(*_PLAIN_GET_CONNECTION_ARGS)
         except RedisConnectionError as error:
             if not _is_exhaustion(error):
                 raise
             connection = await self._wait_for_connection()
-        self._connections_with_nothing_unread.discard(connection)
+        if self._connections_with_nothing_unread:
+            self._connections_with_nothing_unread.discard(connection)
         reader = connection._reader
         if reader is not None and reader.at_eof():
             await connection.disconnect()
