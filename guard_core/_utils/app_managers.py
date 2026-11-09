@@ -13,6 +13,7 @@ from guard_core._redis_enablement import (
 from guard_core._utils.app_scope import (
     SHARED_BY_APPS,
     forget_handlers_of_the_gone_app,
+    remember_state_before_the_first_app,
 )
 from guard_core._utils.config_registry import ConfigHandlerRegistry
 
@@ -269,7 +270,9 @@ class AppManagers(Generic[_M]):
     def _serve_from_default(
         self, config: "SecurityConfig[RequestT]", default: _M
     ) -> _M:
-        if self._served is not None and self._served() is None:
+        if self._served is None:
+            remember_state_before_the_first_app(default)
+        elif self._served() is None:
             forget_handlers_of_the_gone_app(default)
         self._default_apps.register(config, default, self.kind)
         self._served = weakref.ref[_PrefixedRedisConfig](config)

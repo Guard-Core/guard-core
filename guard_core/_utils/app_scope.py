@@ -329,6 +329,14 @@ def forget_handlers_of_the_gone_app(manager: object) -> None:
         forget_other_state()
 
 
+def remember_state_before_the_first_app(manager: object) -> None:
+    """Let a default manager record what it holds before the first app binds, so a
+    takeover from a gone app can restore it."""
+    remember = getattr(manager, "remember_state_before_the_first_app", None)
+    if remember is not None:
+        remember()
+
+
 def app_scope_of(config: "SecurityConfig") -> AppScope:
     """The scope record parked on the config, created on first use."""
     scope = existing_app_scope_of(config)

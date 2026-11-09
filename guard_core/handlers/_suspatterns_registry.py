@@ -100,6 +100,9 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
     custom_patterns: set[str]
     compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
+    _custom_rows_before_the_first_app: tuple[
+        frozenset[str], frozenset[tuple[re.Pattern, frozenset[str], str]]
+    ] = (frozenset(), frozenset())
     redis_handler: "RedisHandlerProtocol | None" = None
     agent_handler: "AgentHandlerProtocol | None" = None
     _compiler: PatternCompiler | None
@@ -339,13 +342,25 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
             self.compiled_custom_patterns
         )
 
+    def remember_state_before_the_first_app(self) -> None:
+        """The custom rows the default manager holds when the first app binds to it
+        (the ones a process adds at startup, as v4.4.0 allowed); a later takeover
+        restores them."""
+        self._custom_rows_before_the_first_app = (
+            frozenset(self.custom_patterns),
+            frozenset(self.compiled_custom_patterns),
+        )
+
     def forget_state_of_the_gone_app(self) -> None:
         """Back to the state of a manager no app has configured: the gone app's
-        custom patterns, its detection state (compiler cache, preprocessor,
-        semantic analyzer, performance monitor), its disabled rows and its config
-        record go; the built-in rows stay."""
+        custom rows (not those present before the first app), its detection state
+        (compiler cache, preprocessor, semantic analyzer, performance monitor), its
+        disabled rows and its config record go; the built-in rows stay."""
+        patterns, compiled = self._custom_rows_before_the_first_app
         self.custom_patterns.clear()
+        self.custom_patterns.update(patterns)
         self.compiled_custom_patterns.clear()
+        self.compiled_custom_patterns.update(compiled)
         self._detection_state = _LEGACY_DETECTION_STATE
         self.__dict__.pop("_disabled_row_sources", None)
         self.__dict__.pop("_configured_for", None)
