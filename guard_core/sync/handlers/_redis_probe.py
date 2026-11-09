@@ -1,14 +1,9 @@
+import threading
+
 PROBE_DEADLINE_SECONDS = 0.25
 
 
-def redis_answers_within_the_deadline(url: str) -> bool:
-    """Whether a Redis at ``url`` answers a PING to a fresh connection. A bare client
-    (not the shared registry) with no retry; the URL's own timeout params cannot
-    stretch the deadline. The connection is closed whatever happens.
-
-    shortcut: the connect and the PING each get the deadline, so a silent Redis that
-    accepts slowly can take up to twice as long here, unlike the async twin's one
-    shared deadline; upgrade when a sync caller needs the exact bound."""
+def _ping_a_fresh_connection(url: str, answered: list[bool]) -> None:
     from redis import ConnectionPool, Redis
     from redis.backoff import NoBackoff
     from redis.connection import parse_url
@@ -25,10 +20,27 @@ def redis_answers_within_the_deadline(url: str) -> bool:
                 "max_connections": 1,
             }
         )
-        Redis(connection_pool=pool).ping()
-        return True
+        answered.append(bool(Redis(connection_pool=pool).ping()))
     except Exception:
-        return False
+        answered.append(False)
     finally:
         if pool is not None:
             pool.disconnect()
+
+
+def redis_answers_within_the_deadline(url: str) -> bool:
+    """Whether a Redis at ``url`` answers a PING to a fresh connection. A bare client
+    (not the shared registry) with no retry; the connect, redis-py's connect handshake
+    and the PING share one deadline, and the URL's own timeout params cannot stretch
+    it. The caller waits at most the deadline; the ping thread closes its connection
+    itself whatever happens."""
+    answered: list[bool] = []
+    worker = threading.Thread(
+        target=_ping_a_fresh_connection,
+        args=(url, answered),
+        name="guard-core-redis-probe",
+        daemon=True,
+    )
+    worker.start()
+    worker.join(PROBE_DEADLINE_SECONDS)
+    return not worker.is_alive() and answered == [True]

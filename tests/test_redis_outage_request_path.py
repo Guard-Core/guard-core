@@ -803,6 +803,27 @@ async def test_the_probe_ends_at_its_own_deadline_whatever_the_url_says() -> Non
         assert silent.wait_until_closed(1)
 
 
+async def test_a_slow_connect_and_a_silent_ping_share_one_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from redis.asyncio.connection import Connection
+
+    connect = Connection._connect
+
+    async def slow_connect(self: Connection) -> object:
+        await asyncio.sleep(0.2)
+        return await connect(self)
+
+    monkeypatch.setattr(Connection, "_connect", slow_connect)
+    with WatchedListener() as silent:
+        started = monotonic()
+        answered = await redis_answers_within_the_deadline(silent.url(""))
+        took = monotonic() - started
+        assert not answered
+        assert took <= PROBE_DEADLINE_SECONDS + 0.15
+        assert silent.wait_until_closed(1)
+
+
 async def test_the_probe_answers_true_for_a_live_redis_and_false_for_a_bad_url() -> (
     None
 ):
