@@ -6,7 +6,7 @@ import re
 import types
 from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Concatenate, Generic, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Concatenate, Generic, NamedTuple, ParamSpec, TypeVar
 
 from guard_core._utils.app_scope import forget_config
 from guard_core._utils.detection_scan import _redact_pattern_source
@@ -16,6 +16,7 @@ from guard_core.handlers._suspatterns_sources import (
     _CTX_ALL,
     _scan_window_bytes,
 )
+from guard_core.handlers._suspatterns_state import _LEGACY_DETECTION_STATE
 
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
@@ -92,6 +93,13 @@ def _reconciled_custom_patterns(
     return legacy_text.split(",") if legacy_text else []
 
 
+class _RowsBeforeTheFirstApp(NamedTuple):
+    custom_patterns: frozenset[str]
+    compiled_custom_patterns: frozenset[tuple[re.Pattern, frozenset[str], str]]
+    patterns: tuple[str, ...]
+    compiled_patterns: tuple[tuple[re.Pattern, frozenset[str], str], ...] | None
+
+
 class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
     _instance: "_SusPatternsRegistryMixin | None" = None
     _config: "SecurityConfig | None" = None
@@ -99,6 +107,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
     custom_patterns: set[str]
     compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
+    _rows_before_the_first_app: "_RowsBeforeTheFirstApp | None" = None
     redis_handler: "RedisHandlerProtocol | None" = None
     agent_handler: "AgentHandlerProtocol | None" = None
     _compiler: PatternCompiler | None
@@ -338,6 +347,44 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
             self.compiled_custom_patterns
         )
 
+    def remember_state_before_the_first_app(self) -> None:
+        """The rows the default manager holds when the first app binds to it (custom
+        rows and built-in row edits a process makes at startup, as v4.4.0 allowed);
+        a later takeover restores them. Built-in rows are recorded as the manager's
+        own overrides, ``patterns`` and the compiled list only if it already built
+        one, so recording never compiles anything."""
+        compiled = self.__dict__.get("compiled_patterns")
+        self._rows_before_the_first_app = _RowsBeforeTheFirstApp(
+            frozenset(self.custom_patterns),
+            frozenset(self.compiled_custom_patterns),
+            tuple(self.patterns),
+            None if compiled is None else tuple(compiled),
+        )
+
+    def _restore_built_in_rows(self, rows: _RowsBeforeTheFirstApp) -> None:
+        self.patterns[:] = rows.patterns
+        if rows.compiled_patterns is None:
+            self.__dict__.pop("compiled_patterns", None)
+        else:
+            self.__dict__["compiled_patterns"] = list(rows.compiled_patterns)
+
+    def forget_state_of_the_gone_app(self) -> None:
+        """Back to the state of a manager no app has configured: the gone app's
+        custom rows and built-in row edits (not those present before the first app),
+        its detection state (compiler cache, preprocessor, semantic analyzer,
+        performance monitor), its disabled rows and its config record go."""
+        rows = self._rows_before_the_first_app
+        self.custom_patterns.clear()
+        self.compiled_custom_patterns.clear()
+        if rows is not None:
+            self.custom_patterns.update(rows.custom_patterns)
+            self.compiled_custom_patterns.update(rows.compiled_custom_patterns)
+            self._restore_built_in_rows(rows)
+        self._detection_state = _LEGACY_DETECTION_STATE
+        self.__dict__.pop("_disabled_row_sources", None)
+        self.__dict__.pop("_configured_for", None)
+        forget_config(self, "_config")
+
     @classmethod
     async def reset(cls) -> None:
         if cls._instance is not None:
@@ -356,4 +403,5 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
             ):
                 await cls._instance._performance_monitor.clear_stats()
 
+            cls._instance.__dict__.pop("_rows_before_the_first_app", None)
             forget_config(cls._instance, "_config")
