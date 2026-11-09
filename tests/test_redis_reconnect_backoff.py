@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import pytest
 
 from guard_core.exceptions import GuardRedisError
+from guard_core.handlers import redis_handler as redis_handler_module
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL, suite_redis_prefix
@@ -91,11 +92,22 @@ async def test_requests_a_second_apart_do_not_each_pay_a_connect(
 
 
 async def test_concurrent_callers_share_one_attempt(  # async-only
-    silent: SilentServer,
+    silent: SilentServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    builds: list[int] = []
+    real_build = redis_handler_module._build_redis_client
+
+    def counting(url: str, size: int, pool_timeout: float, **kwargs: object) -> object:
+        builds.append(1)
+        return real_build(url, size, pool_timeout, **kwargs)
+
+    monkeypatch.setattr(redis_handler_module, "_build_redis_client", counting)
     manager, events = partitioned_manager(silent)
     durations = list(await asyncio.gather(*(refused_after(manager) for _ in range(10))))
     durations.sort()
+    assert len(builds) == 1
+    # The callers of a first connect wait for that one attempt, as on v4.4.0 (D-290
+    # item 1), and none starts a second: one failure is reported.
     assert durations[-1] < CONNECT_TIMEOUT * 1 + 1.0
-    assert all(duration < 0.1 for duration in durations[:-1])
+    assert durations[0] >= CONNECT_TIMEOUT * 0.5
     assert events.count("connection_failed") == 1

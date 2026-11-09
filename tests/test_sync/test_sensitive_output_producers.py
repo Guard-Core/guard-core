@@ -801,6 +801,13 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "exception"
     ),
     "core/initialization/_redis_cold_start_recovery.py:"
+    "RedisColdStartRecoveryMixin._attempt_custom_initialize": (
+        "a WARNING with the exception a custom Redis handler's initialize raised "
+        "during the background reconnect after a cold start; the attempt runs off "
+        "the request path, no request is in scope and nothing from one is "
+        "interpolated, only the handler's own exception"
+    ),
+    "core/initialization/_redis_cold_start_recovery.py:"
     "RedisColdStartRecoveryMixin._bind_recovered_redis": (
         "one fixed INFO line when Redis is back after a cold start; no request "
         "value and no data of any kind is interpolated"

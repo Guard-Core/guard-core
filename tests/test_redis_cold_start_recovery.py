@@ -24,6 +24,7 @@ from guard_core.core.checks.pipeline import (
 )
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.exceptions import GuardRedisError
+from guard_core.handlers._redis_reconnect_gate import RedisReconnectGate
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.handlers.redis_handler import (
     RedisHandlerBase,
@@ -235,6 +236,33 @@ def config_for(
     )
 
 
+async def settle_gates(*gates: RedisReconnectGate | None) -> None:
+    # A reconnect runs off the request path: the request that won the window is
+    # answered at once and the attempt it started ends here, before the next call.
+    end = monotonic() + 5
+    while monotonic() < end and any(
+        gate is not None and gate._claim.locked() for gate in gates
+    ):
+        await asyncio.sleep(0.01)
+
+
+async def settle(manager: RedisManager) -> None:
+    await settle_gates(manager._reconnect_gate())
+
+
+async def serve(
+    pipeline: SecurityCheckPipeline,
+    initializer: HandlerInitializer,
+    handler: object = None,
+) -> object:
+    answer = await pipeline.execute(request_of())
+    manager_gate = (
+        handler._reconnect_gate() if isinstance(handler, RedisManager) else None
+    )
+    await settle_gates(initializer._recovery_own_gate, manager_gate)
+    return answer
+
+
 class App:
     def __init__(self, config: SecurityConfig, with_handler: bool = True) -> None:
         self.config = config
@@ -251,7 +279,13 @@ class App:
         await self.initializer.initialize_redis_handlers()
 
     async def request(self, **state: object) -> object:
-        return await self.pipeline.execute(request_of(**state))
+        answer = await self.pipeline.execute(request_of(**state))
+        await self.settle()
+        return answer
+
+    async def settle(self) -> None:
+        manager_gate = self.redis._reconnect_gate() if self.redis is not None else None
+        await settle_gates(self.initializer._recovery_own_gate, manager_gate)
 
     async def ban(self) -> None:
         manager = ip_ban_manager_for(self.config)
@@ -276,6 +310,7 @@ async def test_redis_is_used_after_the_retry_interval_when_it_comes_back(
 
     forwarder.on()
     await asyncio.sleep(REDIS_OUTAGE_RETRY_AFTER + 0.3)
+    assert await app.request() is None
     assert await app.request() is None
 
     await app.ban()
@@ -364,6 +399,7 @@ async def test_a_second_failure_keeps_failing_open_and_retries_next_window(
         clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
         assert await app.request() is None
         assert attempts.call_count == 4
+        assert await app.request() is None
         assert app.names() == []
 
         clock.now += REDIS_OUTAGE_RETRY_AFTER * 3
@@ -439,6 +475,7 @@ async def test_a_manager_another_caller_reconnected_is_bound_without_a_connect(
         caplog.at_level(logging.WARNING),
     ):
         assert await app.request() is None
+        assert await app.request() is None
     assert "Redis recovery after a cold start failed" in caplog.text
     assert app.names() == [RECOVERY_CHECK]
 
@@ -479,6 +516,8 @@ async def test_a_new_start_with_redis_back_removes_the_check(
     forwarder.on()
     clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
     await app.start()
+    await app.settle()
+    await app.start()
     assert app.names() == []
 
 
@@ -497,6 +536,7 @@ async def test_concurrent_requests_bind_the_handlers_once(  # async-only
         await real_setup()
 
     clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
+    assert await app.request() is None
     with patch.object(
         app.initializer, "_initialize_connected_redis_handlers", slow_setup
     ):
@@ -571,6 +611,7 @@ async def test_a_pipeline_rebuild_keeps_the_check_until_redis_recovers(
         forwarder.on()
         clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
         assert await app.request() is None
+        assert await app.request() is None
         assert app.names() == []
 
         app.config.rate_limit = 8
@@ -605,6 +646,7 @@ async def test_a_blocked_request_alone_brings_redis_back(
     forwarder.on()
     clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
     assert await app.request() is not None
+    assert await app.request() is not None
     assert app.names() == ["blocker"]
     await app.ban()
     assert keys_under(prefix) > 0
@@ -621,6 +663,7 @@ async def test_an_excluded_path_probe_alone_brings_redis_back(
     app.pipeline.add_check(enforced_nowhere)
     forwarder.on()
     clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
+    assert await app.request(guard_exclusion_scoped=True) is None
     assert await app.request(guard_exclusion_scoped=True) is None
     assert enforced_nowhere.seen == []
     assert app.names() == ["ordinary"]
@@ -687,6 +730,7 @@ async def test_a_black_hole_that_hangs_for_seconds_is_tried_once_per_5_s(
         with pytest.raises(GuardRedisError):
             async with manager.get_connection():
                 pass
+        await settle(manager)
 
     with patch.object(manager, "_open_connection", hangs_like_the_defaults):
         await call()
@@ -725,6 +769,7 @@ async def test_fail_closed_gets_its_503_fast_during_an_outage(
         with pytest.raises(GuardRedisError):
             async with app.redis.get_connection():
                 pass
+        await settle(app.redis)
         assert attempts.call_count == 2
 
 
@@ -841,6 +886,7 @@ async def test_a_refused_outage_held_30_s_is_tried_at_most_12_times_and_reported
             with pytest.raises(GuardRedisError):
                 async with manager.get_connection():
                     pass
+            await settle(manager)
             clock.now += 0.1
     assert 8 <= attempts.call_count <= 12
     assert 1 <= events.count("connection_failed") <= 7
@@ -916,14 +962,14 @@ async def test_a_super_calling_handler_is_asked_once_per_window_and_connects(
     assert pipeline.get_check_names() == [RECOVERY_CHECK]
 
     for _ in range(300):
-        assert await pipeline.execute(request_of()) is None
+        assert await serve(pipeline, initializer, handler) is None
         clock.now += 0.1
     assert 8 <= SuperCallingHandler.initialize_calls <= 13
     assert pipeline.get_check_names() == [RECOVERY_CHECK]
 
     forwarder.on()
     for _ in range(80):
-        assert await pipeline.execute(request_of()) is None
+        assert await serve(pipeline, initializer, handler) is None
         clock.now += 0.1
         if not pipeline.get_check_names():
             break
@@ -945,6 +991,10 @@ async def test_a_recovered_connection_sends_one_recovered_event(
             pass
     forwarder.on()
     clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
+    with pytest.raises(GuardRedisError):
+        async with manager.get_connection():
+            pass
+    await settle(manager)
     async with manager.get_connection() as connection:
         assert await connection.ping()
     assert events.count("connection_recovered") == 1
@@ -989,14 +1039,14 @@ async def test_an_initialize_that_swallows_the_failure_keeps_the_backoff(
     await initializer.initialize_redis_handlers()
     SwallowingHandler.swallow = True
     for _ in range(300):
-        assert await pipeline.execute(request_of()) is None
+        assert await serve(pipeline, initializer, handler) is None
         clock.now += 0.1
     assert 8 <= SwallowingHandler.initialize_calls <= 13
     assert pipeline.get_check_names() == [RECOVERY_CHECK]
 
     forwarder.on()
     for _ in range(80):
-        assert await pipeline.execute(request_of()) is None
+        assert await serve(pipeline, initializer, handler) is None
         clock.now += 0.1
         if not pipeline.get_check_names():
             break
@@ -1020,6 +1070,10 @@ async def test_a_second_outage_after_a_recovery_reports_its_first_failure(
     assert events.count("connection_failed") == 1
     forwarder.on()
     clock.now += 0.3
+    with pytest.raises(GuardRedisError):
+        async with manager.get_connection():
+            pass
+    await settle(manager)
     async with manager.get_connection() as connection:
         assert await connection.ping()
     forwarder.off()
@@ -1099,7 +1153,7 @@ async def test_a_handler_with_its_client_elsewhere_recovers_through_is_connected
 
     forwarder.on()
     for _ in range(80):
-        assert await pipeline.execute(request_of()) is None
+        assert await serve(pipeline, initializer, handler) is None
         clock.now += 0.1
         if not pipeline.get_check_names():
             break
@@ -1143,7 +1197,7 @@ async def test_a_handler_with_only_redis_attribute_starts_clean_and_recovers(
 
     forwarder.on()
     for _ in range(80):
-        assert await pipeline.execute(request_of()) is None
+        assert await serve(pipeline, initializer, handler) is None
         clock.now += 0.1
         if not pipeline.get_check_names():
             break

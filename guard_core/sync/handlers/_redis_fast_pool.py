@@ -13,6 +13,11 @@ _EXHAUSTED_MESSAGE = "Too many connections"
 _TIMEOUT_MESSAGE = "No connection available."
 
 
+class PoolExhaustedError(RedisConnectionError):
+    """The bounded wait for a free connection ran out. A subclass so that it is no
+    outage for the manager, which marks only the exact redis error types degraded."""
+
+
 class _RecordWait(Protocol):
     def __call__(self, *, pool_name: str, duration_seconds: float) -> None: ...
 
@@ -110,7 +115,7 @@ class FastPathConnectionPool(ConnectionPool):
         try:
             while True:
                 if not free:
-                    raise RedisConnectionError(_TIMEOUT_MESSAGE)
+                    raise PoolExhaustedError(_TIMEOUT_MESSAGE)
                 try:
                     connection = self._plain_get_connection()
                 except RedisConnectionError as error:

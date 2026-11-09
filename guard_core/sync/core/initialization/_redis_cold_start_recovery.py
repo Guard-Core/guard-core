@@ -9,6 +9,8 @@ from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.app_scope import app_scope_of, in_app_scope
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.pipeline import REDIS_OUTAGE_RETRY_AFTER
+from guard_core.sync.handlers._background_stop import stop_before_redis_closes
+from guard_core.sync.handlers._redis_attempt import RedisAttemptSlot
 from guard_core.sync.handlers._redis_reconnect_gate import RedisReconnectGate
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
@@ -59,6 +61,7 @@ class RedisColdStartRecoveryMixin:
     _recovery_check: RedisColdStartRecoveryCheck | None = None
     _recovery_claim: "threading.Lock | None" = None
     _recovery_own_gate: RedisReconnectGate | None = None
+    _recovery_attempts: RedisAttemptSlot | None = None
 
     _require_redis_handler: Callable[[], "SyncRedisHandlerProtocol"]
 
@@ -73,6 +76,7 @@ class RedisColdStartRecoveryMixin:
         self._recovery_middleware = middleware
         self._recovery_claim = threading.Lock()
         self._recovery_own_gate = RedisReconnectGate()
+        self._recovery_attempts = RedisAttemptSlot()
 
     def _arm_redis_cold_start_recovery(self) -> None:
         pipeline, middleware = self._recovery_pipeline, self._recovery_middleware
@@ -137,20 +141,42 @@ class RedisColdStartRecoveryMixin:
             return
         # A handler with its own initialize (a subclass that calls super(), or a
         # duck-typed one) has its gate inside or none at all: entering the manager's
-        # gate from here would refuse the super() call. Recovery paces it with its own.
-        gate = self._recovery_own_gate
-        if gate is None or not gate.enter():
+        # gate from here would refuse the super() call. Recovery paces it with its own,
+        # and runs the attempt off the request path: whoever wins the window starts
+        # it, every caller is refused at once, and the next request binds the result.
+        gate, attempts = self._recovery_own_gate, self._recovery_attempts
+        if gate is None or attempts is None or not gate.enter():
             raise GuardRedisError(503, "Redis connection failed")
+        try:
+            stop_before_redis_closes(redis_handler, attempts.stop)
+            attempts.spawn(lambda: self._attempt_custom_initialize(redis_handler, gate))
+        except BaseException:
+            # No attempt will ever release the claim: do it here.
+            gate.leave(False)
+            raise
+        raise GuardRedisError(503, "Redis connection failed")
+
+    def _attempt_custom_initialize(
+        self, redis_handler: "SyncRedisHandlerProtocol", gate: RedisReconnectGate
+    ) -> None:
         connected = False
         try:
-            redis_handler.initialize()
-            # Connected is read from state: an initialize that logs and returns on a
-            # failure must keep the backoff.
-            connected = self._redis_handler_holds_a_client(redis_handler)
+            with in_app_scope(app_scope_of(self.config)):
+                try:
+                    redis_handler.initialize()
+                    # Connected is read from state: an initialize that logs and
+                    # returns on a failure must keep the backoff.
+                    connected = self._redis_handler_holds_a_client(redis_handler)
+                except GuardRedisError:
+                    pass
+                except Exception as e:
+                    self.logger.warning(
+                        "Redis recovery after a cold start failed: %s",
+                        e,
+                        exc_info=True,
+                    )
         finally:
             gate.leave(connected)
-        if not connected:
-            raise GuardRedisError(503, "Redis connection failed")
 
     @staticmethod
     def _redis_handler_holds_a_client(
