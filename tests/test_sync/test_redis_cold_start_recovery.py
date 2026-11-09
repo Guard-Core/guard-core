@@ -40,6 +40,9 @@ RECOVERY_CHECK = "redis_cold_start_recovery"
 BANNED_IP = "203.0.113.9"
 
 
+STAND_IN_PORTS: set[int] = set()
+
+
 class RedisForwarder:
     """A local port that forwards to the real Redis only while it is on. Off, nothing
     listens on it, so a client gets connection refused like a Redis that is down."""
@@ -50,6 +53,7 @@ class RedisForwarder:
         with socket.socket() as probe:
             probe.bind(("127.0.0.1", 0))
             self.port = int(probe.getsockname()[1])
+        STAND_IN_PORTS.add(self.port)
         self._listener: socket.socket | None = None
         self._open: list[socket.socket] = []
         self._lock = threading.Lock()
@@ -117,6 +121,7 @@ class SilentServer:
         self._listener.bind(("127.0.0.1", 0))
         self._listener.listen(128)
         self.port = int(self._listener.getsockname()[1])
+        STAND_IN_PORTS.add(self.port)
 
     @property
     def url(self) -> str:
@@ -173,6 +178,37 @@ class Blocker(SecurityCheck):
 
     def check(self, request: object) -> MagicMock:
         return MagicMock()
+
+
+def open_sockets_to_a_stand_in() -> list[socket.socket]:
+    return [
+        found
+        for found in gc.get_objects()
+        if type(found) is socket.socket
+        and found.family == socket.AF_INET
+        and found.fileno() != -1
+        and _peer_port(found) in STAND_IN_PORTS
+    ]
+
+
+def _peer_port(sock: socket.socket) -> int | None:
+    try:
+        return int(sock.getpeername()[1])
+    except OSError:
+        return None
+
+
+@pytest.fixture(autouse=True)
+def no_app_leaves_a_connection_open() -> Iterator[None]:
+    """A manager nobody closes keeps its connection to the stand-in until the
+    garbage collector finds it, and a collector that runs in a later test reports
+    the open socket there as a ResourceWarning (LEDGER 6.715)."""
+    yield
+    while APPS:
+        app = APPS.pop()
+        if app.redis is not None:
+            app.redis.close()
+    assert open_sockets_to_a_stand_in() == []
 
 
 @pytest.fixture
@@ -263,8 +299,12 @@ def serve(
     return answer
 
 
+APPS: list["App"] = []
+
+
 class App:
     def __init__(self, config: SyncSecurityConfig, with_handler: bool = True) -> None:
+        APPS.append(self)
         self.config = config
         self.redis = RedisManager(config) if with_handler else None
         self.initializer = HandlerInitializer(config, redis_handler=self.redis)
@@ -1201,6 +1241,7 @@ def test_an_async_is_connected_never_reads_as_connected(
         clock.now += 0.5
     gc.collect()
     assert pipeline.get_check_names() == [RECOVERY_CHECK]
+    settle_gates(initializer._recovery_own_gate)
     handler.close()
 
 
@@ -1237,6 +1278,7 @@ def test_a_handler_that_reports_connected_is_bound_without_initialize(
     assert pipeline.execute(request_of()) is None
     assert pipeline.get_check_names() == []
     assert CountingHandler.initialize_calls == 2
+    settle_gates(initializer._recovery_own_gate)
     handler.close()
 
 
@@ -1275,4 +1317,5 @@ def test_a_truthy_client_answer_from_is_connected_is_bound_without_initialize(
     assert pipeline.execute(request_of()) is None
     assert pipeline.get_check_names() == []
     assert ClientAnsweringHandler.initialize_calls == 2
+    settle_gates(initializer._recovery_own_gate)
     handler.close()

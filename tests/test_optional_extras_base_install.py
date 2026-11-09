@@ -265,3 +265,29 @@ def test_the_adapter_name_comes_from_the_registration_for_the_config_message() -
         )
     )
     assert "flaskapi-guard[cloud]" in message
+
+
+_LAZY_ONLY_MODULES = [
+    "guard_core.handlers._redis_fast_pool",
+    "guard_core.sync.handlers._ipinfo_download_cut",
+    "guard_core.sync.handlers._redis_fast_pool",
+]
+
+
+def test_only_the_lazily_loaded_modules_need_a_missing_package_to_import() -> None:
+    failed = json.loads(
+        _run_without(
+            FOUR,
+            """
+        import guard_core, importlib, pkgutil
+        failed = []
+        for info in pkgutil.walk_packages(guard_core.__path__, "guard_core."):
+            try:
+                importlib.import_module(info.name)
+            except ImportError:
+                failed.append(info.name)
+        print(json.dumps(sorted(failed)))
+        """,
+        )
+    )
+    assert failed == _LAZY_ONLY_MODULES
