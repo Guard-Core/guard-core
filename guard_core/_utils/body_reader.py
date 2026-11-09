@@ -250,16 +250,16 @@ async def _straddle_overlap_bytes(
     from guard_core.handlers.suspatterns_handler import active_sus_patterns
 
     try:
-        compiled = await (
+        rows = await (
             patterns if patterns is not None else active_sus_patterns()
-        ).get_all_compiled_patterns()
+        )._rows_to_scan()
     except Exception:
         return 0
 
-    if not compiled:
+    if not rows:
         return 0
 
-    longest = max(len(pattern.pattern) for pattern, _contexts, _category in compiled)
+    longest = max(len(pattern.pattern) for pattern, _contexts, _category in rows)
     return min(longest, _MAX_STRADDLE_OVERLAP_BYTES)
 
 

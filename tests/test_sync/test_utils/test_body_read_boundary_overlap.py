@@ -144,7 +144,7 @@ def test_straddle_overlap_uses_the_longest_compiled_pattern_length(
     ) -> list[tuple[re.Pattern[str], frozenset[str], str]]:
         return fake_patterns
 
-    monkeypatch.setattr(SusPatternsManager, "get_all_compiled_patterns", _fake_get_all)
+    monkeypatch.setattr(SusPatternsManager, "_rows_to_scan", _fake_get_all)
 
     assert _real_straddle_overlap_bytes() == 40
 
@@ -161,7 +161,7 @@ def test_straddle_overlap_is_clamped_to_the_documented_ceiling(
     ) -> list[tuple[re.Pattern[str], frozenset[str], str]]:
         return fake_patterns
 
-    monkeypatch.setattr(SusPatternsManager, "get_all_compiled_patterns", _fake_get_all)
+    monkeypatch.setattr(SusPatternsManager, "_rows_to_scan", _fake_get_all)
 
     overlap = _real_straddle_overlap_bytes()
 
@@ -175,7 +175,7 @@ def test_straddle_overlap_is_zero_when_there_are_no_patterns(
     def _fake_get_all(self: SusPatternsManager) -> list:
         return []
 
-    monkeypatch.setattr(SusPatternsManager, "get_all_compiled_patterns", _fake_get_all)
+    monkeypatch.setattr(SusPatternsManager, "_rows_to_scan", _fake_get_all)
 
     assert _real_straddle_overlap_bytes() == 0
 
@@ -186,7 +186,7 @@ def test_straddle_overlap_degrades_to_zero_if_the_pattern_engine_raises(
     def _raise(self: SusPatternsManager) -> list:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(SusPatternsManager, "get_all_compiled_patterns", _raise)
+    monkeypatch.setattr(SusPatternsManager, "_rows_to_scan", _raise)
 
     assert _real_straddle_overlap_bytes() == 0
 
