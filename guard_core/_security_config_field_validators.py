@@ -50,10 +50,6 @@ from guard_core._security_config_typed_validators import (
     _STR_SET_OR_CATEGORY_MAP_ADAPTER,
     _validate_typed_collection_field_value,
 )
-from guard_core._security_headers_override import (
-    CORS_VALUE_CHECKS,
-    checked_security_headers_config,
-)
 from guard_core._utils.whitelist_match import unwrap_ipv4_mapped_network
 
 if TYPE_CHECKING:
@@ -544,6 +540,8 @@ _CORS_OVERRIDE_KEYS = {
 def _validate_cors_values(
     v: object, *, override_key: str, field_name: str
 ) -> list[str]:
+    from guard_core._security_headers_override import CORS_VALUE_CHECKS
+
     values = _validate_typed_collection_field_value(
         v, adapter=_STR_LIST_ADAPTER, field_name=field_name
     )
@@ -563,6 +561,10 @@ def _validate_security_headers_value(v: object) -> dict[str, object] | None:
         v, adapter=_OPTIONAL_STR_ANY_DICT_ADAPTER, field_name="security_headers"
     )
     if headers:
+        from guard_core._security_headers_override import (
+            checked_security_headers_config,
+        )
+
         checked_security_headers_config(headers)
     return headers
 

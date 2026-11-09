@@ -115,3 +115,43 @@ def test_importing_the_pipeline_loads_no_check_implementation(tree: str) -> None
 @pytest.mark.parametrize("tree", ["", "sync."])
 def test_the_check_names_resolve_from_their_packages(tree: str) -> None:
     assert _run_python(_CHECKS_BY_NAME.format(tree=tree)) == ""
+
+
+_CONFIG_AND_FIRST_DETECT_IMPORT = (
+    "import sys\n"
+    "from guard_core.models import SecurityConfig\n"
+    "from guard_core.utils import detect_penetration_attempt\n"
+    "SecurityConfig(enable_redis=False)\n"
+    "deferred = [\n"
+    "    name for name in ('guard_core._security_headers_override',\n"
+    "                      'guard_core.core.validation.path_matching')\n"
+    "    if name in sys.modules\n"
+    "]\n"
+    "print(','.join(deferred))\n"
+)
+
+_CONFIG_THAT_STATES_WHAT_THE_DEFERRED_MODULES_CHECK = (
+    "import sys\n"
+    "from guard_core.models import SecurityConfig\n"
+    "SecurityConfig(\n"
+    "    enable_redis=False,\n"
+    "    security_headers={'enabled': True},\n"
+    "    cors_allow_origins=['https://example.com'],\n"
+    "    exclude_paths=['/health'],\n"
+    ")\n"
+    "print(','.join(\n"
+    "    name for name in ('guard_core._security_headers_override',\n"
+    "                      'guard_core.core.validation.path_matching')\n"
+    "    if name in sys.modules\n"
+    "))\n"
+)
+
+
+def test_a_config_and_the_first_detect_load_neither_header_nor_path_checks() -> None:
+    assert _run_python(_CONFIG_AND_FIRST_DETECT_IMPORT) == ""
+
+
+def test_a_config_that_states_headers_cors_and_paths_loads_what_checks_them() -> None:
+    assert _run_python(_CONFIG_THAT_STATES_WHAT_THE_DEFERRED_MODULES_CHECK) == (
+        "guard_core._security_headers_override,guard_core.core.validation.path_matching"
+    )
