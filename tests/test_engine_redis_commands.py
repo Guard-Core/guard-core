@@ -189,3 +189,32 @@ async def test_another_clients_commands_on_the_watched_database_are_not_kept(
     assert await engine_commands_sent(url, "get") == before + 1
     kept = [arguments for _, _, arguments in _MONITORS[url].snapshot()]
     assert not [arguments for arguments in kept if other_key in arguments]
+
+
+async def test_an_engine_connection_opened_after_the_first_read_is_counted_whole() -> (
+    None
+):
+    database = int(urlsplit(REDIS_URL).path.lstrip("/") or 0) or 1
+    url = engine_redis_url(
+        urlunsplit(urlsplit(REDIS_URL)._replace(path=f"/{database}"))
+    )
+    key = f"{REDIS_PREFIX}6737:late-{uuid.uuid4().hex}"
+    early = Redis.from_url(url, decode_responses=True)
+    try:
+        await early.get(key)
+        gets = await engine_commands_sent(url, "get")
+        sets = await engine_commands_sent(url, "set")
+        late = Redis.from_url(url, decode_responses=True)
+        try:
+            await late.get(key)
+            await late.set(key, "1", ex=5)
+            # its handshake runs before SELECT, so MONITOR shows it on database 0;
+            # the read still matches the server's own count of the connection
+            assert await engine_commands_sent(url, "get") == gets + 1
+            assert await engine_commands_sent(url, "set") == sets + 1
+        finally:
+            await late.delete(key)
+            await close_redis_client(late)
+    finally:
+        await close_redis_client(early)
+        unwatch_engine_commands(url)
