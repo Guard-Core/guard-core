@@ -26,6 +26,12 @@ from guard_core.protocols.response_protocol import GuardResponse
 REDIS_OUTAGE_RETRY_AFTER = REDIS_RECONNECT_WINDOW_SECONDS
 
 
+def _blocker_of(check: SecurityCheck, state: object) -> SecurityCheck:
+    flow = getattr(state, "guard_ban_flow", None)
+    blocker = flow.banned_by if isinstance(flow, BanFlow) else None
+    return blocker if isinstance(blocker, SecurityCheck) else check
+
+
 def _pending_of(state: object) -> PendingBan | None:
     flow = getattr(state, "guard_ban_flow", None)
     return flow.pending if isinstance(flow, BanFlow) else None
@@ -203,10 +209,7 @@ class SecurityCheckPipeline:
         response: GuardResponse,
         state: object,
     ) -> GuardResponse:
-        flow = getattr(state, "guard_ban_flow", None)
-        blocker = flow.banned_by if isinstance(flow, BanFlow) else None
-        if not isinstance(blocker, SecurityCheck):
-            blocker = check
+        blocker = _blocker_of(check, state)
         if blocker.check_name not in self.muted_check_logs and self.logger.isEnabledFor(
             logging.DEBUG
         ):
@@ -224,7 +227,9 @@ class SecurityCheckPipeline:
             return None
         response = await resolve_pending_ban(request)
         if response is not None:
-            await self._fire_block_hook(pending.check, request, response)
+            await self._fire_block_hook(
+                _blocker_of(pending.check, request.state), request, response
+            )
         return response
 
     async def _handle_rebuild_error(
