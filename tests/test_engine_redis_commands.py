@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import AsyncGenerator
+from urllib.parse import urlsplit, urlunsplit
 
 import pytest
 from redis.asyncio import Redis
@@ -136,3 +137,29 @@ async def test_a_noscript_retry_counts_as_one_script_call(
     assert await engine_commands_sent(url, "script") - before_script == 0
     await engine.record_sliding_window_hit("wp152", key, 2e9, 2e9 - 1000, 60)
     assert await engine_commands_sent(url, "evalsha") - before_evalsha == 2
+
+
+async def test_commands_of_another_database_are_not_kept_by_the_watch(
+    engine: RedisManager,
+) -> None:
+    url = engine.config.redis_url
+    assert url is not None
+    watched = int(urlsplit(url).path.lstrip("/") or 0)
+    other_url = urlunsplit(urlsplit(REDIS_URL)._replace(path=f"/{(watched + 3) % 16}"))
+    other_key = f"{REDIS_PREFIX}wp548:other-db"
+    before = await engine_commands_sent(url, "get")
+
+    other = Redis.from_url(other_url, decode_responses=True)
+    try:
+        for _ in range(20):
+            await other.set(other_key, "1", ex=5)
+            await other.get(other_key)
+    finally:
+        await other.delete(other_key)
+        await close_redis_client(other)
+    async with engine.get_connection() as conn:
+        await conn.get(f"{engine.config.redis_prefix}probe")
+
+    assert await engine_commands_sent(url, "get") == before + 1
+    kept = [arguments for _, _, arguments in _MONITORS[url].snapshot()]
+    assert not [arguments for arguments in kept if other_key in arguments]

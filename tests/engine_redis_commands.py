@@ -34,9 +34,9 @@ class _Monitor:
     connects, sends and closes between two reads is attributed.
     """
 
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(self, host: str, port: int, database: int) -> None:
+        self.database = str(database)
         self.lines: list[tuple[str, str, list[str]]] = []
-        self.start = 0
         self.served_baseline: dict[str, int] = {}
         self.engine_addresses: set[str] = set()
         self._lock = threading.Lock()
@@ -61,13 +61,20 @@ class _Monitor:
                 with self._lock:
                     if _PROCESS_CLIENT_NAME in arguments:
                         self.engine_addresses.add(current)
-                    self.lines.append((current, address, arguments))
+                    # the engine and the barrier run on the watched database; the
+                    # rest of a shared server's traffic is never read, so not kept
+                    if found.group(1) == self.database:
+                        self.lines.append((current, address, arguments))
         except (OSError, ValueError):
             return
 
     def snapshot(self) -> list[tuple[str, str, list[str]]]:
         with self._lock:
             return list(self.lines)
+
+    def forget_lines_so_far(self) -> None:
+        with self._lock:
+            self.lines.clear()
 
     def close(self) -> None:
         """Stop the stream: closing the socket alone leaves the file object made
@@ -188,10 +195,11 @@ async def _watch_engine_commands(url: str) -> None:
     send, until `unwatch_engine_commands`. It starts at the first read, so a test
     that never counts pays nothing for MONITOR."""
     parts = urlsplit(url)
-    monitor = _Monitor(parts.hostname or "localhost", parts.port or 6379)
+    database = int(parts.path.lstrip("/") or 0)
+    monitor = _Monitor(parts.hostname or "localhost", parts.port or 6379, database)
     _MONITORS[url] = monitor
     await _wait_for_the_stream_to_catch_up(url, monitor)
-    monitor.start = len(monitor.snapshot())
+    monitor.forget_lines_so_far()
     existing = await _engine_connections(url)
     monitor.served_baseline = existing
 
@@ -233,7 +241,7 @@ async def engine_commands_sent(
     sent_on_live_connections: Counter[str] = Counter()
     engine_lines = [
         (owner, arguments)
-        for owner, _address, arguments in monitor.snapshot()[monitor.start :]
+        for owner, _address, arguments in monitor.snapshot()
         if owner in monitor.engine_addresses and arguments
     ]
     for owner, arguments in engine_lines:
