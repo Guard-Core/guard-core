@@ -20,6 +20,14 @@ _QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"')
 _MONITORS: dict[str, "_Monitor"] = {}
 _SHA_OF_AN_EVALSHA = re.compile(rb"(EVALSHA\r\n\$40\r\n)[0-9a-f]{40}")
 _SHA_THE_SERVER_NEVER_LOADED = b"0" * 40
+_HANDSHAKE_SECONDS = 60
+
+
+def _is_handshake(arguments: list[str]) -> bool:
+    first = arguments[0].upper() if arguments else ""
+    if first == "CLIENT":
+        return len(arguments) > 1 and arguments[1].upper() in ("SETINFO", "SETNAME")
+    return first in ("HELLO", "AUTH")
 
 
 class _Monitor:
@@ -39,14 +47,21 @@ class _Monitor:
         self.lines: list[tuple[str, str, list[str]]] = []
         self.served_baseline: dict[str, int] = {}
         self.engine_addresses: set[str] = set()
-        # a connection's HELLO comes before its CLIENT SETNAME: held until the
-        # next line of that address shows whether it is the engine's
-        self._held_hello: dict[str, tuple[str, str, list[str]]] = {}
+        # address -> (when its handshake began, the handshake lines (HELLO, AUTH,
+        # CLIENT SETINFO, CLIENT SETNAME) that came before its name showed whether
+        # it is the engine's); gone at its first other line or when stale
+        self._opening: dict[str, tuple[float, list[tuple[str, str, list[str]]]]] = {}
         self._lock = threading.Lock()
         self._socket = socket.create_connection((host, port))
-        self._socket.sendall(b"*1\r\n$7\r\nMONITOR\r\n")
         self._reader = self._socket.makefile("rb")
-        assert self._reader.readline().startswith(b"+OK")
+        try:
+            self._socket.sendall(b"*1\r\n$7\r\nMONITOR\r\n")
+            if not self._reader.readline().startswith(b"+OK"):
+                raise AssertionError("the server did not accept MONITOR")
+        except BaseException:
+            self._reader.close()
+            self._socket.close()
+            raise
         self._thread = threading.Thread(target=self._read, daemon=True)
         self._thread.start()
 
@@ -63,24 +78,44 @@ class _Monitor:
                 arguments = _QUOTED.findall(found.group(3))
                 line = (current, address, arguments)
                 with self._lock:
-                    held = self._held_hello.pop(current, None)
-                    if _PROCESS_CLIENT_NAME in arguments:
-                        self.engine_addresses.add(current)
-                        if held is not None:
-                            self.lines.append(held)
-                    # only the engine's lines (lua ones carry its address in
-                    # `current`; its handshake before SELECT shows database 0, so
-                    # no database filter) and the barrier's are ever read; any
-                    # other client's traffic on a shared server is not kept
-                    # (LEDGER 6.737)
-                    if current in self.engine_addresses or any(
-                        argument.startswith(_BARRIER_PREFIX) for argument in arguments
-                    ):
-                        self.lines.append(line)
-                    elif arguments and arguments[0].upper() == "HELLO":
-                        self._held_hello[current] = line
+                    self._keep_if_the_engines(current, line)
         except (OSError, ValueError):
             return
+
+    def _keep_if_the_engines(
+        self, current: str, line: tuple[str, str, list[str]]
+    ) -> None:
+        arguments = line[2]
+        handshake = _is_handshake(arguments)
+        opening = self._opening.get(current)
+        if not handshake:
+            self._opening.pop(current, None)
+        elif opening is None:
+            # a handshake line out of nowhere is a new connection: the address
+            # may be one a closed engine connection left, now another client's
+            self.engine_addresses.discard(current)
+            now = time.monotonic()
+            self._opening = {
+                address: entry
+                for address, entry in self._opening.items()
+                if now - entry[0] < _HANDSHAKE_SECONDS
+            }
+            opening = self._opening[current] = (now, [])
+        if _PROCESS_CLIENT_NAME in arguments:
+            self.engine_addresses.add(current)
+            if opening is not None:
+                self.lines.extend(opening[1])
+                opening[1].clear()
+        elif handshake and current not in self.engine_addresses and opening:
+            opening[1].append(line)
+        # only the engine's lines (lua ones carry its address in `current`; its
+        # handshake before SELECT shows database 0, so no database filter) and
+        # the barrier's are ever read; any other client's traffic on a shared
+        # server is not kept (LEDGER 6.737)
+        if current in self.engine_addresses or any(
+            argument.startswith(_BARRIER_PREFIX) for argument in arguments
+        ):
+            self.lines.append(line)
 
     def snapshot(self) -> list[tuple[str, str, list[str]]]:
         with self._lock:
@@ -211,13 +246,18 @@ def _watch_engine_commands(url: str) -> None:
     parts = urlsplit(url)
     monitor = _Monitor(parts.hostname or "localhost", parts.port or 6379)
     _MONITORS[url] = monitor
-    # connections the engine opened before the watch never send their name again
-    monitor.engine_addresses |= set(_engine_connections(url))
-    _wait_for_the_stream_to_catch_up(url, monitor)
-    monitor.forget_lines_so_far()
-    existing = _engine_connections(url)
-    monitor.engine_addresses |= set(existing)
-    monitor.served_baseline = existing
+    try:
+        # connections the engine opened before the watch never send their name
+        # again
+        monitor.engine_addresses |= set(_engine_connections(url))
+        _wait_for_the_stream_to_catch_up(url, monitor)
+        monitor.forget_lines_so_far()
+        existing = _engine_connections(url)
+        monitor.engine_addresses |= set(existing)
+        monitor.served_baseline = existing
+    except BaseException:
+        unwatch_engine_commands(url)
+        raise
 
 
 def _required(url: str | None) -> str:
