@@ -39,6 +39,7 @@ class _Monitor:
         self.lines: list[tuple[str, str, list[str]]] = []
         self.served_baseline: dict[str, int] = {}
         self.engine_addresses: set[str] = set()
+        self.observer_addresses: set[str] = set()
         self._lock = threading.Lock()
         self._socket = socket.create_connection((host, port))
         self._socket.sendall(b"*1\r\n$7\r\nMONITOR\r\n")
@@ -61,9 +62,16 @@ class _Monitor:
                 with self._lock:
                     if _PROCESS_CLIENT_NAME in arguments:
                         self.engine_addresses.add(current)
-                    # the engine and the barrier run on the watched database; the
-                    # rest of a shared server's traffic is never read, so not kept
-                    if found.group(1) == self.database:
+                    if _OBSERVER_CLIENT_NAME in arguments:
+                        self.observer_addresses.add(current)
+                    # only the engine's lines (lua ones carry its address in
+                    # `current`) and the barrier's on the watched database are
+                    # ever read; any other client's traffic on a shared server,
+                    # this database included, is not kept (LEDGER 6.737)
+                    if found.group(1) == self.database and (
+                        current in self.engine_addresses
+                        or current in self.observer_addresses
+                    ):
                         self.lines.append((current, address, arguments))
         except (OSError, ValueError):
             return
@@ -198,9 +206,12 @@ async def _watch_engine_commands(url: str) -> None:
     database = int(parts.path.lstrip("/") or 0)
     monitor = _Monitor(parts.hostname or "localhost", parts.port or 6379, database)
     _MONITORS[url] = monitor
+    # connections the engine opened before the watch never send their name again
+    monitor.engine_addresses |= set(await _engine_connections(url))
     await _wait_for_the_stream_to_catch_up(url, monitor)
     monitor.forget_lines_so_far()
     existing = await _engine_connections(url)
+    monitor.engine_addresses |= set(existing)
     monitor.served_baseline = existing
 
 

@@ -163,3 +163,29 @@ def test_commands_of_another_database_are_not_kept_by_the_watch(
     assert engine_commands_sent(url, "get") == before + 1
     kept = [arguments for _, _, arguments in _MONITORS[url].snapshot()]
     assert not [arguments for arguments in kept if other_key in arguments]
+
+
+def test_another_clients_commands_on_the_watched_database_are_not_kept(
+    engine: RedisManager,
+) -> None:
+    url = engine.config.redis_url
+    assert url is not None
+    watched = int(urlsplit(url).path.lstrip("/") or 0)
+    same_db_url = urlunsplit(urlsplit(REDIS_URL)._replace(path=f"/{watched}"))
+    other_key = f"{REDIS_PREFIX}6737:same-db-{uuid.uuid4().hex}"
+    before = engine_commands_sent(url, "get")
+
+    other = Redis.from_url(same_db_url, decode_responses=True)
+    try:
+        for _ in range(20):
+            other.set(other_key, "1", ex=5)
+            other.get(other_key)
+    finally:
+        other.delete(other_key)
+        close_redis_client(other)
+    with engine.get_connection() as conn:
+        conn.get(f"{engine.config.redis_prefix}probe")
+
+    assert engine_commands_sent(url, "get") == before + 1
+    kept = [arguments for _, _, arguments in _MONITORS[url].snapshot()]
+    assert not [arguments for arguments in kept if other_key in arguments]
