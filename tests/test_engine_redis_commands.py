@@ -143,6 +143,7 @@ async def test_commands_of_another_database_are_not_kept_by_the_watch(
     engine: RedisManager,
 ) -> None:
     url = engine.config.redis_url
+    assert url is not None
     watched = int(urlsplit(url).path.lstrip("/") or 0)
     other_url = urlunsplit(urlsplit(REDIS_URL)._replace(path=f"/{(watched + 3) % 16}"))
     other_key = f"{REDIS_PREFIX}wp548:other-db"
