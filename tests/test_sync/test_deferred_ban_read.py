@@ -794,3 +794,33 @@ def test_the_rate_limit_skip_reads_the_state_itself_when_it_is_not_given() -> No
         request.method = "GET"
 
         assert check._skips_rate_limiting(request, None) is True
+
+
+def test_the_block_hook_names_the_rate_limit_check_for_a_fused_count() -> None:
+    payloads: list[dict[str, Any]] = []
+
+    def on_block(request: object, payload: dict[str, Any]) -> None:
+        payloads.append(payload)
+
+    with _rig(rate_limit=1, on_block=on_block) as rig:
+        codes = [rig.request(CLIENT), rig.request(CLIENT)]
+
+        assert codes == [None, 429]
+        assert [p["check_name"] for p in payloads] == [
+            RateLimitCheck(rig.middleware).check_name
+        ]
+
+
+def test_the_block_hook_names_the_ip_check_for_a_fused_ban() -> None:
+    payloads: list[dict[str, Any]] = []
+
+    def on_block(request: object, payload: dict[str, Any]) -> None:
+        payloads.append(payload)
+
+    with _rig(rate_limit=1, on_block=on_block) as rig:
+        rig.ban_in_redis_only(CLIENT)
+
+        assert rig.request(CLIENT) == 403
+        assert [p["check_name"] for p in payloads] == [
+            IpSecurityCheck(rig.middleware).check_name
+        ]
