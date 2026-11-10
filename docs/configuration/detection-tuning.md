@@ -314,6 +314,8 @@ The `SusPatternsManager` provides runtime diagnostics:
 ```python
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 
+# None until the app has handled its first request,
+# which is when the detection engine is configured
 stats = await sus_patterns_handler.get_performance_stats()
 # {
 #     "summary": {"total_executions": 15432, "avg_execution_time": 0.003, ...},
