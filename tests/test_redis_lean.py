@@ -111,8 +111,9 @@ async def test_a_connection_the_server_dropped_while_idle_reconnects() -> None:
     client = await _client()
     other = await _client()
     try:
-        await lean_command(client, "PING")
-        await other.client_kill_filter(_type="normal", skipme=True)
+        # only this client's connection: the server is shared (LEDGER 6.745)
+        connection_id = await lean_command(client, "CLIENT", "ID")
+        await other.client_kill_filter(_id=connection_id)
         await asyncio.sleep(0.05)
 
         assert await lean_command(client, "GET", "lean:idle:none") is None
