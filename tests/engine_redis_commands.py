@@ -14,6 +14,7 @@ from guard_core.handlers.redis_handler import close_redis_client
 
 _PROCESS_CLIENT_NAME = f"guardtest-{uuid.uuid4().hex}"
 _OBSERVER_CLIENT_NAME = f"guardtest-observer-{uuid.uuid4().hex}"
+_BARRIER_PREFIX = "guardtest-barrier-"
 _MONITOR_LINE = re.compile(r"^\+?[\d.]+ \[(\d+) (.+?)\] (.*)$")
 _QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"')
 _MONITORS: dict[str, "_Monitor"] = {}
@@ -34,11 +35,13 @@ class _Monitor:
     connects, sends and closes between two reads is attributed.
     """
 
-    def __init__(self, host: str, port: int, database: int) -> None:
-        self.database = str(database)
+    def __init__(self, host: str, port: int) -> None:
         self.lines: list[tuple[str, str, list[str]]] = []
         self.served_baseline: dict[str, int] = {}
         self.engine_addresses: set[str] = set()
+        # a connection's HELLO comes before its CLIENT SETNAME: held until the
+        # next line of that address shows whether it is the engine's
+        self._held_hello: dict[str, tuple[str, str, list[str]]] = {}
         self._lock = threading.Lock()
         self._socket = socket.create_connection((host, port))
         self._socket.sendall(b"*1\r\n$7\r\nMONITOR\r\n")
@@ -58,13 +61,24 @@ class _Monitor:
                 if address != "lua":
                     current = address
                 arguments = _QUOTED.findall(found.group(3))
+                line = (current, address, arguments)
                 with self._lock:
+                    held = self._held_hello.pop(current, None)
                     if _PROCESS_CLIENT_NAME in arguments:
                         self.engine_addresses.add(current)
-                    # the engine and the barrier run on the watched database; the
-                    # rest of a shared server's traffic is never read, so not kept
-                    if found.group(1) == self.database:
-                        self.lines.append((current, address, arguments))
+                        if held is not None:
+                            self.lines.append(held)
+                    # only the engine's lines (lua ones carry its address in
+                    # `current`; its handshake before SELECT shows database 0, so
+                    # no database filter) and the barrier's are ever read; any
+                    # other client's traffic on a shared server is not kept
+                    # (LEDGER 6.737)
+                    if current in self.engine_addresses or any(
+                        argument.startswith(_BARRIER_PREFIX) for argument in arguments
+                    ):
+                        self.lines.append(line)
+                    elif arguments and arguments[0].upper() == "HELLO":
+                        self._held_hello[current] = line
         except (OSError, ValueError):
             return
 
@@ -176,7 +190,7 @@ async def _engine_connections(url: str) -> dict[str, int]:
 
 
 async def _wait_for_the_stream_to_catch_up(url: str, monitor: _Monitor) -> None:
-    token = f"guardtest-barrier-{uuid.uuid4().hex}"
+    token = f"{_BARRIER_PREFIX}{uuid.uuid4().hex}"
     observer = Redis.from_url(_observer_url(url), decode_responses=True)
     try:
         await observer.echo(token)
@@ -195,12 +209,14 @@ async def _watch_engine_commands(url: str) -> None:
     send, until `unwatch_engine_commands`. It starts at the first read, so a test
     that never counts pays nothing for MONITOR."""
     parts = urlsplit(url)
-    database = int(parts.path.lstrip("/") or 0)
-    monitor = _Monitor(parts.hostname or "localhost", parts.port or 6379, database)
+    monitor = _Monitor(parts.hostname or "localhost", parts.port or 6379)
     _MONITORS[url] = monitor
+    # connections the engine opened before the watch never send their name again
+    monitor.engine_addresses |= set(await _engine_connections(url))
     await _wait_for_the_stream_to_catch_up(url, monitor)
     monitor.forget_lines_so_far()
     existing = await _engine_connections(url)
+    monitor.engine_addresses |= set(existing)
     monitor.served_baseline = existing
 
 
