@@ -5,7 +5,7 @@ from collections.abc import Callable
 from collections.abc import Hashable as Hashable
 from typing import TYPE_CHECKING, Generic, Protocol, TypeVar
 
-from guard_core._parked_records import APP_MANAGERS_RECORD
+from guard_core._parked_records import APP_MANAGERS_RECORD, RELEASE_EPOCH_RECORD
 from guard_core._redis_enablement import (
     RedisFieldsConfig,
     configured_redis_url,
@@ -241,15 +241,34 @@ def release_app(config: object) -> None:
     Calling it twice, or for a config no app was bound to, does nothing. An app
     that is never released keeps the handoff that waits for the collector.
 
-    A request that reaches the app after release is still decided: the checks keep
-    the managers they captured when the pipeline was built (the app's own bans,
-    patterns and ranges still refuse), and the detection scan binds the app again
-    as a first request does, so no check is skipped and nothing is raised. Only a
-    lookup by config made after the release resolves as for a config no app was
-    bound to: the module-level default.
+    Release ends the app. The next request through its pipeline binds and
+    initializes it again before any check runs, as the first request of a new app:
+    its in-memory runtime state (patterns added at runtime, bans kept in memory) is
+    gone, while state in Redis and state declared in the config come back. A request
+    already past the pipeline's staleness check when release runs finishes on the old
+    checks, and releasing an app that still serves requests is a host bug. The rule
+    update loop stops only when the app held the default rule manager alone. A
+    pipeline hand-built without ``build_default_pipeline`` has no staleness check
+    and is not rebuilt, so an adapter builds through it.
     """
     for managers in tuple(_EVERY_APP_MANAGERS):
         managers.release(config)
+    mark_release(config)
+
+
+def release_epoch_of(config: object) -> int:
+    """How many times this config was released; a pipeline compares it per request
+    to learn that its app ended and must bind and initialize again."""
+    epoch: int = config.__dict__.get(RELEASE_EPOCH_RECORD, 0)
+    return epoch
+
+
+def mark_release(config: object) -> None:
+    # After the managers let go, so a request that sees the new epoch finds them free.
+    try:
+        object.__setattr__(config, RELEASE_EPOCH_RECORD, release_epoch_of(config) + 1)
+    except (AttributeError, TypeError):
+        return
 
 
 class AppManagers(Generic[_M]):

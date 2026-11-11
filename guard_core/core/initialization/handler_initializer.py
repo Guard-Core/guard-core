@@ -26,6 +26,17 @@ if TYPE_CHECKING:
     from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 
+def bind_app_managers(config: "SecurityConfig") -> None:
+    """Bind the app of this config to its ban, cloud and pattern managers."""
+    from guard_core.handlers.cloud_handler import cloud_handler_for
+    from guard_core.handlers.ipban_handler import ip_ban_manager_for
+    from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
+
+    ip_ban_manager_for(config, bind=True)
+    cloud_handler_for(config, bind=True)
+    sus_patterns_manager_for(config, bind=True)
+
+
 class HandlerInitializer(_HandlerInitializerStepsMixin):
     def __init__(
         self,
@@ -41,13 +52,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         self.redis_handler = redis_handler
         if redis_handler is not None:
             REDIS_HANDLERS.register(config, redis_handler)
-        from guard_core.handlers.cloud_handler import cloud_handler_for
-        from guard_core.handlers.ipban_handler import ip_ban_manager_for
-        from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
-
-        ip_ban_manager_for(config, bind=True)
-        cloud_handler_for(config, bind=True)
-        sus_patterns_manager_for(config, bind=True)
+        bind_app_managers(config)
         self.agent_handler = agent_handler
         from guard_core.handlers._downloader import TREE_AWAITS
 
@@ -71,6 +76,19 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         self.logger = logging.getLogger("guard_core.core.initialization")
         self._require_tree_downloader(adapter)
         self.inject_bound_ban_manager()
+
+    async def reinitialize_after_release(self) -> None:
+        """Run again what the app's startup ran, after ``release_app`` ended it: the
+        bind, the Redis and detection setup (Redis and config-declared state come
+        back, runtime state does not), the agent wiring and the rule loop. The
+        pipeline awaits it once, before it rebuilds its checks."""
+        bind_app_managers(self.config)
+        self.inject_bound_ban_manager()
+        await self.initialize_redis_handlers()
+        if self.composite_handler is not None or self.agent_handler is not None:
+            await self.initialize_agent_for_handlers()
+            await self._initialize_behavior_telemetry()
+            await self.initialize_dynamic_rule_manager()
 
     def inject_bound_ban_manager(self) -> None:
         """Hand the ban manager this app was bound to (the bind is in ``__init__``)

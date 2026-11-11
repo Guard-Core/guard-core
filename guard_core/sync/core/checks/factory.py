@@ -1,4 +1,4 @@
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from typing import TYPE_CHECKING
 
 from guard_core.sync.core.checks.base import SecurityCheck
@@ -87,6 +87,27 @@ def _build_checks(
     ]
 
 
+def _app_reinitializer(
+    middleware: "SyncGuardMiddlewareProtocol",
+) -> Callable[[], None]:
+    """What a released app's next request runs before its checks are rebuilt: the
+    middleware's initializer when it has one (``handler_initializer``, which adapters
+    set), else the bare bind of the app's managers."""
+    initializer = getattr(middleware, "handler_initializer", None)
+    if initializer is not None:
+        reinitialize: Callable[[], None] = initializer.reinitialize_after_release
+        return reinitialize
+
+    def bind_again() -> None:
+        from guard_core.sync.core.initialization.handler_initializer import (
+            bind_app_managers,
+        )
+
+        bind_app_managers(middleware.config)
+
+    return bind_again
+
+
 def build_default_pipeline(
     middleware: "SyncGuardMiddlewareProtocol",
 ) -> SecurityCheckPipeline:
@@ -98,6 +119,7 @@ def build_default_pipeline(
         rebuild_checks=lambda: _build_checks(middleware),
         watched_container_fields=WATCHED_CONTAINER_FIELDS,
         route_config_revision=lambda: _route_config_revision(middleware),
+        reinitialize_app=_app_reinitializer(middleware),
     )
     initializer = getattr(middleware, "handler_initializer", None)
     if initializer is not None:

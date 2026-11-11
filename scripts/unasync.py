@@ -142,6 +142,7 @@ SKIP_TESTS = {
     "test_perf_detection_components.py",
     "test_compiler_cache_loop_and_threads.py",
     "test_release_stops_the_default_rule_loop.py",
+    "test_released_app_initializes_once.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}

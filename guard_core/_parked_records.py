@@ -11,6 +11,7 @@ APP_SCOPE_RECORD = "_guard_app_scope"
 APP_MANAGERS_RECORD = "_guard_app_managers"
 PATTERN_MANAGER_RECORD = "_guard_pattern_manager"
 BAN_THRESHOLD_CONTEXT_RECORD = "_guard_ban_threshold_context"
+RELEASE_EPOCH_RECORD = "_guard_release_epoch"
 
 _PER_APP_RECORDS: frozenset[str] = frozenset(
     {
@@ -18,6 +19,7 @@ _PER_APP_RECORDS: frozenset[str] = frozenset(
         APP_MANAGERS_RECORD,
         PATTERN_MANAGER_RECORD,
         BAN_THRESHOLD_CONTEXT_RECORD,
+        RELEASE_EPOCH_RECORD,
     }
 )
 
