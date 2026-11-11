@@ -8,6 +8,16 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MARKER = re.compile(r"^(<<<<<<< |=======$|>>>>>>> )", re.MULTILINE)
 
 
+def _inside_a_work_tree() -> bool:
+    probe = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    return probe.stdout.strip() == "true"
+
+
 def _tracked_files() -> list[Path]:
     listing = subprocess.run(
         ["git", "ls-files", "-z"],
@@ -33,6 +43,8 @@ def test_marker_pattern_ignores_text_that_only_resembles_one() -> None:
 
 
 def test_no_tracked_text_file_holds_a_merge_conflict_marker() -> None:
+    if not _inside_a_work_tree():
+        pytest.skip("needs a git work tree to list the tracked files")
     found: list[str] = []
     for path in _tracked_files():
         if not path.is_file():
