@@ -146,7 +146,8 @@ def test_a_gitfile_pointing_at_a_missing_path_is_not_a_work_tree(
 
 def _git_init(path: Path) -> None:
     path.mkdir()
-    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    subprocess.run(["git", "init", "-q", str(path)], check=True, env=_git_env_for(path))
+    assert (path / ".git").is_dir()
 
 
 def test_a_plain_subdirectory_of_a_work_tree_is_not_a_work_tree(
@@ -168,3 +169,20 @@ def test_an_exported_git_dir_does_not_decide_for_a_plain_directory(
     monkeypatch.setenv("GIT_DIR", str(tmp_path / "other" / ".git"))
 
     assert _inside_a_work_tree(plain) is False
+
+
+def test_git_init_under_an_exported_git_dir_still_creates_the_target_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _git_init(tmp_path / "other")
+    other_git = tmp_path / "other" / ".git"
+    before = ((other_git / "HEAD").read_bytes(), (other_git / "config").read_bytes())
+    monkeypatch.setenv("GIT_DIR", str(other_git))
+
+    _git_init(tmp_path / "new")
+
+    assert (tmp_path / "new" / ".git").is_dir()
+    assert before == (
+        (other_git / "HEAD").read_bytes(),
+        (other_git / "config").read_bytes(),
+    )
