@@ -1,3 +1,4 @@
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -8,16 +9,20 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MARKER = re.compile(r"^(<<<<<<< |=======$|>>>>>>> )", re.MULTILINE)
 
 
-def _inside_a_work_tree() -> bool:
+_NOT_A_REPOSITORY = ("not a git repository", "does not point to a valid repository")
+
+
+def _inside_a_work_tree(root: Path = _REPO_ROOT) -> bool:
     probe = subprocess.run(
         ["git", "rev-parse", "--is-inside-work-tree"],
-        cwd=_REPO_ROOT,
+        cwd=root,
         capture_output=True,
         text=True,
+        env={**os.environ, "LC_ALL": "C", "LANGUAGE": ""},
     )
     if probe.returncode == 0:
         return probe.stdout.strip() == "true"
-    if probe.returncode == 128 and "not a git repository" in probe.stderr:
+    if probe.returncode == 128 and any(m in probe.stderr for m in _NOT_A_REPOSITORY):
         return False
     raise RuntimeError(f"git rev-parse failed ({probe.returncode}): {probe.stderr}")
 
@@ -107,3 +112,15 @@ def test_the_work_tree_probe_raises_on_any_other_git_failure(
 
     with pytest.raises(RuntimeError, match="dubious ownership"):
         _inside_a_work_tree()
+
+
+def test_a_plain_directory_is_not_a_work_tree(tmp_path: Path) -> None:
+    assert _inside_a_work_tree(tmp_path) is False
+
+
+def test_a_gitfile_pointing_at_a_missing_path_is_not_a_work_tree(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".git").write_text("gitdir: /nonexistent/x\n", encoding="utf-8")
+
+    assert _inside_a_work_tree(tmp_path) is False
