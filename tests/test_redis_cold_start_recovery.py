@@ -817,6 +817,27 @@ async def test_fail_closed_gets_its_503_fast_during_an_outage(
         assert attempts.call_count == 2
 
 
+async def test_the_refused_call_of_a_degraded_manager_never_suspends(  # async-only
+    silent: SilentServer, prefix: str, clock: Clock
+) -> None:
+    # Stepped by hand: any await that suspends (sleep, wait_for, Event.wait, an
+    # aliased sleep) makes send() return a yielded value instead of raising.
+    app = App(config_for(silent.url, prefix, fail_open=False))
+    assert app.redis is not None
+    attempts = app.connects()
+    with patch.object(app.redis, "_open_connection", attempts):
+        with pytest.raises(GuardRedisError):
+            await app.start()
+
+        async def refuse(manager: RedisManager) -> None:
+            async with manager.get_connection():
+                pass
+
+        with pytest.raises(GuardRedisError):
+            refuse(app.redis).send(None)
+        assert attempts.call_count == 1
+
+
 async def test_a_connected_manager_is_never_gated(
     forwarder: RedisForwarder, prefix: str
 ) -> None:
