@@ -1,4 +1,5 @@
 import logging
+import threading
 import weakref
 from collections.abc import Callable
 from collections.abc import Hashable as Hashable
@@ -276,6 +277,9 @@ class AppManagers(Generic[_M]):
         self._default_apps: ConfigHandlerRegistry[_M] = ConfigHandlerRegistry()
         self._served: weakref.ref[_PrefixedRedisConfig] | None = None
         self._served_default: weakref.ref[_M] | None = None
+        # bind runs on the request path of a threaded server (the detection scan's
+        # first request), release from the host's shutdown thread
+        self._lock = threading.RLock()
         _EVERY_APP_MANAGERS.add(self)
 
     def _default_serves(self) -> _PrefixedRedisConfig | None:
@@ -314,6 +318,12 @@ class AppManagers(Generic[_M]):
         return default
 
     def bind(
+        self, config: "SecurityConfig[RequestT]", default: _M, fresh: Callable[[], _M]
+    ) -> _M:
+        with self._lock:
+            return self._bind_locked(config, default, fresh)
+
+    def _bind_locked(
         self, config: "SecurityConfig[RequestT]", default: _M, fresh: Callable[[], _M]
     ) -> _M:
         own = self.own(config)
@@ -358,6 +368,10 @@ class AppManagers(Generic[_M]):
     def release(self, config: object) -> None:
         """The app of this config is finished: forget what it held, and hand the
         default back unless another app shares it (see ``release_app``)."""
+        with self._lock:
+            self._release_locked(config)
+
+    def _release_locked(self, config: object) -> None:
         self._own.drop(config, self.kind)
         self._default_apps.drop(config, self.kind)
         default = self._served_default() if self._served_default is not None else None
