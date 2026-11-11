@@ -9,7 +9,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from guard_core.models import DynamicRules, SyncSecurityConfig
+from guard_core.sync.handlers._dynamic_rule_application import RuleTargets
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
+from guard_core.sync.handlers.suspatterns_handler import sus_patterns_manager_for
 
 
 def _frozen_datetime(moment: datetime) -> MagicMock:
@@ -954,7 +956,15 @@ def test_apply_rules_all_types(
             sample_rules.ip_blacklist,
             sample_rules.ip_ban_duration,
         )
-        mock_ip_whitelist.assert_called_once_with(sample_rules.ip_whitelist)
+        mock_ip_whitelist.assert_called_once()
+        whitelist_args = mock_ip_whitelist.call_args.args
+        assert len(whitelist_args) == 2
+        assert whitelist_args[0] == sample_rules.ip_whitelist
+        for targets in (mock_ip_bans.call_args.args[4], whitelist_args[1]):
+            assert isinstance(targets, RuleTargets)
+            assert targets.config is manager.config
+            assert targets.ban_manager is manager.ban_manager_of_the_app()
+            assert targets.patterns_manager is sus_patterns_manager_for(manager.config)
         mock_pattern_rules.assert_called_once()
         assert mock_pattern_rules.call_args.args[0] == sample_rules.suspicious_patterns
         mock_emergency_mode.assert_not_called()

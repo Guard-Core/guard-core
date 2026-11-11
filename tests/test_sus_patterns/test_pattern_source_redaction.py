@@ -28,6 +28,7 @@ from guard_core.handlers._behavior_response_pattern import (
 )
 from guard_core.handlers._dynamic_rule_application import DynamicRuleApplicationMixin
 from guard_core.handlers._dynamic_rule_plan import DynamicRulePlanMixin
+from guard_core.handlers.ipban_handler import IPBanManager, ip_ban_manager_for
 from guard_core.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.models import DynamicRules, SecurityConfig
 
@@ -251,6 +252,12 @@ async def test_dynamic_rule_apply_pattern_rules_logs_redact_secret_shaped_patter
             self.logger = logging.getLogger(
                 "guard_core.handlers.dynamic_rule_test_pattern_redaction"
             )
+
+        def ban_manager_of_the_app(self) -> IPBanManager:
+            return ip_ban_manager_for(self.config)
+
+        def _run_was_stopped(self) -> bool:
+            return False
 
     applier = _Applier()
     rules = DynamicRules(
