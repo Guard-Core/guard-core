@@ -57,7 +57,7 @@ class RouteConfig:
         self.detection_scan_body: bool | None = None
         object.__setattr__(self, "_initialized", True)
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: object) -> None:
         # Tracked-container fields get wrapped in a list/dict/set subclass
         # whose mutating methods bump `revision` directly (in-place mutation,
         # not just whole-value assignment, triggers a pipeline rebuild).
@@ -81,9 +81,11 @@ class BaseSecurityDecorator:
     def __init__(self, config: SecurityConfig) -> None:
         self.config = config
         self._route_configs: dict[str, RouteConfig] = {}
+        self._route_id_owner: dict[str, int] = {}
         self._route_config_revision = RouteConfigRevision()
         self.behavior_tracker = BehaviorTracker(config)
-        self.agent_handler: Any = None
+        self.agent_handler: AgentHandlerProtocol | None = None
+        self.geo_ip_handler: _GeoCountryLookup | None = None
 
     @property
     def route_config_revision(self) -> int:
@@ -92,18 +94,28 @@ class BaseSecurityDecorator:
     def get_route_config(self, route_id: str) -> RouteConfig | None:
         return self._route_configs.get(route_id)
 
-    def _get_route_id(self, func: Callable[..., Any]) -> str:
+    def _get_route_id(self, func: object) -> str:
         route_id = getattr(func, "_guard_route_id", None)
-        if isinstance(route_id, str):
+        owner_chain: list[int] = []
+        current: object = func
+        while current is not None and id(current) not in owner_chain:
+            owner_chain.append(id(current))
+            current = getattr(current, "__wrapped__", None)
+        if (
+            isinstance(route_id, str)
+            and route_id in self._route_configs
+            and self._route_id_owner.get(route_id) in owner_chain
+        ):
             return route_id
-        route_id = base_id = f"{func.__module__}.{func.__qualname__}"
+        qualname = getattr(func, "__qualname__", None) or type(func).__qualname__
+        route_id = base_id = f"{func.__module__}.{qualname}"
         suffix = 1
         while route_id in self._route_configs:
             suffix += 1
             route_id = f"{base_id}#{suffix}"
         return route_id
 
-    def _ensure_route_config(self, func: Callable[..., Any]) -> RouteConfig:
+    def _ensure_route_config(self, func: object) -> RouteConfig:
         route_id = self._get_route_id(func)
         if route_id not in self._route_configs:
             config = RouteConfig(self._route_config_revision)
@@ -112,13 +124,16 @@ class BaseSecurityDecorator:
             )
             self._route_configs[route_id] = config
             self._route_config_revision.bump()
-        cast(Any, func)._guard_route_id = route_id
+        self._route_id_owner.setdefault(route_id, id(func))
+        setattr(func, _ROUTE_ID_ATTR, route_id)
         return self._route_configs[route_id]
 
-    def _apply_route_config(self, func: Callable[..., Any]) -> DecoratedFunction:
+    def _apply_route_config(
+        self, func: Callable[GuardedParams, GuardedReturn]
+    ) -> Callable[GuardedParams, GuardedReturn]:
         route_id = self._get_route_id(func)
-        cast(Any, func)._guard_route_id = route_id
-        return cast(DecoratedFunction, func)
+        setattr(func, _ROUTE_ID_ATTR, route_id)
+        return func
 ```
 
 `_route_config_revision` is a separate counter from `SecurityConfig`'s own revision; `build_default_pipeline` reads `guard_decorator.route_config_revision` to know when a route was registered or reconfigured after the pipeline was built. `_ensure_route_config` bumps it explicitly the moment a route id is first seen, in addition to `RouteConfig.__setattr__` bumping it for every field assignment after that.
@@ -153,8 +168,12 @@ class AccessControlMixin(BaseSecurityMixin):
         self,
         whitelist: list[str] | None = None,
         blacklist: list[str] | None = None,
-    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             route_config = self._ensure_route_config(func)
             if whitelist:
                 route_config.ip_whitelist = whitelist
@@ -335,7 +354,7 @@ async def send_decorator_event(
     action_taken: str,
     reason: str,
     decorator_type: str,
-    **kwargs: Any,
+    **kwargs: object,
 ) -> None:
     if not self.agent_handler:
         return

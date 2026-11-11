@@ -152,9 +152,13 @@ class ResponseContext:
     config: SecurityConfig
     logger: Logger
     metrics_collector: MetricsCollector
-    agent_handler: Any | None = None
+    agent_handler: AgentHandlerProtocol | None = None
+    redis_handler: RedisHandlerProtocol | None = None
     guard_decorator: BaseSecurityDecorator | None = None
-    response_factory: Any = field(default=None)
+    response_factory: GuardResponseFactory | None = None
+    security_headers_manager: SecurityHeadersManager = field(
+        default_factory=SecurityHeadersManager.isolated
+    )
 ```
 
 The adapter constructs these context objects during middleware initialization and passes them to the respective module constructors. This keeps module interfaces explicit and testable.

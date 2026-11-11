@@ -153,14 +153,17 @@ def detection_exclusion(
     self,
     headers: set[str] | None = None,
     params: set[str] | None = None,
-    body_fields: set[str] | None = None,
+    body_fields: set[str] | dict[str, set[str]] | None = None,
     categories: set[str] | None = None,
     scan_body: bool | None = None,
     semantic_headers: set[str] | None = None,
-) -> Callable[[Callable[..., Any]], Callable[..., Any]]: ...
+    path_params: set[str] | dict[str, set[str]] | None = None,
+) -> Callable[
+    [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+]: ...
 ```
 
-All six kwargs are optional (`set[str] | None` for `headers`/`body_fields`/`categories`/`semantic_headers`, `set[str] | dict[str, set[str]] | None` for `params`, `bool | None` for `scan_body`). Passing `None` (or omitting) leaves the corresponding `RouteConfig` field unset, the route inherits the global `SecurityConfig` value at request time. Passing a value replaces the inherited value at this route only.
+All seven kwargs are optional (`set[str] | None` for `headers`/`categories`/`semantic_headers`, `set[str] | dict[str, set[str]] | None` for `params`/`body_fields`/`path_params`, `bool | None` for `scan_body`). Passing `None` (or omitting) leaves the corresponding `RouteConfig` field unset, the route inherits the global `SecurityConfig` value at request time. Passing a value replaces the inherited value at this route only.
 
 - `headers`, header names skipped by detection. Merged with `SecurityConfig.excluded_detection_headers` and the hardcoded default exclusion list.
 - `params`, query parameter names skipped by detection, as a set (every category) or a mapping of name to a set of categories (only those categories). Replaces (does not merge with) the global value when set.
@@ -168,6 +171,7 @@ All six kwargs are optional (`set[str] | None` for `headers`/`body_fields`/`cate
 - `categories`, categories the regex scanner runs at this route. Replaces the global `enabled_detection_categories`. Custom user patterns always run regardless.
 - `semantic_headers`, header names whose values skip the semantic analyzer only (regex scanning is unchanged). Merged with `SecurityConfig.excluded_semantic_detection_headers`.
 - `scan_body`, whether to scan the request body at this route. Replaces the global `detection_scan_body` when set.
+- `path_params`, route parameter names (a set, or a `{name: {categories}}` map) whose captured value may contain a probe token without being flagged; see the 5.0.0 release notes.
 
 ```python
 @app.post("/api/markdown-editor/save")

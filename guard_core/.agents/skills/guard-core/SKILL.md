@@ -144,7 +144,7 @@ from guard_core.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.detection_result import DetectionResult
 ```
 
-`SusPatternsManager.detect(content, ip_address, context="unknown", correlation_id=None, enabled_categories=None) -> dict[str, Any]` is the primary entry point. It preprocesses (up to 16 decode iterations: URL, HTML entities, base64, hex, Unicode escapes; then a final SQL-comment strip and null-byte strip), matches 148 regex patterns across 19 categories with context filtering, runs a multi-metric semantic score, and returns a threat dict. Detection also scans query-parameter, header, and JSON-key/form-field/multipart-part *names*, not only values, up to `detection_max_scan_values` values per request.
+`SusPatternsManager.detect(content, ip_address, context="unknown", correlation_id=None, enabled_categories=None, *, content_preview=None) -> DetectionResult` (a `TypedDict`) is the primary entry point. It preprocesses (up to 16 decode iterations: URL, HTML entities, base64, hex, Unicode escapes; then a final SQL-comment strip and null-byte strip), matches 148 regex patterns across 19 categories with context filtering, runs a multi-metric semantic score, and returns a `DetectionResult` dict. Detection also scans query-parameter, header, and JSON-key/form-field/multipart-part *names*, not only values, up to `detection_max_scan_values` values per request.
 
 The 19 detection categories (`ALL_DETECTION_CATEGORIES`): `xss`, `sqli`, `dir_traversal`, `path_traversal`, `cmd_injection`, `file_inclusion`, `ldap`, `xml`, `ssrf`, `nosql`, `file_upload`, `template`, `http_split`, `sensitive_file`, `cms_probing`, `recon`, `proto_pollution`, `code_injection`, `deserialization`.
 

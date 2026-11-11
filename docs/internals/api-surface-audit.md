@@ -121,7 +121,7 @@ Ordered by domain, then by field name.
 | `redis_max_connections` | `int \| None` | `None` | redis | Keep · Group? |
 | `redis_retries` | `int` | `1` | redis | Keep · Group? |
 | `redis_fail_open` | `bool` | `False` | redis | Keep |
-| `security_headers` | `dict[str, Any] \| None` | headers dict | security-headers | Keep |
+| `security_headers` | `dict[str, object] \| None` | headers dict | security-headers | Keep |
 | `enforce_https` | `bool` | `False` | security-headers | Keep |
 | `whitelist` | `tuple[str, ...] \| None` | `None` | allow/deny | Keep |
 | `blacklist` | `tuple[str, ...]` | `tuple` | allow/deny | Keep |

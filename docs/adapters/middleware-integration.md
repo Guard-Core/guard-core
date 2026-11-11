@@ -352,16 +352,15 @@ from fastapi.middleware.cors import CORSMiddleware
 @staticmethod
 def configure_cors(app: FastAPI, config: SecurityConfig) -> bool:
     if config.enable_cors:
-        cors_params: dict[str, Any] = {
-            "allow_origins": config.cors_allow_origins,
-            "allow_methods": config.cors_allow_methods,
-            "allow_headers": config.cors_allow_headers,
-            "allow_credentials": config.cors_allow_credentials,
-            "max_age": config.cors_max_age,
-        }
-        if config.cors_expose_headers:
-            cors_params["expose_headers"] = config.cors_expose_headers
-        app.add_middleware(CORSMiddleware, **cors_params)
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=config.cors_allow_origins,
+            allow_methods=config.cors_allow_methods,
+            allow_headers=config.cors_allow_headers,
+            allow_credentials=config.cors_allow_credentials,
+            max_age=config.cors_max_age,
+            expose_headers=config.cors_expose_headers,
+        )
         return True
     return False
 ```

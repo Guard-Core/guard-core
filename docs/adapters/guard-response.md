@@ -148,7 +148,6 @@ Flask's `Response` has mutable headers but uses `data` instead of `body`:
 
 ```python
 from collections.abc import MutableMapping
-from typing import Any
 
 from flask import Response, redirect
 from werkzeug.datastructures import Headers
@@ -260,9 +259,13 @@ class ResponseContext:
     logger: Logger
     metrics_collector: MetricsCollector
 
-    agent_handler: Any | None = None
+    agent_handler: AgentHandlerProtocol | None = None
+    redis_handler: RedisHandlerProtocol | None = None
     guard_decorator: BaseSecurityDecorator | None = None
-    response_factory: Any = field(default=None)
+    response_factory: GuardResponseFactory | None = None
+    security_headers_manager: SecurityHeadersManager = field(
+        default_factory=SecurityHeadersManager.isolated
+    )
 ```
 
 Security Headers

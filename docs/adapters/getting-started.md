@@ -80,11 +80,11 @@ The protocol requires these properties and methods:
 | `url_replace_scheme(scheme)` | `str` | Return full URL with scheme replaced |
 | `method` | `str` | HTTP method (`GET`, `POST`, etc.) |
 | `client_host` | `str \| None` | Client IP address |
-| `headers` | `Mapping[str, str]` | Request headers |
+| `headers` | `GuardRequestHeaders` | Request headers |
 | `query_params` | `Mapping[str, str]` | Query string parameters |
 | `body()` | `async -> bytes` | Request body as bytes |
-| `state` | `Any` | Mutable namespace for inter-check data |
-| `scope` | `dict[str, Any]` | ASGI-like scope dict consumed by the adapter to resolve the route and populate `request.state` (`guard_decorator`, `guard_route_id`, `guard_endpoint_id`, and `guard_route_unresolved` when matching fails). `guard-core` never reads `scope` itself, so an empty dict suffices, global-level `SecurityConfig` settings still apply |
+| `state` | `RequestState` | Mutable namespace for inter-check data |
+| `scope` | `dict[str, object]` | ASGI-like scope dict consumed by the adapter to resolve the route and populate `request.state` (`guard_decorator`, `guard_route_id`, `guard_endpoint_id`, and `guard_route_unresolved` when matching fails). `guard-core` never reads `scope` itself, so an empty dict suffices, global-level `SecurityConfig` settings still apply |
 
 ### 2. GuardResponse Wrapper
 
