@@ -418,7 +418,10 @@ async def test_a_held_lock_release_leaves_no_rule_exempt_network_for_the_next_ap
 
 
 def _spawn_in_this_context(work: Callable[[], Awaitable[None]]) -> asyncio.Task[None]:
-    return asyncio.create_task(work())
+    async def run() -> None:
+        await work()
+
+    return asyncio.create_task(run())
 
 
 async def _finished(spawned: asyncio.Task[None]) -> None:
