@@ -752,11 +752,13 @@ def test_fail_closed_gets_its_503_fast_during_an_outage(
     with patch.object(app.redis, "_open_connection", attempts):
         with pytest.raises(GuardRedisError):
             app.start()
-        began = monotonic()
-        with pytest.raises(GuardRedisError):
+        with (
+            patch("time.sleep", side_effect=AssertionError("timer")),
+            pytest.raises(GuardRedisError),
+        ):
             with app.redis.get_connection():
                 pass
-        assert monotonic() - began < 0.1
+        # Refused on the frozen gate clock, no further attempt, and no sleep ran.
         assert attempts.call_count == 1
         clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
         with pytest.raises(GuardRedisError):
@@ -885,48 +887,81 @@ def test_a_refused_outage_held_30_s_is_tried_at_most_12_times_and_reported_7(
     assert 1 <= events.count("connection_failed") <= 7
 
 
-def test_a_fail_closed_blip_serves_within_half_a_second_of_the_restore(
-    forwarder: RedisForwarder, prefix: str
+def test_a_fail_closed_blip_serves_on_the_first_attempt_after_the_first_window(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
 ) -> None:
+    # Counted in attempts on the gate's clock, not in wall time (see the fail-open
+    # twin below): none inside the first 0.25 s window, one right after it.
     manager = RedisManager(config_for(forwarder.url, prefix, fail_open=False))
     with pytest.raises(GuardRedisError):
         with manager.get_connection():
             pass
-    time.sleep(0.1)
     forwarder.on()
-    restored = monotonic()
-    served = None
-    while monotonic() - restored < 2.0:
-        try:
-            with manager.get_connection() as connection:
-                assert connection.ping()
-            served = monotonic() - restored
-            break
-        except GuardRedisError:
-            time.sleep(0.05)
-    assert served is not None and served < 0.5
+    attempts = MagicMock(wraps=manager._open_connection)
+    with patch.object(manager, "_open_connection", attempts):
+        clock.now += 0.24
+        with pytest.raises(GuardRedisError):
+            with manager.get_connection():
+                pass
+        settle(manager)
+        assert attempts.call_count == 0
+        clock.now += 0.02
+        for _ in range(2):
+            try:
+                with manager.get_connection() as connection:
+                    assert connection.ping()
+                break
+            except GuardRedisError:
+                settle(manager)
+        else:
+            pytest.fail("never served")
+    assert attempts.call_count == 1
     manager.close()
 
 
-def test_a_fail_open_blip_writes_keys_within_half_a_second_of_the_restore(
-    forwarder: RedisForwarder, prefix: str
+def test_a_fail_open_blip_writes_keys_on_the_first_attempt_after_the_first_window(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
 ) -> None:
+    # The first window after a failed attempt is 0.25 s, so a Redis that is back
+    # inside it is reached by the first attempt after it and by no other. Counted
+    # in attempts on the gate's clock, not in wall time: a loaded host that
+    # stretches a sleep must not read as a slow recovery.
     app = App(config_for(forwarder.url, prefix))
     app.start()
     assert app.request() is None
-    time.sleep(0.1)
     forwarder.on()
-    restored = monotonic()
-    written = None
-    while monotonic() - restored < 2.0:
+    attempts = app.connects()
+    with patch.object(app.redis, "_open_connection", attempts):
+        clock.now += 0.24
         assert app.request() is None
         app.ban()
-        if keys_under(prefix) > 0:
-            written = monotonic() - restored
-            break
-        time.sleep(0.05)
-    assert written is not None and written < 0.5
+        assert attempts.call_count == 0
+        assert keys_under(prefix) == 0
+        clock.now += 0.02
+        assert app.request() is None
+        assert app.request() is None
+        app.ban()
+    assert attempts.call_count == 1
+    assert keys_under(prefix) > 0
     assert app.names() == []
+    # A success resets the backoff: a second blip gets the first window again.
+    forwarder.off()
+    assert app.redis is not None
+    app.redis._discard_client()
+    with patch.object(app.redis, "_open_connection", attempts):
+        app.ban()
+        app.settle()
+        assert attempts.call_count == 2
+        clock.now += 0.24
+        app.ban()
+        app.settle()
+        assert attempts.call_count == 2
+        forwarder.on()
+        clock.now += 0.02
+        app.ban()
+        app.settle()
+        app.ban()
+    assert attempts.call_count == 3
 
 
 class SuperCallingHandler(RedisHandlerBase):
