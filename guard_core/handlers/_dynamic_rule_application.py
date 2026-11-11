@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from guard_core._emergency_exemptions import warn_unexempted_probe_paths
 from guard_core._utils.nat64 import nat64_table_of
@@ -16,6 +17,9 @@ from guard_core.protocols.agent_protocol import (
     AgentHandlerProtocol,
     DynamicRulesProtocol,
 )
+
+if TYPE_CHECKING:
+    from guard_core.handlers.ipban_handler import IPBanManager
 
 
 def _redact_pattern_list(patterns: list[str], config: SecurityConfig) -> list[str]:
@@ -35,6 +39,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     _owned_bans: list[str]
     _owned_patterns: list[str]
     _refresh_attribution: Callable[[], None]
+    ban_manager_of_the_app: Callable[[], "IPBanManager"]
 
     async def _apply_side_effects(
         self,
@@ -70,9 +75,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         await self._revoke_owned(effects.created_bans, effects.created_patterns)
 
     async def _revoke_owned(self, bans: list[str], patterns: list[str]) -> None:
-        from guard_core.handlers.ipban_handler import ip_ban_manager_for
-
-        ip_ban_manager = ip_ban_manager_for(self.config)
+        ip_ban_manager = self.ban_manager_of_the_app()
         from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 
         patterns_manager = sus_patterns_manager_for(self.config)
@@ -129,9 +132,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         created: list[str],
         skipped: list[str],
     ) -> None:
-        from guard_core.handlers.ipban_handler import ip_ban_manager_for
-
-        ip_ban_manager = ip_ban_manager_for(self.config)
+        ip_ban_manager = self.ban_manager_of_the_app()
 
         canonical = rule_ban_target(ip, nat64_table_of(self.config))[1]
         takes_ownership = (
@@ -148,9 +149,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
             skipped.append(f"ip_blacklist: {ip} (ban refused: {refusal})")
 
     async def _apply_ip_whitelist(self, ip_list: list[str]) -> None:
-        from guard_core.handlers.ipban_handler import ip_ban_manager_for
-
-        ip_ban_manager = ip_ban_manager_for(self.config)
+        ip_ban_manager = self.ban_manager_of_the_app()
 
         ranges = [ip for ip in ip_list if "/" in ip]
         if ranges:
@@ -227,9 +226,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         """The bans a rule owns, here or in Redis (a worker that restarted or
         never applied the earlier set owns nothing locally), that the new set
         does not list."""
-        from guard_core.handlers.ipban_handler import ip_ban_manager_for
-
-        ip_ban_manager = ip_ban_manager_for(self.config)
+        ip_ban_manager = self.ban_manager_of_the_app()
 
         nat64 = nat64_table_of(self.config)
         owned = [rule_ban_target(ip, nat64)[1] for ip in self._owned_bans]

@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from redis.asyncio import Redis
 
+from guard_core._utils.app_managers import release_app
 from guard_core.core.checks.implementations.cloud_ip_refresh import CloudIpRefreshCheck
 from guard_core.core.checks.implementations.cloud_provider import CloudProviderCheck
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
@@ -111,6 +112,7 @@ async def apps() -> AsyncGenerator[tuple[_App, _App], None]:
             for app in (app_a, app_b):
                 await app.redis.delete_pattern("*")
                 await app.redis.close()
+                release_app(app.config)
 
 
 async def _keys(prefix: str) -> set[str]:

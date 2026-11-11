@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
+    from guard_core.sync._utils.app_managers import release_app
     from guard_core.sync.decorators import RouteConfig, SecurityDecorator
     from guard_core.sync.handlers._dynamic_rule_validation import (
         endpoint_rate_limit_key_problems,
@@ -71,6 +72,7 @@ __all__ = [
     "SyncGuardRequest",
     "GuardResponse",
     "GuardResponseFactory",
+    "release_app",
 ]
 
 _MODULE_BY_NAME: dict[str, str] = {
@@ -106,6 +108,7 @@ _MODULE_BY_NAME: dict[str, str] = {
     "GuardResponse": "guard_core.sync.protocols.response_protocol",
     "GuardResponseFactory": "guard_core.sync.protocols.response_protocol",
     "SyncBoundedResponseBodyReader": "guard_core.sync.protocols.response_protocol",
+    "release_app": "guard_core.sync._utils.app_managers",
 }
 
 

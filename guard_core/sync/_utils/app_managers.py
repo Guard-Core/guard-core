@@ -1,10 +1,11 @@
 import logging
+import threading
 import weakref
 from collections.abc import Callable
 from collections.abc import Hashable as Hashable
 from typing import TYPE_CHECKING, Generic, Protocol, TypeVar
 
-from guard_core._parked_records import APP_MANAGERS_RECORD
+from guard_core._parked_records import APP_MANAGERS_RECORD, RELEASE_EPOCH_RECORD
 from guard_core._redis_enablement import (
     RedisFieldsConfig,
     configured_redis_url,
@@ -25,6 +26,13 @@ if TYPE_CHECKING:
 _HELD_ATTRIBUTE = APP_MANAGERS_RECORD
 
 _M = TypeVar("_M")
+
+
+class _ReleasesApp(Protocol):
+    def release(self, config: object) -> None: ...
+
+
+_EVERY_APP_MANAGERS: "weakref.WeakSet[_ReleasesApp]" = weakref.WeakSet()
 
 
 class _PrefixedRedisConfig(RedisFieldsConfig, Protocol):
@@ -220,6 +228,55 @@ def held_for_app(config: object, kind: str) -> object | None:
     return held.get(kind)
 
 
+def release_app(config: object) -> None:
+    """Hand back what the app of this config held, once that app is finished.
+
+    The default manager of every handler kind goes back to serving the next app
+    that binds, whatever the garbage collector has done (a framework app is
+    cyclic, so a dropped one is freed only when the cyclic collector runs). The
+    released app's own managers and its handlers on a default it held are
+    forgotten. When another app shares the default (same Redis prefix and
+    connection), the default keeps serving that app and its bans.
+
+    Calling it twice, or for a config no app was bound to, does nothing. An app
+    that is never released keeps the handoff that waits for the collector.
+
+    Release ends the app. The next request through its pipeline binds and
+    initializes it again before any check runs, as the first request of a new app:
+    its in-memory runtime state (patterns added at runtime, bans kept in memory) is
+    gone, while state in Redis and state declared in the config come back. A request
+    already past the pipeline's staleness check when release runs finishes on the old
+    checks, and releasing an app that still serves requests is a host bug. The rule
+    update loop stops only when the app held the default rule manager alone. A
+    pipeline hand-built without ``build_default_pipeline`` has no staleness check
+    and is not rebuilt, so an adapter builds through it.
+    """
+    from guard_core.sync._utils.rule_pattern_release import withdraw_rule_patterns
+
+    withdraw_rule_patterns(config)
+    for managers in tuple(_EVERY_APP_MANAGERS):
+        managers.release(config)
+    mark_release(config)
+
+
+def release_epoch_of(config: object) -> int:
+    """How many times this config was released; a pipeline compares it per request
+    to learn that its app ended and must bind and initialize again."""
+    try:
+        epoch: int = config.__dict__.get(RELEASE_EPOCH_RECORD, 0)
+    except AttributeError:
+        return 0
+    return epoch
+
+
+def mark_release(config: object) -> None:
+    # After the managers let go, so a request that sees the new epoch finds them free.
+    try:
+        object.__setattr__(config, RELEASE_EPOCH_RECORD, release_epoch_of(config) + 1)
+    except (AttributeError, TypeError):
+        return
+
+
 class AppManagers(Generic[_M]):
     """Resolves the manager of one handler kind for the app built from a config.
 
@@ -245,6 +302,10 @@ class AppManagers(Generic[_M]):
         self._default_apps: ConfigHandlerRegistry[_M] = ConfigHandlerRegistry()
         self._served: weakref.ref[_PrefixedRedisConfig] | None = None
         self._served_default: weakref.ref[_M] | None = None
+        # bind runs on the request path of a threaded server (the detection scan's
+        # first request), release from the host's shutdown thread
+        self._lock = threading.RLock()
+        _EVERY_APP_MANAGERS.add(self)
 
     def _default_serves(self) -> _PrefixedRedisConfig | None:
         served = self._served() if self._served is not None else None
@@ -284,6 +345,12 @@ class AppManagers(Generic[_M]):
     def bind(
         self, config: "SecurityConfig[RequestT]", default: _M, fresh: Callable[[], _M]
     ) -> _M:
+        with self._lock:
+            return self._bind_locked(config, default, fresh)
+
+    def _bind_locked(
+        self, config: "SecurityConfig[RequestT]", default: _M, fresh: Callable[[], _M]
+    ) -> _M:
         own = self.own(config)
         if own is not None:
             return own
@@ -314,6 +381,48 @@ class AppManagers(Generic[_M]):
         if default is not None and self._served is not None and self._served() is None:
             forget_handlers_of_the_gone_app(default)
         self._served_default = None
+
+    def _apps_sharing_the_default(
+        self, default: object | None
+    ) -> list[_PrefixedRedisConfig]:
+        sharing = None if default is None else default.__dict__.get(SHARED_BY_APPS)
+        if sharing is None:
+            return []
+        return [other for other in sharing.values() if self.uses_default(other)]
+
+    def other_apps_on_the_default(self, config: object) -> list[_PrefixedRedisConfig]:
+        """The apps, besides this one, that the default of this kind still serves."""
+        default = self.served_default()
+        return [
+            other
+            for other in self._apps_sharing_the_default(default)
+            if other is not config
+        ]
+
+    def served_default(self) -> _M | None:
+        return self._served_default() if self._served_default is not None else None
+
+    def release(self, config: object) -> None:
+        """The app of this config is finished: forget what it held, and hand the
+        default back unless another app shares it (see ``release_app``)."""
+        with self._lock:
+            self._release_locked(config)
+
+    def _release_locked(self, config: object) -> None:
+        self._own.drop(config, self.kind)
+        self._default_apps.drop(config, self.kind)
+        default = self._served_default() if self._served_default is not None else None
+        if default is not None and SHARED_BY_APPS in default.__dict__:
+            default.__dict__[SHARED_BY_APPS].pop(id(config), None)
+        if self._served is None or self._served() is not config:
+            return
+        remaining = self._apps_sharing_the_default(default)
+        if remaining:
+            self._served = weakref.ref(remaining[0])
+            return
+        if default is not None:
+            forget_handlers_of_the_gone_app(default)
+        self.forget_default()
 
     def forget_default(self) -> None:
         shared = self._shared_default() if self._shared_default is not None else None

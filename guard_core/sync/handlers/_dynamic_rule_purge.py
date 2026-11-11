@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from guard_core._dynamic_rules import content_fingerprint
 from guard_core.models import SyncSecurityConfig
@@ -23,6 +23,9 @@ from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 _NESTED_AUTO_BANS_NOTE = (
     "auto-bans nested inside the purged rule bans are cut back to their own expiry"
 )
+
+if TYPE_CHECKING:
+    from guard_core.sync.handlers.ipban_handler import IPBanManager
 
 
 def purge_fingerprint(rules: object) -> str:
@@ -62,6 +65,7 @@ class DynamicRulePurgeMixin:
     _clear_last_known_rules: Callable[[], None]
     _revert_to_base_config: Callable[[], None]
     _refresh_attribution: Callable[[], None]
+    ban_manager_of_the_app: Callable[[], "IPBanManager"]
 
     def purge_configured_dynamic_rules(self) -> bool:
         """Run the purge the config asks for, at start. A WARNING at every start
@@ -97,9 +101,7 @@ class DynamicRulePurgeMixin:
         if held is None:
             return False
         rules, snapshot_patterns = held
-        from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
-
-        ip_ban_manager = ip_ban_manager_for(self.config)
+        ip_ban_manager = self.ban_manager_of_the_app()
 
         counts = ip_ban_manager.purge_rule_owned_bans()
         patterns = list(dict.fromkeys([*snapshot_patterns, *self._owned_patterns]))

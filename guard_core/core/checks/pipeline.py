@@ -1,8 +1,9 @@
 import logging
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
+from guard_core._parked_records import RELEASE_EPOCH_RECORD
 from guard_core._utils.app_scope import (
     AppScope,
     _current_app_scope,
@@ -18,6 +19,7 @@ from guard_core.core.checks._usage_rules_step import (
 )
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.exceptions import GuardRedisError
+from guard_core.handlers._redis_attempt import ConnectionLocks
 from guard_core.handlers._redis_reconnect_gate import REDIS_RECONNECT_WINDOW_SECONDS
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
@@ -51,6 +53,7 @@ class SecurityCheckPipeline:
         rebuild_checks: Callable[[], list[SecurityCheck]] | None = None,
         watched_container_fields: tuple[str, ...] | None = None,
         route_config_revision: Callable[[], int | None] | None = None,
+        reinitialize_app: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         self.checks = checks
         self.muted_check_logs = muted_check_logs or frozenset()
@@ -60,6 +63,10 @@ class SecurityCheckPipeline:
         self._watched_container_fields = watched_container_fields or ()
         self._route_config_revision = route_config_revision
         self._rebuild_lock = threading.Lock()
+        self._reinitialize_app = reinitialize_app
+        self._reinitialize_locks = ConnectionLocks()
+        self._built_release_epoch = self._release_epoch_of(config)
+        self._initialized_release_epoch = self._built_release_epoch
         self._check_edits: list[
             Callable[[list[SecurityCheck]], list[SecurityCheck]]
         ] = []
@@ -83,7 +90,15 @@ class SecurityCheckPipeline:
             return None
         return self._route_config_revision()
 
+    @staticmethod
+    def _release_epoch_of(config: SecurityConfig | None) -> int:
+        return (
+            0 if config is None else int(config.__dict__.get(RELEASE_EPOCH_RECORD, 0))
+        )
+
     def _is_stale(self, config: SecurityConfig) -> bool:
+        if config.__dict__.get(RELEASE_EPOCH_RECORD, 0) != self._built_release_epoch:
+            return True
         if config.revision != self._built_revision:
             return True
         if self._container_signature(config) != self._built_signature:
@@ -98,6 +113,7 @@ class SecurityCheckPipeline:
             return
         if not self._is_stale(config):
             return
+        release_epoch = self._release_epoch_of(config)
         revision = config.revision
         signature = self._container_signature(config)
         route_config_revision = self._current_route_config_revision()
@@ -111,6 +127,7 @@ class SecurityCheckPipeline:
             self._built_revision = revision
             self._built_signature = signature
             self._built_route_config_revision = route_config_revision
+            self._built_release_epoch = release_epoch
 
     def _replay_check_edits(
         self, checks: list[SecurityCheck], stop: int | None = None, start: int = 0
@@ -253,8 +270,29 @@ class SecurityCheckPipeline:
             default_message="Security check failed",
         )
 
+    async def _initialize_a_released_app_once(self, config: SecurityConfig) -> None:
+        """The app was released: bind and initialize it again, awaited once, before
+        the checks are rebuilt. Concurrent first requests wait on one lock, so the
+        app initializes once, with one bind and one rule loop."""
+        reinitialize = self._reinitialize_app
+        if reinitialize is None:
+            return
+        async with self._reinitialize_locks.here():
+            epoch = self._release_epoch_of(config)
+            if epoch == self._initialized_release_epoch:
+                return
+            await reinitialize()
+            self._initialized_release_epoch = epoch
+
     async def _rebuild_response(self, request: GuardRequest) -> GuardResponse | None:
         try:
+            config = self._config
+            if (
+                config is not None
+                and config.__dict__.get(RELEASE_EPOCH_RECORD, 0)
+                != self._initialized_release_epoch
+            ):
+                await self._initialize_a_released_app_once(config)
             self._rebuild_if_stale()
         except Exception as e:
             return await self._handle_rebuild_error(request, e)

@@ -46,3 +46,33 @@ async def stop_task_on_its_own_loop(task: asyncio.Task[None] | None) -> None:
         return
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
+
+
+def stop_task_from_another_thread(
+    task: asyncio.Task[None] | None, stop_event: asyncio.Event
+) -> None:
+    """Ask a background task to end without awaiting it, from any thread. On its
+    own loop the stop is immediate, from another thread it is queued there. A
+    task whose loop is closed, stopped or done is only dropped."""
+    if task is None or task.done():
+        return
+    loop = task.get_loop()
+    if loop.is_closed() or not loop.is_running():
+        return
+    try:
+        on_its_own_loop = asyncio.get_running_loop() is loop
+    except RuntimeError:
+        on_its_own_loop = False
+    try:
+        if on_its_own_loop:
+            stop_event.set()
+            task.cancel()
+        else:
+            loop.call_soon_threadsafe(stop_event.set)
+            loop.call_soon_threadsafe(task.cancel)
+    except RuntimeError:
+        return
+
+
+def background_task_is_live(task: asyncio.Task[None] | None) -> bool:
+    return task is not None and not task.done()

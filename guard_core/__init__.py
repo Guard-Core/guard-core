@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from guard_core._pydantic_plugin_mute import (
         _mute_pydantic_plugin_instrumentation as _mute_pydantic_plugin_instrumentation,
     )
+    from guard_core._utils.app_managers import release_app
     from guard_core.decorators import RouteConfig, SecurityDecorator
     from guard_core.handlers._dynamic_rule_validation import (
         endpoint_rate_limit_key_problems,
@@ -80,6 +81,7 @@ __all__ = [
     "is_ip_allowed",
     "check_ip_access",
     "check_rate_limit_by_ip",
+    "release_app",
 ]
 
 _MODULE_BY_NAME: dict[str, str] = {
@@ -113,6 +115,7 @@ _MODULE_BY_NAME: dict[str, str] = {
     "is_ip_allowed": "guard_core.utils",
     "check_ip_access": "guard_core.utils",
     "check_rate_limit_by_ip": "guard_core.handlers.ratelimit_handler",
+    "release_app": "guard_core._utils.app_managers",
     "_mute_pydantic_plugin_instrumentation": "guard_core._pydantic_plugin_mute",
 }
 

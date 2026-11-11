@@ -21,8 +21,20 @@ if TYPE_CHECKING:
     from guard_core.sync.core.events.metrics import MetricsCollector
     from guard_core.sync.core.events.middleware_events import SecurityEventBus
     from guard_core.sync.decorators.base import BaseSecurityDecorator
+    from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
     from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
     from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+
+
+def bind_app_managers(config: "SyncSecurityConfig") -> None:
+    """Bind the app of this config to its ban, cloud and pattern managers."""
+    from guard_core.sync.handlers.cloud_handler import cloud_handler_for
+    from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+    from guard_core.sync.handlers.suspatterns_handler import sus_patterns_manager_for
+
+    ip_ban_manager_for(config, bind=True)
+    cloud_handler_for(config, bind=True)
+    sus_patterns_manager_for(config, bind=True)
 
 
 class HandlerInitializer(_HandlerInitializerStepsMixin):
@@ -40,15 +52,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         self.redis_handler = redis_handler
         if redis_handler is not None:
             REDIS_HANDLERS.register(config, redis_handler)
-        from guard_core.sync.handlers.cloud_handler import cloud_handler_for
-        from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
-        from guard_core.sync.handlers.suspatterns_handler import (
-            sus_patterns_manager_for,
-        )
-
-        ip_ban_manager_for(config, bind=True)
-        cloud_handler_for(config, bind=True)
-        sus_patterns_manager_for(config, bind=True)
+        bind_app_managers(config)
         self.agent_handler = agent_handler
         from guard_core.sync.handlers._downloader import TREE_AWAITS
 
@@ -71,6 +75,47 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         self._lazy_init_task: threading.Thread | None = None
         self.logger = logging.getLogger("guard_core.sync.core.initialization")
         self._require_tree_downloader(adapter)
+        self.inject_bound_ban_manager()
+
+    def reinitialize_after_release(self) -> None:
+        """Run again what the app's startup ran, after ``release_app`` ended it: the
+        bind, the Redis and detection setup (Redis and config-declared state come
+        back, runtime state does not), the agent wiring and the rule loop. The
+        pipeline awaits it once, before it rebuilds its checks."""
+        bind_app_managers(self.config)
+        self.inject_bound_ban_manager()
+        self.initialize_redis_handlers()
+        if self.composite_handler is not None or self.agent_handler is not None:
+            self.initialize_agent_for_handlers()
+            self._initialize_behavior_telemetry()
+            self.initialize_dynamic_rule_manager()
+
+    def inject_bound_ban_manager(self) -> None:
+        """Hand the ban manager this app was bound to (the bind is in ``__init__``)
+        to what it adopts, so a tracker built by a decorator before any bind, or a
+        rule manager a host built early, bans on this app's manager and never on
+        whichever manager a lookup by config finds later."""
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+
+        manager = ip_ban_manager_for(self.config)
+        trackers = (
+            self.behavior_tracker,
+            getattr(self.guard_decorator, "behavior_tracker", None),
+        )
+        for tracker in trackers:
+            use_ban_manager = getattr(tracker, "use_ban_manager", None)
+            if use_ban_manager is not None:
+                use_ban_manager(manager)
+
+    def dynamic_rule_manager_of_this_app(self) -> "DynamicRuleManager":
+        from guard_core.sync.handlers.dynamic_rule_handler import (
+            dynamic_rule_manager_of_the_app,
+        )
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+
+        manager = dynamic_rule_manager_of_the_app(self.config)
+        manager.use_ban_manager(ip_ban_manager_for(self.config))
+        return manager
 
     def get_initialization_status(self) -> dict[str, object]:
         from guard_core.sync.handlers.cloud_handler import cloud_handler_for
@@ -102,11 +147,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
 
         dynamic_rule_handler: object | None = None
         if self.config.enable_dynamic_rules:
-            from guard_core.sync.handlers.dynamic_rule_handler import (
-                dynamic_rule_manager_of_the_app,
-            )
-
-            dynamic_rule_handler = dynamic_rule_manager_of_the_app(self.config)
+            dynamic_rule_handler = self.dynamic_rule_manager_of_this_app()
 
         behavior_tracker = self.behavior_tracker
         if behavior_tracker is None:
@@ -115,6 +156,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
             behavior_tracker = BehaviorTracker(self.config)
 
         self.behavior_tracker = behavior_tracker
+        self.inject_bound_ban_manager()
 
         context = EnrichmentContext(
             config=self.config,

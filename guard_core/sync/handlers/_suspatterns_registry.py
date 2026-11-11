@@ -5,7 +5,15 @@ import re
 import types
 from collections.abc import Callable, Iterable
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Concatenate, Generic, NamedTuple, ParamSpec, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Concatenate,
+    Generic,
+    NamedTuple,
+    ParamSpec,
+    Protocol,
+    TypeVar,
+)
 
 from guard_core.sync._utils.app_scope import forget_config
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
@@ -97,6 +105,28 @@ class _RowsBeforeTheFirstApp(NamedTuple):
     compiled_custom_patterns: frozenset[tuple[re.Pattern, frozenset[str], str]]
     patterns: tuple[str, ...]
     compiled_patterns: tuple[tuple[re.Pattern, frozenset[str], str], ...] | None
+
+
+class _HasDefaultRows(Protocol):
+    patterns: list[str]
+    compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
+
+
+def remove_default_pattern_rows(manager: _HasDefaultRows, pattern: str) -> bool:
+    """The list work of removing a default pattern, with no await, shared by the
+    removal and by ``release_app``, which withdraws a released app's rule patterns
+    from a pattern default another app still shares."""
+    if pattern not in manager.patterns:
+        return False
+
+    index = manager.patterns.index(pattern)
+    manager.patterns.pop(index)
+
+    if 0 <= index < len(manager.compiled_patterns):
+        manager.compiled_patterns.pop(index)
+        return True
+
+    return False
 
 
 class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
@@ -260,17 +290,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
         return True
 
     def _remove_default_pattern(self, pattern: str) -> bool:
-        if pattern not in self.patterns:
-            return False
-
-        index = self.patterns.index(pattern)
-        self.patterns.pop(index)
-
-        if 0 <= index < len(self.compiled_patterns):
-            self.compiled_patterns.pop(index)
-            return True
-
-        return False
+        return remove_default_pattern_rows(self, pattern)
 
     def _clear_pattern_caches(self, pattern: str) -> None:
         if self._compiler:

@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from guard_core.sync.core.events.event_types import EventFilter
     from guard_core.sync.decorators.base import BaseSecurityDecorator
     from guard_core.sync.handlers.behavior_handler import BehaviorTracker
+    from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
     from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
     from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
     from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
@@ -114,6 +115,12 @@ class _HandlerInitializerStepsMixin(
 
     @abstractmethod
     def build_event_filter(self) -> "EventFilter": ...
+
+    @abstractmethod
+    def inject_bound_ban_manager(self) -> None: ...
+
+    @abstractmethod
+    def dynamic_rule_manager_of_this_app(self) -> "DynamicRuleManager": ...
 
     def _require_redis_handler(self) -> "SyncRedisHandlerProtocol":
         if self.redis_handler is None:
@@ -254,12 +261,9 @@ class _HandlerInitializerStepsMixin(
         if self.config.purge_dynamic_rules_on_start is None:
             return
 
-        from guard_core.sync.handlers.dynamic_rule_handler import (
-            dynamic_rule_manager_of_the_app,
-        )
         from guard_core.sync.handlers.redis_handler import is_connected_redis_manager
 
-        manager = dynamic_rule_manager_of_the_app(self.config)
+        manager = self.dynamic_rule_manager_of_this_app()
         if is_connected_redis_manager(self.redis_handler):
             manager.initialize_redis(self.redis_handler)
         try:
@@ -311,11 +315,7 @@ class _HandlerInitializerStepsMixin(
             )
             return
 
-        from guard_core.sync.handlers.dynamic_rule_handler import (
-            dynamic_rule_manager_of_the_app,
-        )
-
-        dynamic_rule_manager = dynamic_rule_manager_of_the_app(self.config)
+        dynamic_rule_manager = self.dynamic_rule_manager_of_this_app()
         telemetry = self.composite_handler or self.agent_handler
 
         # The update loop task copies this scope, so its bans and pattern
@@ -341,6 +341,7 @@ class _HandlerInitializerStepsMixin(
 
         _mute_pydantic_plugin_instrumentation()
 
+        self.inject_bound_ban_manager()
         self.composite_handler = self.build_composite_handler()
         self.event_filter = self.build_event_filter()
 

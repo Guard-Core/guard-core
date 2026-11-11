@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from ipaddress import ip_address
 from typing import cast
@@ -8,6 +9,7 @@ from guard_core._utils.app_managers import AppManagers as AppManagers
 from guard_core._utils.app_scope import (
     WeakableConfig,
     app_scope_of,
+    forget_config,
     in_app_scope,
     release_config_to_app,
     serve_config_of_the_live_app,
@@ -16,7 +18,9 @@ from guard_core._utils.nat64 import nat64_table_of
 from guard_core._utils.rule_attribution_shared import _APP_RULE_MANAGERS
 from guard_core._utils.whitelist_match import is_listed
 from guard_core.handlers._background_stop import (
+    background_task_is_live,
     stop_before_redis_closes,
+    stop_task_from_another_thread,
     stop_task_on_its_own_loop,
 )
 from guard_core.handlers._dynamic_rule_application import (
@@ -27,13 +31,16 @@ from guard_core.handlers._dynamic_rule_attribution import (
     RuleAttribution,
     build_rule_attribution,
 )
-from guard_core.handlers._dynamic_rule_intake import DynamicRuleIntakeMixin
+from guard_core.handlers._dynamic_rule_intake import (
+    DynamicRuleIntakeMixin,
+    RunStopped,
+)
 from guard_core.handlers._dynamic_rule_plan import (
     DynamicRulePlan,
     DynamicRulePlanMixin,
 )
 from guard_core.handlers._dynamic_rule_snapshot import DynamicRuleSnapshotMixin
-from guard_core.handlers.ipban_handler import ip_ban_manager_for
+from guard_core.handlers.ipban_handler import IPBanManager, ip_ban_manager_for
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import (
     AgentHandlerProtocol,
@@ -48,6 +55,13 @@ def _coerce_naive_utc(value: datetime) -> datetime:
     return value
 
 
+# The stop event of the loop run this context belongs to; set by the run itself, so a
+# stop can only ever reach the run it was meant for.
+_RUN_STOP: ContextVar[asyncio.Event | None] = ContextVar(
+    "guard_core_rule_run_stop", default=None
+)
+
+
 class DynamicRuleManager(
     DynamicRuleIntakeMixin,
     DynamicRulePlanMixin,
@@ -59,6 +73,7 @@ class DynamicRuleManager(
     config: SecurityConfig = cast("SecurityConfig", WeakableConfig())
     agent_handler: AgentHandlerProtocol | None = None
     redis_handler: RedisHandlerProtocol | None = None
+    bound_ban_manager: IPBanManager | None = None
     logger: logging.Logger
     last_update: float = 0
     current_rules: DynamicRulesProtocol | None = None
@@ -93,6 +108,50 @@ class DynamicRuleManager(
             serve_config_of_the_live_app(manager, config)
         return manager
 
+    def use_ban_manager(self, manager: IPBanManager) -> None:
+        """The ban manager this app was bound to, handed in by its initializer after
+        the bind; never captured at construction, which can precede the bind."""
+        self.bound_ban_manager = manager
+
+    def ban_manager_of_the_app(self) -> IPBanManager:
+        bound = self.bound_ban_manager
+        return bound if bound is not None else ip_ban_manager_for(self.config)
+
+    def forget_state_of_the_gone_app(self) -> None:
+        """What the default manager of a finished app must not keep for the next
+        one. It stops the update loop without awaiting it (from any thread; a loop
+        that is closed or stopped is only dropped), withdraws the applied rule set
+        from the app's config, and forgets the hydration, the ownership lists, the
+        ban manager and the Redis and agent handlers and the config, so the next app
+        hydrates and applies its own. Called only when the default is not shared
+        by another app."""
+        stop_task_from_another_thread(self.update_task, self._stop_event)
+        self.update_task = None
+        self._withdraw_the_applied_rules()
+        self.current_rules = None
+        self.last_update = 0
+        self._hydrated_last_known_rules = False
+        self._owned_bans = []
+        self._owned_patterns = []
+        self._restored_ownership = ([], [])
+        self.bound_ban_manager = None
+        for name in ("redis_handler", "agent_handler"):
+            self.__dict__.pop(name, None)
+        forget_config(self, "config")
+
+    def _withdraw_the_applied_rules(self) -> None:
+        # An apply, a revoke or an expiry holds ``_lock`` while it works. Reverting
+        # under it would race that write, and waiting for it would block release on
+        # the network, so a held lock leaves the overlay in place: the stopped run
+        # applies nothing more (the run check in ``_apply_rules``) and the app's own
+        # next initialization replaces it.
+        if self.current_rules is None or self.config is None or self._lock.locked():
+            return
+        try:
+            self._revert_to_base_config()
+        except Exception as e:
+            self.logger.error(f"Withdrawing the applied dynamic rules failed: {e}")
+
     @classmethod
     def _fresh(
         cls: type["DynamicRuleManager"], config: SecurityConfig
@@ -126,9 +185,12 @@ class DynamicRuleManager(
             if not self._hydrated_last_known_rules:
                 self._hydrated_last_known_rules = True
                 await self._hydrate_last_known_rules()
-            if not self.update_task:
-                self._stop_event.clear()
-                self.update_task = asyncio.create_task(self._rule_update_loop())
+            if not background_task_is_live(self.update_task):
+                stop_event = asyncio.Event()
+                self._stop_event = stop_event
+                self.update_task = asyncio.create_task(
+                    self._rule_update_loop(stop_event)
+                )
                 self.logger.info("Started dynamic rule update loop")
 
     async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
@@ -220,28 +282,48 @@ class DynamicRuleManager(
             return bool(rules.blocked_user_agents)
         return False
 
-    async def _rule_update_loop(self) -> None:
-        while not self._stop_event.is_set():
-            try:
-                await self.update_rules()
-                await self._interruptible_sleep(self.config.dynamic_rule_interval)
-            except asyncio.CancelledError:
-                self.logger.info("Dynamic rule update loop cancelled")
-                break
-            except Exception as e:
-                self.logger.error(f"Error in dynamic rule update loop: {e}")
-                await self._interruptible_sleep(
-                    min(60, self.config.dynamic_rule_interval)
-                )
+    def _run_was_stopped(self) -> bool:
+        stop_event = _RUN_STOP.get()
+        return stop_event is not None and stop_event.is_set()
 
-    async def _interruptible_sleep(self, timeout: float) -> None:
+    async def _rule_update_loop(self, stop_event: asyncio.Event | None = None) -> None:
+        run_stop = stop_event if stop_event is not None else self._stop_event
+        token = _RUN_STOP.set(run_stop)
         try:
-            await asyncio.wait_for(self._stop_event.wait(), timeout=timeout)
+            while not run_stop.is_set():
+                try:
+                    await self.update_rules()
+                    if run_stop.is_set():
+                        break
+                    await self._interruptible_sleep(
+                        self.config.dynamic_rule_interval, run_stop
+                    )
+                except asyncio.CancelledError:
+                    self.logger.info("Dynamic rule update loop cancelled")
+                    break
+                except RunStopped:
+                    break
+                except Exception as e:
+                    self.logger.error(f"Error in dynamic rule update loop: {e}")
+                    if run_stop.is_set():
+                        break
+                    await self._interruptible_sleep(
+                        min(60, self.config.dynamic_rule_interval), run_stop
+                    )
+        finally:
+            _RUN_STOP.reset(token)
+
+    async def _interruptible_sleep(
+        self, timeout: float, stop_event: asyncio.Event | None = None
+    ) -> None:
+        event = stop_event if stop_event is not None else self._stop_event
+        try:
+            await asyncio.wait_for(event.wait(), timeout=timeout)
         except asyncio.TimeoutError:
             pass
 
     def _revert_to_base_config(self) -> None:
-        ip_ban_manager_for(self.config).set_rule_exempt_ips(())
+        self.ban_manager_of_the_app().set_rule_exempt_ips(())
         if self._active_base_snapshot is not None:
             self._restore_config(self._active_base_snapshot)
         self.current_rules = None
@@ -309,12 +391,14 @@ class DynamicRuleManager(
 
     async def _apply_rules(self, rules: DynamicRulesProtocol) -> list[str]:
         async with self._lock:
+            if self._run_was_stopped():
+                raise RunStopped
             base = self._active_base_snapshot
             if base is None:
                 base = self._snapshot_config()
             plan = await self._build_plan(rules, base)
             effects = RuleSideEffects()
-            ip_ban_manager = ip_ban_manager_for(self.config)
+            ip_ban_manager = self.ban_manager_of_the_app()
             previous_exempt = ip_ban_manager.rule_exempt_networks
             try:
                 ip_ban_manager.set_rule_exempt_ips(plan.exempt_ips)

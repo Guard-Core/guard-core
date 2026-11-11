@@ -1275,6 +1275,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/dynamic_rule_handler.py:DynamicRuleManager._check_rule_expiry": (
         "line 162: rule-expiry lifecycle log, policy metadata only"
     ),
+    "handlers/dynamic_rule_handler.py:DynamicRuleManager._withdraw_the_applied_rules": (
+        "release lifecycle log: the error text of restoring the app's own config "
+        "from its snapshot, no request is in scope, policy metadata only"
+    ),
     "handlers/_dynamic_rule_intake.py:"
     "DynamicRuleIntakeMixin._reject_if_already_expired": (
         "line 179: rejects an already-expired pushed rule set, policy metadata only"

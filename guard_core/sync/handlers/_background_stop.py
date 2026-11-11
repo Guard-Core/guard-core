@@ -41,3 +41,14 @@ def stop_before_redis_closes(redis_handler: object, stop: Callable[[], None]) ->
 
 def stop_task_on_its_own_loop(task: threading.Thread | None) -> None:
     return None
+
+
+def stop_task_from_another_thread(
+    task: threading.Thread | None, stop_event: threading.Event
+) -> None:
+    """Ask a background thread to end without joining it, from any thread."""
+    stop_event.set()
+
+
+def background_task_is_live(task: threading.Thread | None) -> bool:
+    return task is not None and task.is_alive()

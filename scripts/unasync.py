@@ -141,6 +141,8 @@ SKIP_TESTS = {
     "test_perf_gate_rules.py",
     "test_perf_detection_components.py",
     "test_compiler_cache_loop_and_threads.py",
+    "test_release_stops_the_default_rule_loop.py",
+    "test_released_app_two_event_loops.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}
@@ -434,6 +436,86 @@ _SYNC_STOP_TASK_REPLACEMENT = (
     "    return None\n"
 )
 
+_ASYNC_STOP_FROM_THREAD_SRC = (
+    "def stop_task_from_another_thread(\n"
+    "    task: asyncio.Task[None] | None, stop_event: asyncio.Event\n"
+    ") -> None:\n"
+    '    """Ask a background task to end without awaiting it, from any thread. On its\n'
+    "    own loop the stop is immediate, from another thread it is queued there. A\n"
+    '    task whose loop is closed, stopped or done is only dropped."""\n'
+    "    if task is None or task.done():\n"
+    "        return\n"
+    "    loop = task.get_loop()\n"
+    "    if loop.is_closed() or not loop.is_running():\n"
+    "        return\n"
+    "    try:\n"
+    "        on_its_own_loop = asyncio.get_running_loop() is loop\n"
+    "    except RuntimeError:\n"
+    "        on_its_own_loop = False\n"
+    "    try:\n"
+    "        if on_its_own_loop:\n"
+    "            stop_event.set()\n"
+    "            task.cancel()\n"
+    "        else:\n"
+    "            loop.call_soon_threadsafe(stop_event.set)\n"
+    "            loop.call_soon_threadsafe(task.cancel)\n"
+    "    except RuntimeError:\n"
+    "        return\n"
+)
+
+_SYNC_STOP_FROM_THREAD_REPLACEMENT = (
+    "def stop_task_from_another_thread(\n"
+    "    task: threading.Thread | None, stop_event: threading.Event\n"
+    ") -> None:\n"
+    '    """Ask a background thread to end without joining it, from any thread."""\n'
+    "    stop_event.set()\n"
+)
+
+_ASYNC_TASK_LIVE_SRC = (
+    "def background_task_is_live(task: asyncio.Task[None] | None) -> bool:\n"
+    "    return task is not None and not task.done()\n"
+)
+
+_SYNC_TASK_LIVE_REPLACEMENT = (
+    "def background_task_is_live(task: threading.Thread | None) -> bool:\n"
+    "    return task is not None and task.is_alive()\n"
+)
+
+_ASYNC_PAUSE_SRC = "async def _pause() -> None:\n    await asyncio.sleep(0.01)\n"
+
+_SYNC_PAUSE_REPLACEMENT = (
+    "def _pause() -> None:\n    import time\n\n    time.sleep(0.01)\n"
+)
+
+_ASYNC_TWO_REQUESTS_SRC = (
+    "async def _two_first_requests_together(\n"
+    "    pipeline: SecurityCheckPipeline,\n"
+    ") -> list[GuardResponse | None]:\n"
+    "    return list(\n"
+    "        await asyncio.gather(\n"
+    "            pipeline._rebuild_response(_request(_IP)),\n"
+    "            pipeline._rebuild_response(_request(_IP)),\n"
+    "        )\n"
+    "    )\n"
+)
+
+_SYNC_TWO_REQUESTS_REPLACEMENT = (
+    "def _two_first_requests_together(\n"
+    "    pipeline: SecurityCheckPipeline,\n"
+    ") -> list[GuardResponse | None]:\n"
+    "    results: list[GuardResponse | None] = []\n"
+    "\n"
+    "    def first_request() -> None:\n"
+    "        results.append(pipeline._rebuild_response(_request(_IP)))\n"
+    "\n"
+    "    threads = [threading.Thread(target=first_request) for _ in range(2)]\n"
+    "    for thread in threads:\n"
+    "        thread.start()\n"
+    "    for thread in threads:\n"
+    "        thread.join()\n"
+    "    return results\n"
+)
+
 _ASYNC_YIELD_SRC = (
     "async def _yield_to_event_loop() -> None:\n    await asyncio.sleep(0)\n"
 )
@@ -605,6 +687,10 @@ SUBS: list[tuple[str, str]] = [
         _SYNC_START_OR_JOIN_LOAD_REPLACEMENT.replace("\\", "\\\\"),
     ),
     (re.escape(_ASYNC_STOP_TASK_SRC), _SYNC_STOP_TASK_REPLACEMENT),
+    (re.escape(_ASYNC_STOP_FROM_THREAD_SRC), _SYNC_STOP_FROM_THREAD_REPLACEMENT),
+    (re.escape(_ASYNC_TASK_LIVE_SRC), _SYNC_TASK_LIVE_REPLACEMENT),
+    (re.escape(_ASYNC_PAUSE_SRC), _SYNC_PAUSE_REPLACEMENT),
+    (re.escape(_ASYNC_TWO_REQUESTS_SRC), _SYNC_TWO_REQUESTS_REPLACEMENT),
     (r"await asyncio\.shield\((.+)\)$", r"\1.join()"),
     (re.escape(_ASYNC_YIELD_SRC), _SYNC_YIELD_REPLACEMENT),
     (
@@ -777,6 +863,14 @@ SUBS: list[tuple[str, str]] = [
         r"\1(\2)",
     ),
     (
+        r"(\s+)self\.update_task = asyncio\.create_task\(\s*"
+        r"self\._rule_update_loop\(stop_event\)\s*\)",
+        "\\1self.update_task = threading.Thread(\n"
+        "\\1    target=self._rule_update_loop, args=(stop_event,), daemon=True\n"
+        "\\1)\n"
+        "\\1self.update_task.start()",
+    ),
+    (
         r"asyncio\.create_task\(self\.(\w+)\(",
         r"threading.Thread(target=self.\1, args=(",
     ),
@@ -939,10 +1033,10 @@ def apply_subs(content: str, subs: list[tuple[str, str]]) -> str:
 
 POST_FIXUPS: list[tuple[str, str]] = [
     (
-        r"            except Exception:\n                self\.logger\.info"
-        r"\(\"Dynamic rule update loop cancelled\"\)\n                break\n         "
-        r"   except Exception as e:",
-        r"            except Exception as e:",
+        r"[ \t]+except Exception:\n\s+self\.logger\.info"
+        r"\(\"Dynamic rule update loop cancelled\"\)\n\s+break\n"
+        r"(?=\s+except (?:RunStopped|Exception as e):)",
+        "",
     ),
     (
         r"                pass\n\n                coro = self\._send_geo_event\(\n"
@@ -1033,13 +1127,18 @@ DOTALL_FIXUPS: list[tuple[str, str]] = [
         '            self.logger.info("Stopped dynamic rule update loop")',
     ),
     (
-        r"    def _interruptible_sleep\(self, timeout: float\) -> None:\n"
+        r"    def _interruptible_sleep\(\s*self,\s*timeout: float,\s*"
+        r"stop_event: threading\.Event \| None = None\s*\) -> None:\n"
+        r"        event = stop_event if stop_event is not None else self\._stop_event\n"
         r"        try:\n"
-        r"            self\._stop_event\.wait\(\)\.join\(timeout=timeout\)\n"
+        r"            event\.wait\(\)\.join\(timeout=timeout\)\n"
         r"        except asyncio\.TimeoutError:\n"
         r"            pass",
-        "    def _interruptible_sleep(self, timeout: float) -> None:\n"
-        "        self._stop_event.wait(timeout=timeout)",
+        "    def _interruptible_sleep(\n"
+        "        self, timeout: float, stop_event: threading.Event | None = None\n"
+        "    ) -> None:\n"
+        "        event = stop_event if stop_event is not None else self._stop_event\n"
+        "        event.wait(timeout=timeout)",
     ),
 ]
 

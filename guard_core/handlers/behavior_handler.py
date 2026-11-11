@@ -5,7 +5,7 @@ import time
 import uuid
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable
-from typing import Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 from cachetools import TTLCache
 
@@ -39,6 +39,9 @@ from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import _log_at_level, _safe_read
+
+if TYPE_CHECKING:
+    from guard_core.handlers.ipban_handler import IPBanManager
 
 __all__ = [
     "RECENT_RULE_HITS_WINDOW_SECONDS",
@@ -124,6 +127,7 @@ class BehaviorTracker(
         )
         self.redis_handler: RedisHandlerProtocol | None = None
         self.agent_handler: AgentHandlerProtocol | None = None
+        self.bound_ban_manager: IPBanManager | None = None
         self._body_unavailable_log_cache: TTLCache[str, bool] = TTLCache(
             maxsize=1000, ttl=300
         )
