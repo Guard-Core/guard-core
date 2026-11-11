@@ -31,3 +31,13 @@ def withdraw_rule_patterns(config: object) -> None:
     kept = _patterns_the_survivors_rules_hold(survivors)
     for pattern in [p for p in owner._owned_patterns if p not in kept]:
         remove_default_pattern_rows(patterns, pattern)
+
+
+def stop_the_applies_of_the_released_app(config: object) -> None:
+    """First step of a release: the rule manager the app held ends every apply,
+    expiry and revoke that started before it, unless another app still shares it."""
+    from guard_core._utils.rule_attribution_shared import _APP_RULE_MANAGERS
+
+    owner = _APP_RULE_MANAGERS.resolve(config)
+    if owner is not None and not _APP_RULE_MANAGERS.other_apps_on_the_default(config):
+        owner.mark_released()

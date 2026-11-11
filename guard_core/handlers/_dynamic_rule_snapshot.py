@@ -41,6 +41,7 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
     _owned_patterns: list[str] | tuple[()] = ()
     _reject_if_malformed: Callable[[DynamicRulesProtocol], Awaitable[bool]]
     _current_fingerprint: str | None
+    _end_if_released_since_entry: Callable[[], None]
     _apply_rules: Callable[[DynamicRulesProtocol], Awaitable[list[str]]]
     _has_rule_expired: Callable[[DynamicRulesProtocol], bool]
 
@@ -206,10 +207,12 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
             self.logger.error(f"Failed to build last-known dynamic rules snapshot: {e}")
             return
 
-        if self.redis_handler:
-            await self._persist_snapshot_to_redis(self.redis_handler, legacy, full)
-
+        redis_handler = self.redis_handler
         cache_path = self.config.dynamic_rules_cache_path
+        if redis_handler:
+            await self._persist_snapshot_to_redis(redis_handler, legacy, full)
+            self._end_if_released_since_entry()
+
         if cache_path is None:
             return
         try:
@@ -229,6 +232,7 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
             (LAST_KNOWN_RULES_KEY, legacy),
             (LAST_KNOWN_RULES_FULL_KEY, full),
         ):
+            self._end_if_released_since_entry()
             try:
                 await resolve_redis_value(
                     redis_handler.set_key(DYNAMIC_RULES_REDIS_NAMESPACE, key, payload)

@@ -10,7 +10,10 @@ import pytest
 from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync._utils.app_managers import release_app
 from guard_core.sync._utils.rule_attribution_shared import _APP_RULE_MANAGERS
-from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
+from guard_core.sync.core.initialization.handler_initializer import (
+    HandlerInitializer,
+    bind_app_managers,
+)
 from guard_core.sync.handlers import ipban_handler as ipban_module
 from guard_core.sync.handlers import suspatterns_handler as patterns_module
 from guard_core.sync.handlers.dynamic_rule_handler import _RUN_STOP, DynamicRuleManager
@@ -20,8 +23,7 @@ from guard_core.sync.handlers.suspatterns_handler import sus_patterns_manager_fo
 _IPS = ["203.0.113.121", "203.0.113.122"]
 
 
-def _pair(tag: str) -> list[str]:
-    return [f"zzwp638{tag}firstzz", f"zzwp638{tag}secondzz"]
+_PATTERNS = ["zzwp638firstzz", "zzwp638secondzz"]
 
 
 @pytest.fixture(autouse=True)
@@ -35,6 +37,12 @@ def _defaults_unserved(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         each.forget_default()
     monkeypatch.setattr(DynamicRuleManager, "_instance", None)
     yield
+    default = patterns_module.SusPatternsManager._instance
+    if default is not None:
+        # An apply on an app no one bound writes before the first bind records the
+        # startup rows, so the record would restore its patterns for every later test.
+        default.__dict__.pop("_rows_before_the_first_app", None)
+        default.patterns[:] = [p for p in default.patterns if p not in _PATTERNS]
     for each in managers:
         each.forget_default()
     ipban_module.ip_ban_manager.banned_ips.clear()
@@ -143,7 +151,7 @@ def _parked_then_released(
 def test_an_apply_released_mid_flight_writes_nothing_onto_the_next_app(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    flight = _parked_then_released(monkeypatch, "side_effect", _config(), _pair("leak"))
+    flight = _parked_then_released(monkeypatch, "side_effect", _config(), _PATTERNS)
     config_b = _config()
     assert DynamicRuleManager(config_b) is flight.rules
     HandlerInitializer(config_b)
@@ -151,24 +159,40 @@ def test_an_apply_released_mid_flight_writes_nothing_onto_the_next_app(
     flight.done.wait()
     assert type(flight.outcome[0]).__name__ == "RunStopped"
     assert not config_b.block_cloud_providers
-    assert not {*_pair("leak")} & set(sus_patterns_manager_for(config_b).patterns)
+    assert not {*_PATTERNS} & set(sus_patterns_manager_for(config_b).patterns)
     bans = ip_ban_manager_for(config_b)
     assert not any([bans.is_ip_banned(ip, config=config_b) for ip in _IPS])
+
+
+def test_no_pattern_of_a_released_apply_remains_on_its_manager_or_the_next(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config()
+    patterns = _PATTERNS
+    bind_app_managers(config)
+    manager_a = sus_patterns_manager_for(config)
+    flight = _parked_then_released(monkeypatch, "side_effect", config, patterns)
+    config_b = _config()
+    HandlerInitializer(config_b)
+    flight.gate.set()
+    flight.done.wait()
+    assert not {*patterns} & set(manager_a.patterns)
+    assert not {*patterns} & set(sus_patterns_manager_for(config_b).patterns)
 
 
 def test_a_stopped_apply_undoes_the_writes_it_made_before_the_stop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    flight = _parked_then_released(monkeypatch, "side_effect", _config(), _pair("undo"))
+    flight = _parked_then_released(monkeypatch, "side_effect", _config(), _PATTERNS)
     config_b = _config()
     assert DynamicRuleManager(config_b) is flight.rules
     HandlerInitializer(config_b)
     bans = ip_ban_manager_for(config_b)
     assert all([bans.is_ip_banned(ip, config=config_b) for ip in _IPS])
-    assert _pair("undo")[0] in sus_patterns_manager_for(config_b).patterns
+    assert _PATTERNS[0] in sus_patterns_manager_for(config_b).patterns
     flight.gate.set()
     flight.done.wait()
-    assert _pair("undo")[0] not in sus_patterns_manager_for(config_b).patterns
+    assert _PATTERNS[0] not in sus_patterns_manager_for(config_b).patterns
     assert not any([bans.is_ip_banned(ip, config=config_b) for ip in _IPS])
 
 
