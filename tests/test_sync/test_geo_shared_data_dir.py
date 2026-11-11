@@ -54,9 +54,10 @@ def _spawn_workers(
     for process in processes:
         out, err = process.communicate(timeout=120)
         lines = out.strip().splitlines()
-        results.append(
-            json.loads(lines[-1]) if lines else {"done": False, "stderr": err[-400:]}
-        )
+        result = json.loads(lines[-1]) if lines else {"done": False}
+        if result.get("done") is not True:
+            result = {**result, "stderr": err[-400:]}
+        results.append(result)
     return results
 
 

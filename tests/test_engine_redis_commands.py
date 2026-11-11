@@ -248,7 +248,10 @@ class _FakeMonitorServer:
         threading.Thread(target=self._accept, daemon=True).start()
 
     def _accept(self) -> None:
-        self._peer, _ = self._listener.accept()
+        try:
+            self._peer, _ = self._listener.accept()
+        except OSError:
+            return
         self._peer.recv(64)
         self._peer.sendall(self._reply)
         self._ready.set()
@@ -261,6 +264,10 @@ class _FakeMonitorServer:
             self._peer.sendall(f"1700000000.5 [0 {address}] {quoted}\r\n".encode())
 
     def close(self) -> None:
+        try:
+            self._listener.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
         self._listener.close()
         if self._peer is not None:
             self._peer.close()
