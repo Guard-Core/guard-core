@@ -71,11 +71,11 @@ class RedisForwarder:
         threading.Thread(target=self._accept, args=(listener,), daemon=True).start()
 
     def off(self) -> None:
-        listener, self._listener = self._listener, None
+        with self._lock:
+            listener, self._listener = self._listener, None
+            sockets, self._open = self._open, []
         if listener is not None:
             self._close(listener)
-        with self._lock:
-            sockets, self._open = self._open, []
         for sock in sockets:
             self._close(sock)
 
@@ -85,8 +85,11 @@ class RedisForwarder:
                 client, _ = listener.accept()
             except OSError:
                 return
-            upstream = socket.create_connection(self._target)
             with self._lock:
+                if self._listener is not listener:
+                    self._close(client)
+                    return
+                upstream = socket.create_connection(self._target)
                 self._open.extend((client, upstream))
             for source, sink in ((client, upstream), (upstream, client)):
                 threading.Thread(

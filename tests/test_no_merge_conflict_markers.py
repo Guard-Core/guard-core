@@ -15,7 +15,11 @@ def _inside_a_work_tree() -> bool:
         capture_output=True,
         text=True,
     )
-    return probe.stdout.strip() == "true"
+    if probe.returncode == 0:
+        return probe.stdout.strip() == "true"
+    if probe.returncode == 128 and "not a git repository" in probe.stderr:
+        return False
+    raise RuntimeError(f"git rev-parse failed ({probe.returncode}): {probe.stderr}")
 
 
 def _tracked_files() -> list[Path]:
@@ -65,3 +69,41 @@ def test_the_release_notes_files_hold_no_marker(name: str) -> None:
     text = (_REPO_ROOT / name).read_text(encoding="utf-8")
 
     assert _marker_lines(text) == []
+
+
+def _fake_git(
+    monkeypatch: pytest.MonkeyPatch, returncode: int, stdout: str, stderr: str
+) -> None:
+    def run(command: list[str], **_: object) -> "subprocess.CompletedProcess[str]":
+        return subprocess.CompletedProcess(command, returncode, stdout, stderr)
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+
+@pytest.mark.parametrize(
+    ("returncode", "stdout", "stderr", "expected"),
+    [
+        (0, "true\n", "", True),
+        (0, "false\n", "", False),
+        (128, "", "fatal: not a git repository (or any parent): .git\n", False),
+    ],
+)
+def test_the_work_tree_probe_answers_only_for_a_clear_git_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+    stdout: str,
+    stderr: str,
+    expected: bool,
+) -> None:
+    _fake_git(monkeypatch, returncode, stdout, stderr)
+
+    assert _inside_a_work_tree() is expected
+
+
+def test_the_work_tree_probe_raises_on_any_other_git_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fake_git(monkeypatch, 128, "", "fatal: detected dubious ownership\n")
+
+    with pytest.raises(RuntimeError, match="dubious ownership"):
+        _inside_a_work_tree()
