@@ -749,10 +749,13 @@ def test_fail_closed_gets_its_503_fast_during_an_outage(
     with patch.object(app.redis, "_open_connection", attempts):
         with pytest.raises(GuardRedisError):
             app.start()
-        with pytest.raises(GuardRedisError):
+        with (
+            patch("time.sleep", side_effect=AssertionError("timer")),
+            pytest.raises(GuardRedisError),
+        ):
             with app.redis.get_connection():
                 pass
-        # Refused on the frozen gate clock, no further attempt: no timer waited on.
+        # Refused on the frozen gate clock, no further attempt, and no sleep ran.
         assert attempts.call_count == 1
         clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
         with pytest.raises(GuardRedisError):
