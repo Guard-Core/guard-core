@@ -141,6 +141,7 @@ SKIP_TESTS = {
     "test_perf_gate_rules.py",
     "test_perf_detection_components.py",
     "test_compiler_cache_loop_and_threads.py",
+    "test_release_stops_the_default_rule_loop.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}
@@ -434,6 +435,32 @@ _SYNC_STOP_TASK_REPLACEMENT = (
     "    return None\n"
 )
 
+_ASYNC_STOP_FROM_THREAD_SRC = (
+    "def stop_task_from_another_thread(\n"
+    "    task: asyncio.Task[None] | None, stop_event: asyncio.Event\n"
+    ") -> None:\n"
+    '    """Ask a background task to end without awaiting it, from any thread. A task\n'
+    '    whose loop is closed, stopped or done is only dropped, never touched."""\n'
+    "    if task is None or task.done():\n"
+    "        return\n"
+    "    loop = task.get_loop()\n"
+    "    if loop.is_closed() or not loop.is_running():\n"
+    "        return\n"
+    "    try:\n"
+    "        loop.call_soon_threadsafe(stop_event.set)\n"
+    "        loop.call_soon_threadsafe(task.cancel)\n"
+    "    except RuntimeError:\n"
+    "        return\n"
+)
+
+_SYNC_STOP_FROM_THREAD_REPLACEMENT = (
+    "def stop_task_from_another_thread(\n"
+    "    task: threading.Thread | None, stop_event: threading.Event\n"
+    ") -> None:\n"
+    '    """Ask a background thread to end without joining it, from any thread."""\n'
+    "    stop_event.set()\n"
+)
+
 _ASYNC_YIELD_SRC = (
     "async def _yield_to_event_loop() -> None:\n    await asyncio.sleep(0)\n"
 )
@@ -605,6 +632,7 @@ SUBS: list[tuple[str, str]] = [
         _SYNC_START_OR_JOIN_LOAD_REPLACEMENT.replace("\\", "\\\\"),
     ),
     (re.escape(_ASYNC_STOP_TASK_SRC), _SYNC_STOP_TASK_REPLACEMENT),
+    (re.escape(_ASYNC_STOP_FROM_THREAD_SRC), _SYNC_STOP_FROM_THREAD_REPLACEMENT),
     (r"await asyncio\.shield\((.+)\)$", r"\1.join()"),
     (re.escape(_ASYNC_YIELD_SRC), _SYNC_YIELD_REPLACEMENT),
     (

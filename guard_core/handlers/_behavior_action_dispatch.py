@@ -9,6 +9,7 @@ from guard_core.utils import _log_at_level
 
 if TYPE_CHECKING:
     from guard_core.handlers.behavior_handler import BehaviorRule
+    from guard_core.handlers.ipban_handler import IPBanManager
     from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 
 
@@ -19,6 +20,13 @@ class BehaviorActionDispatchMixin:
     config: SecurityConfig
     logger: logging.Logger
     agent_handler: "AgentHandlerProtocol | None"
+    bound_ban_manager: "IPBanManager | None"
+
+    def use_ban_manager(self, manager: "IPBanManager") -> None:
+        """The ban manager this app was bound to, handed in by its initializer
+        after the bind; a tracker is built before any bind, so it never captures at
+        construction."""
+        self.bound_ban_manager = manager
 
     def _observe_only_log_prefix(self) -> str:
         return "[PASSIVE MODE] " if self.config.passive_mode else ""
@@ -64,13 +72,14 @@ class BehaviorActionDispatchMixin:
 
         from guard_core.handlers.ipban_handler import ip_ban_manager_for
 
+        ban_manager = self.bound_ban_manager or ip_ban_manager_for(self.config)
         duration = (
             rule.ban_duration
             if rule is not None and rule.ban_duration is not None
             else 3600
         )
         identity = behavior_client_identity(self.config, client_ip)
-        applied = await ip_ban_manager_for(self.config)._ban_ip_escalating(
+        applied = await ban_manager._ban_ip_escalating(
             identity, duration, "behavioral_violation", grouped="/" in identity
         )
         if not applied:

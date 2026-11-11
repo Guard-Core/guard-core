@@ -19,6 +19,7 @@ from guard_core.sync._utils.rule_attribution_shared import _APP_RULE_MANAGERS
 from guard_core.sync._utils.whitelist_match import is_listed
 from guard_core.sync.handlers._background_stop import (
     stop_before_redis_closes,
+    stop_task_from_another_thread,
     stop_task_on_its_own_loop,
 )
 from guard_core.sync.handlers._dynamic_rule_application import (
@@ -35,7 +36,7 @@ from guard_core.sync.handlers._dynamic_rule_plan import (
     DynamicRulePlanMixin,
 )
 from guard_core.sync.handlers._dynamic_rule_snapshot import DynamicRuleSnapshotMixin
-from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+from guard_core.sync.handlers.ipban_handler import IPBanManager, ip_ban_manager_for
 from guard_core.sync.protocols.agent_protocol import (
     DynamicRulesProtocol,
     SyncAgentHandlerProtocol,
@@ -60,6 +61,7 @@ class DynamicRuleManager(
     config: SyncSecurityConfig = cast("SyncSecurityConfig", WeakableConfig())
     agent_handler: SyncAgentHandlerProtocol | None = None
     redis_handler: SyncRedisHandlerProtocol | None = None
+    bound_ban_manager: IPBanManager | None = None
     logger: logging.Logger
     last_update: float = 0
     current_rules: DynamicRulesProtocol | None = None
@@ -94,13 +96,43 @@ class DynamicRuleManager(
             serve_config_of_the_live_app(manager, config)
         return manager
 
+    def use_ban_manager(self, manager: IPBanManager) -> None:
+        """The ban manager this app was bound to, handed in by its initializer after
+        the bind; never captured at construction, which can precede the bind."""
+        self.bound_ban_manager = manager
+
+    def ban_manager_of_the_app(self) -> IPBanManager:
+        bound = self.bound_ban_manager
+        return bound if bound is not None else ip_ban_manager_for(self.config)
+
     def forget_state_of_the_gone_app(self) -> None:
         """What the default manager of a finished app must not keep for the next
-        one: its Redis and agent handlers and its config. The update loop and the
-        applied rule set are the owner's to stop (``stop()``) before it releases."""
+        one. It stops the update loop without awaiting it (from any thread; a loop
+        that is closed or stopped is only dropped), withdraws the applied rule set
+        from the app's config, and forgets the hydration, the ownership lists, the
+        ban manager and the Redis and agent handlers and the config, so the next app
+        hydrates and applies its own. Called only when the default is not shared
+        by another app."""
+        stop_task_from_another_thread(self.update_task, self._stop_event)
+        self.update_task = None
+        self._withdraw_the_applied_rules()
+        self.last_update = 0
+        self._hydrated_last_known_rules = False
+        self._owned_bans = []
+        self._owned_patterns = []
+        self._restored_ownership = ([], [])
+        self.bound_ban_manager = None
         for name in ("redis_handler", "agent_handler"):
             self.__dict__.pop(name, None)
         forget_config(self, "config")
+
+    def _withdraw_the_applied_rules(self) -> None:
+        if self.current_rules is None or self.config is None:
+            return
+        try:
+            self._revert_to_base_config()
+        except Exception as e:
+            self.logger.error(f"Withdrawing the applied dynamic rules failed: {e}")
 
     @classmethod
     def _fresh(
@@ -245,7 +277,7 @@ class DynamicRuleManager(
         self._stop_event.wait(timeout=timeout)
 
     def _revert_to_base_config(self) -> None:
-        ip_ban_manager_for(self.config).set_rule_exempt_ips(())
+        self.ban_manager_of_the_app().set_rule_exempt_ips(())
         if self._active_base_snapshot is not None:
             self._restore_config(self._active_base_snapshot)
         self.current_rules = None
@@ -318,7 +350,7 @@ class DynamicRuleManager(
                 base = self._snapshot_config()
             plan = self._build_plan(rules, base)
             effects = RuleSideEffects()
-            ip_ban_manager = ip_ban_manager_for(self.config)
+            ip_ban_manager = self.ban_manager_of_the_app()
             previous_exempt = ip_ban_manager.rule_exempt_networks
             try:
                 ip_ban_manager.set_rule_exempt_ips(plan.exempt_ips)

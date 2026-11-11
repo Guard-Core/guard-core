@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from guard_core.sync.core.events.metrics import MetricsCollector
     from guard_core.sync.core.events.middleware_events import SecurityEventBus
     from guard_core.sync.decorators.base import BaseSecurityDecorator
+    from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
     from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
     from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
@@ -71,6 +72,34 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         self._lazy_init_task: threading.Thread | None = None
         self.logger = logging.getLogger("guard_core.sync.core.initialization")
         self._require_tree_downloader(adapter)
+        self.inject_bound_ban_manager()
+
+    def inject_bound_ban_manager(self) -> None:
+        """Hand the ban manager this app was bound to (the bind is in ``__init__``)
+        to what it adopts, so a tracker built by a decorator before any bind, or a
+        rule manager a host built early, bans on this app's manager and never on
+        whichever manager a lookup by config finds later."""
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+
+        manager = ip_ban_manager_for(self.config)
+        trackers = (
+            self.behavior_tracker,
+            getattr(self.guard_decorator, "behavior_tracker", None),
+        )
+        for tracker in trackers:
+            use_ban_manager = getattr(tracker, "use_ban_manager", None)
+            if use_ban_manager is not None:
+                use_ban_manager(manager)
+
+    def dynamic_rule_manager_of_this_app(self) -> "DynamicRuleManager":
+        from guard_core.sync.handlers.dynamic_rule_handler import (
+            dynamic_rule_manager_of_the_app,
+        )
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+
+        manager = dynamic_rule_manager_of_the_app(self.config)
+        manager.use_ban_manager(ip_ban_manager_for(self.config))
+        return manager
 
     def get_initialization_status(self) -> dict[str, object]:
         from guard_core.sync.handlers.cloud_handler import cloud_handler_for
@@ -102,11 +131,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
 
         dynamic_rule_handler: object | None = None
         if self.config.enable_dynamic_rules:
-            from guard_core.sync.handlers.dynamic_rule_handler import (
-                dynamic_rule_manager_of_the_app,
-            )
-
-            dynamic_rule_handler = dynamic_rule_manager_of_the_app(self.config)
+            dynamic_rule_handler = self.dynamic_rule_manager_of_this_app()
 
         behavior_tracker = self.behavior_tracker
         if behavior_tracker is None:
@@ -115,6 +140,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
             behavior_tracker = BehaviorTracker(self.config)
 
         self.behavior_tracker = behavior_tracker
+        self.inject_bound_ban_manager()
 
         context = EnrichmentContext(
             config=self.config,

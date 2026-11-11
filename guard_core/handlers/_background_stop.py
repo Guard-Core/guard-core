@@ -46,3 +46,20 @@ async def stop_task_on_its_own_loop(task: asyncio.Task[None] | None) -> None:
         return
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
+
+
+def stop_task_from_another_thread(
+    task: asyncio.Task[None] | None, stop_event: asyncio.Event
+) -> None:
+    """Ask a background task to end without awaiting it, from any thread. A task
+    whose loop is closed, stopped or done is only dropped, never touched."""
+    if task is None or task.done():
+        return
+    loop = task.get_loop()
+    if loop.is_closed() or not loop.is_running():
+        return
+    try:
+        loop.call_soon_threadsafe(stop_event.set)
+        loop.call_soon_threadsafe(task.cancel)
+    except RuntimeError:
+        return
