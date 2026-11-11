@@ -182,6 +182,11 @@ class DynamicRuleManager(
 
     @contextmanager
     def _entry_epoch_scope(self) -> Iterator[None]:
+        """The epoch of the whole rule cycle: the outermost scope takes it and the
+        scopes nested inside keep it, so a release during the fetch ends the cycle."""
+        if _ENTRY_EPOCH.get() is not None:
+            yield
+            return
         token = _ENTRY_EPOCH.set(self._release_epoch)
         try:
             yield
@@ -547,7 +552,7 @@ class DynamicRuleManager(
         return self.current_rules
 
     async def force_update(self) -> None:
-        with in_app_scope(app_scope_of(self.config)):
+        with self._entry_epoch_scope(), in_app_scope(app_scope_of(self.config)):
             try:
                 await self.update_rules()
             except RunStopped:

@@ -101,6 +101,7 @@ class IPBanManager(IpBanSharedAppsMixin):
         self.banned_networks = []
         self.refused_ban_reported_until = {}
         self.recidive_history = {}
+        self.rule_exempt_networks = ()
         self._rule_owned_expiries = {}
         self._rule_owner_answers = {}
         self._rule_floor_expiries = {}
