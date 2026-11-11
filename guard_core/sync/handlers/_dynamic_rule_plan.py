@@ -155,8 +155,10 @@ class DynamicRulePlanMixin:
         plan.prepared = prepare_config_batch(self.config, plan.state, plan.validated)
         return plan
 
-    def _swap_config(self, plan: DynamicRulePlan) -> None:
-        apply_config_batch(self.config, plan.prepared)
+    def _swap_config(
+        self, plan: DynamicRulePlan, config: SyncSecurityConfig | None = None
+    ) -> None:
+        apply_config_batch(config or self.config, plan.prepared)
 
     def _plan_countries(
         self, plan: DynamicRulePlan, rules: DynamicRulesProtocol

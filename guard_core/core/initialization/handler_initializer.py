@@ -7,6 +7,7 @@ from guard_core._geo_handler_for_tree import (
     geo_ip_handler_for_tree,
 )
 from guard_core._utils.config_registry import REDIS_HANDLERS
+from guard_core._utils.pending_rule_base import revert_pending_rule_base
 from guard_core.core.initialization._handler_initializer_steps import (
     _HandlerInitializerStepsMixin,
     _RateLimitSlot,
@@ -32,6 +33,7 @@ def bind_app_managers(config: "SecurityConfig") -> None:
     from guard_core.handlers.ipban_handler import ip_ban_manager_for
     from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 
+    revert_pending_rule_base(config)
     ip_ban_manager_for(config, bind=True)
     cloud_handler_for(config, bind=True)
     sus_patterns_manager_for(config, bind=True)

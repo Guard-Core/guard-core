@@ -251,8 +251,12 @@ def release_app(config: object) -> None:
     pipeline hand-built without ``build_default_pipeline`` has no staleness check
     and is not rebuilt, so an adapter builds through it.
     """
-    from guard_core._utils.rule_pattern_release import withdraw_rule_patterns
+    from guard_core._utils.rule_pattern_release import (
+        stop_the_applies_of_the_released_app,
+        withdraw_rule_patterns,
+    )
 
+    stop_the_applies_of_the_released_app(config)
     withdraw_rule_patterns(config)
     for managers in tuple(_EVERY_APP_MANAGERS):
         managers.release(config)
