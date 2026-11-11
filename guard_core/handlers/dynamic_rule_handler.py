@@ -8,6 +8,7 @@ from guard_core._utils.app_managers import AppManagers as AppManagers
 from guard_core._utils.app_scope import (
     WeakableConfig,
     app_scope_of,
+    forget_config,
     in_app_scope,
     release_config_to_app,
     serve_config_of_the_live_app,
@@ -92,6 +93,14 @@ class DynamicRuleManager(
         if manager is cls._instance:
             serve_config_of_the_live_app(manager, config)
         return manager
+
+    def forget_state_of_the_gone_app(self) -> None:
+        """What the default manager of a finished app must not keep for the next
+        one: its Redis and agent handlers and its config. The update loop and the
+        applied rule set are the owner's to stop (``stop()``) before it releases."""
+        for name in ("redis_handler", "agent_handler"):
+            self.__dict__.pop(name, None)
+        forget_config(self, "config")
 
     @classmethod
     def _fresh(

@@ -99,6 +99,14 @@ Keep 4.x behavior: `enable_redis=True`.
 
 Not a flip, but new in 5.0.0: while Redis is on and `redis_prefix` is still the default `guard_core:`, one WARNING is logged: `redis_prefix is the default 'guard_core:' while Redis is enabled: every app on the same Redis that keeps the default shares its bans and rate-limit counters. Set a unique redis_prefix per app. This warning is logged once.` Set a unique `redis_prefix` per app.
 
+### Several apps in one process: `release_app`
+
+Not a flip, but new in 5.0.0, for a process or test suite that builds one app after another. The engine serves one module-level default manager per handler kind (bans, cloud ranges, suspicious patterns, dynamic rules) to the first app and to every app on its Redis prefix and connection. In 5.0.0 the default passes to the next app only once the first app is gone, and a framework app is freed only when the cyclic garbage collector runs, so which manager the next app got could change from run to run (v4.4.0 had a single singleton).
+
+Call `release_app(config)` (from `guard_core._utils.app_managers`, or `guard_core.sync._utils.app_managers` for the synchronous engine) when an app is finished: the framework's shutdown or lifespan end, or a test fixture's teardown. The next app then binds the default every time. If another app shares the default (same `redis_prefix` and connection), the default keeps serving that app. Calling it twice, or for a config that was never bound, does nothing.
+
+An app that is never released keeps the handoff that waits for the collector. Adapters call it from their own shutdown where the framework has one. Flask and Django have no app-shutdown event, so there it is a host and test API, never something to call from a per-request hook.
+
 ___
 
 Configurations that now refuse to start

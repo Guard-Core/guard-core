@@ -15,6 +15,7 @@ import pytest
 from redis import Redis
 
 from guard_core.models import DynamicRules, SyncSecurityConfig
+from guard_core.sync._utils.app_managers import release_app
 from guard_core.sync.core.checks.implementations.cloud_ip_refresh import (
     CloudIpRefreshCheck,
 )
@@ -115,6 +116,7 @@ def apps() -> Generator[tuple[_App, _App], None]:
             for app in (app_a, app_b):
                 app.redis.delete_pattern("*")
                 app.redis.close()
+                release_app(app.config)
 
 
 def _keys(prefix: str) -> set[str]:
