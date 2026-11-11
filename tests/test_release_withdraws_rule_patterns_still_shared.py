@@ -128,3 +128,15 @@ async def test_a_released_apps_rule_ban_still_refuses_on_the_sharing_app() -> No
     assert await ip_ban_manager_for(apps.second).is_ip_banned(
         _BANNED, config=apps.second
     )
+
+
+def test_a_default_pattern_without_a_compiled_row_is_removed_and_reported_false() -> (
+    None
+):
+    from types import SimpleNamespace
+
+    from guard_core.handlers._suspatterns_registry import remove_default_pattern_rows
+
+    rows = SimpleNamespace(patterns=[_PATTERN], compiled_patterns=[])
+    assert remove_default_pattern_rows(rows, _PATTERN) is False
+    assert rows.patterns == []

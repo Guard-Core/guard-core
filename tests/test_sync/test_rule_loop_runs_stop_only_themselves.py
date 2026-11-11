@@ -145,3 +145,78 @@ def test_a_run_ends_when_its_update_reports_it_was_stopped(
     manager.initialize_agent(Mock())
     time.sleep(0.2)
     assert not background_task_is_live(manager.update_task)
+
+
+def test_a_stopped_run_does_not_ask_for_a_rule_update() -> None:
+    manager = DynamicRuleManager(_config())
+    stop_event = threading.Event()
+    stop_event.set()
+    token = _RUN_STOP.set(stop_event)
+    try:
+        assert manager._should_update_rules(_rules()) is False
+    finally:
+        _RUN_STOP.reset(token)
+
+
+def test_a_run_stopped_during_its_update_does_not_sleep(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = DynamicRuleManager(_config())
+    stop_event = threading.Event()
+
+    def update_that_stops_the_run() -> None:
+        stop_event.set()
+
+    sleep = MagicMock()
+    monkeypatch.setattr(manager, "update_rules", update_that_stops_the_run)
+    monkeypatch.setattr(manager, "_interruptible_sleep", sleep)
+    manager._rule_update_loop(stop_event)
+    sleep.assert_not_called()
+
+
+def test_a_failed_update_backs_off_before_the_next_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = DynamicRuleManager(_config())
+    stop_event = threading.Event()
+    sleeps: list[float] = []
+
+    def back_off_then_stop(timeout: float, event: threading.Event) -> None:
+        sleeps.append(timeout)
+        event.set()
+
+    monkeypatch.setattr(
+        manager, "update_rules", MagicMock(side_effect=RuntimeError("boom"))
+    )
+    monkeypatch.setattr(manager, "_interruptible_sleep", back_off_then_stop)
+    manager._rule_update_loop(stop_event)
+    assert sleeps == [60]
+
+
+def test_a_run_stopped_during_a_failed_update_ends_without_backing_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = DynamicRuleManager(_config())
+    stop_event = threading.Event()
+
+    def update_that_stops_the_run_then_fails() -> None:
+        stop_event.set()
+        raise RuntimeError("boom")
+
+    sleep = MagicMock()
+    monkeypatch.setattr(manager, "update_rules", update_that_stops_the_run_then_fails)
+    monkeypatch.setattr(manager, "_interruptible_sleep", sleep)
+    manager._rule_update_loop(stop_event)
+    sleep.assert_not_called()
+
+
+def test_initializing_the_agent_again_keeps_the_live_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = _manager_with_quiet_updates(_config(), monkeypatch)
+    manager.initialize_agent(Mock())
+    live = manager.update_task
+    manager.initialize_agent(Mock())
+    assert manager.update_task is live
+    assert background_task_is_live(live)
+    release_app(manager.config)
