@@ -94,6 +94,18 @@ class IPBanManager(IpBanSharedAppsMixin):
         instance.agent_handler = None
         return instance
 
+    def forget_state_of_the_gone_app(self) -> None:
+        """The in-memory bans, networks and rule bookkeeping a default manager must
+        not hand to the next app. Bans kept in Redis stay there."""
+        self.banned_ips.clear()
+        self.banned_networks = []
+        self.refused_ban_reported_until = {}
+        self.recidive_history = {}
+        self._rule_owned_expiries = {}
+        self._rule_owner_answers = {}
+        self._rule_floor_expiries = {}
+        self._foreign_network_expiries = {}
+
     def set_capacity(self, entries: int) -> None:
         """Resize the store. The memory-only bans it evicts are queued in
         ``evicted_to_report`` and sent by the next ban or Redis-hit insert."""
