@@ -422,7 +422,7 @@ class DynamicRuleManager(
             base = self._base_snapshot_of(targets.config)
             if base is None:
                 base = self._snapshot_config()
-            plan = self._build_plan(rules, base, targets.config)
+            plan = self._build_plan(rules, base)
             self._end_run_if_stopped()
             effects = RuleSideEffects()
             previous_exempt = targets.ban_manager.rule_exempt_networks
