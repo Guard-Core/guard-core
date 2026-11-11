@@ -9,6 +9,10 @@ import pytest
 
 from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync._utils.app_managers import release_app
+from guard_core.sync._utils.pending_rule_base import (
+    record_pending_rule_base,
+    revert_pending_rule_base,
+)
 from guard_core.sync._utils.rule_attribution_shared import _APP_RULE_MANAGERS
 from guard_core.sync.core.initialization.handler_initializer import (
     HandlerInitializer,
@@ -264,3 +268,25 @@ def test_a_release_during_an_apply_reverts_that_config_at_its_next_initializatio
     assert not config_b.block_cloud_providers
     assert config_b.rate_limit == 22
     assert manager._active_base_snapshot == {"rate_limit": 22}
+
+
+def test_a_release_during_a_held_lock_keeps_the_base_for_the_next_init() -> None:
+    config = _config(11)
+    bind_app_managers(config)
+    manager = DynamicRuleManager(config)
+    rules = _rules(full=False)
+    manager._apply_rules(rules)
+    manager.current_rules = rules
+    assert config.block_cloud_providers
+    with manager._lock:
+        release_app(config)
+    assert config.block_cloud_providers
+    HandlerInitializer(config)
+    assert not config.block_cloud_providers
+    assert config.rate_limit == 11
+
+
+def test_a_config_that_cannot_hold_a_record_has_no_pending_base() -> None:
+    nowhere = object()
+    record_pending_rule_base(nowhere, {"rate_limit": 1})
+    revert_pending_rule_base(cast(SyncSecurityConfig, nowhere))
