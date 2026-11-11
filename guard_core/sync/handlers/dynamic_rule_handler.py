@@ -85,8 +85,19 @@ _ENTRY_EPOCH: ContextVar[
 ] = ContextVar("guard_core_rule_entry_epoch", default=None)
 
 
+_OWNER_TOKENS = threading.local()
+
+
+class _OwnerToken:
+    """One per thread; thread-local storage dies with its thread, so a reused
+    ident gets a new one."""
+
+
 def _current_owner() -> object:
-    return threading.current_thread()
+    token = getattr(_OWNER_TOKENS, "token", None)
+    if token is None:
+        token = _OWNER_TOKENS.token = _OwnerToken()
+    return token
 
 
 class DynamicRuleManager(

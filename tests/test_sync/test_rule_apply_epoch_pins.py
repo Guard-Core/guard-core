@@ -5,7 +5,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -28,7 +28,10 @@ from guard_core.sync.handlers._dynamic_rule_application import (
 )
 from guard_core.sync.handlers._dynamic_rule_intake import RunStopped
 from guard_core.sync.handlers._dynamic_rule_plan import DynamicRulePlan
-from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
+from guard_core.sync.handlers.dynamic_rule_handler import (
+    _ENTRY_EPOCH,
+    DynamicRuleManager,
+)
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_manager_for
 from guard_core.sync.protocols.agent_protocol import (
@@ -617,5 +620,36 @@ def test_a_task_on_the_address_of_the_dead_cycle_task_runs_its_own_cycle() -> No
         ) = _one_attempt_at_a_task_on_the_address_of_the_dead_cycle_task()
         if agent.reused:
             break
-    assert agent.reused is True
+    assert agent.reused is True, (
+        "CPython never reused the dead task's address in 25 attempts; "
+        "allocator-dependent pin"
+    )
     assert manager.current_rules is not None
+
+
+def test_a_dead_owner_leaves_the_entry_and_a_new_owner_takes_the_epoch() -> None:
+    config = _config()
+    bind_app_managers(config)
+    manager = DynamicRuleManager(config)
+    entries: list[Any] = []
+
+    def the_cycle() -> None:
+        with manager._entry_epoch_scope():
+            entries.append(_ENTRY_EPOCH.get())
+
+    _finished(_spawn_in_this_context(the_cycle))
+    time.sleep(0)
+    gc.collect()
+    entry = entries[0]
+    assert entry[1]() is None
+    manager.mark_released()
+    assert entry[2] != manager._release_epoch
+    taken: list[int] = []
+
+    def a_new_owner() -> None:
+        _ENTRY_EPOCH.set(entry)
+        with manager._entry_epoch_scope():
+            taken.append(_ENTRY_EPOCH.get()[2])
+
+    _finished(_spawn_in_this_context(a_new_owner))
+    assert taken == [manager._release_epoch]

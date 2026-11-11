@@ -98,6 +98,7 @@ SKIP_TESTS = {
     "test_split_connection_warning_event_loop.py",
     "test_ipban_unban_inside_async.py",
     "test_ipban_atomic_version.py",
+    "test_rule_cycle_owner_foreign_thread.py",
     "test_module_imports_standalone.py",
     "test_optional_extras_base_install.py",
     "test_cold_path_imports.py",
@@ -678,7 +679,17 @@ _ASYNC_CURRENT_OWNER_SRC = (
 )
 
 _SYNC_CURRENT_OWNER_REPLACEMENT = (
-    "def _current_owner() -> object:\n    return threading.current_thread()\n"
+    "_OWNER_TOKENS = threading.local()\n"
+    "\n\n"
+    "class _OwnerToken:\n"
+    '    """One per thread; thread-local storage dies with its thread, so a reused\n'
+    '    ident gets a new one."""\n'
+    "\n\n"
+    "def _current_owner() -> object:\n"
+    '    token = getattr(_OWNER_TOKENS, "token", None)\n'
+    "    if token is None:\n"
+    "        token = _OWNER_TOKENS.token = _OwnerToken()\n"
+    "    return token\n"
 )
 
 SUBS: list[tuple[str, str]] = [
