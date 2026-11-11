@@ -4,6 +4,7 @@ outlives or is cut off by its loop, and a hung app that costs a healthy one noth
 import asyncio
 import itertools
 import threading
+import time
 from collections.abc import Awaitable, Callable, Coroutine, Iterator
 from time import monotonic
 from typing import TypeVar
@@ -14,6 +15,7 @@ from redis.asyncio import Redis
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from guard_core.exceptions import GuardRedisError
+from guard_core.handlers import _redis_outage
 from guard_core.handlers import redis_handler as redis_handler_module
 from guard_core.handlers._redis_attempt import RedisAttemptSlot
 from guard_core.handlers.redis_handler import RedisManager
@@ -59,7 +61,15 @@ class LoopThread:
     def run(self, work: Coroutine[object, object, T]) -> T:
         return asyncio.run_coroutine_threadsafe(work, self.loop).result(10)
 
+    @staticmethod
+    async def _let_scheduled_work_finish() -> None:
+        for _ in range(3):
+            await asyncio.sleep(0)
+
     def __exit__(self, *exc_info: object) -> None:
+        # A client dropped on this loop closes its transports one iteration later:
+        # stopping first leaves them unclosed (LEDGER 6.779, seen as ResourceWarning).
+        self.run(self._let_scheduled_work_finish())
         self.loop.call_soon_threadsafe(self.loop.stop)
         self._thread.join(5)
         self.loop.close()
@@ -165,6 +175,33 @@ def rig(monkeypatch: pytest.MonkeyPatch) -> Iterator[ThreadSafeRig]:
     monkeypatch.setattr(redis_handler_module, "_build_redis_client", made.build)
     yield made
     made.release.set()
+
+
+@pytest.fixture
+def late_abandon(monkeypatch: pytest.MonkeyPatch) -> None:
+    """abandon_client only schedules the drop on the client's own loop. Stall that
+    loop first so the drop lands late, as it does on a loaded machine (LEDGER 6.779)."""
+    real_abandon = _redis_outage.abandon_client
+
+    def stalled(client: Redis, client_loop: asyncio.AbstractEventLoop) -> None:
+        client_loop.call_soon_threadsafe(time.sleep, 0.3)
+        real_abandon(client, client_loop)
+
+    monkeypatch.setattr(_redis_outage, "abandon_client", stalled)
+
+
+def unreleased_clients(
+    rig: ThreadSafeRig, manager: RedisManager, *loops: LoopThread
+) -> list[ThreadSafeClient]:
+    # A drop is queued on its client's loop: wait for each loop to run what it holds.
+    for loop in loops:
+        loop.run(asyncio.sleep(0))
+    live = manager._redis
+    return [
+        client
+        for client in rig.clients
+        if client is not live and not (client.closed or client.dropped)
+    ]
 
 
 async def get_ignoring_503(manager: RedisManager) -> object:
@@ -362,6 +399,7 @@ async def test_alternating_loops_make_a_bounded_number_of_reconnects(
     assert len(builds) <= rounds + 1
 
 
+@pytest.mark.usefixtures("late_abandon")
 async def test_two_loops_reconnecting_at_once_leave_no_client_unreleased(
     rig: ThreadSafeRig,
 ) -> None:
@@ -382,17 +420,13 @@ async def test_two_loops_reconnecting_at_once_leave_no_client_unreleased(
         ]
         for racer in racers:
             racer.result(10)
-        live = manager._redis
-        leaked = [
-            client
-            for client in rig.clients
-            if client is not live and not (client.closed or client.dropped)
-        ]
+        leaked = unreleased_clients(rig, manager, bound, first, second)
         assert leaked == []
-        assert live is not None
+        assert manager._redis is not None
         bound.run(manager.close())
 
 
+@pytest.mark.usefixtures("late_abandon")
 async def test_two_threads_binding_between_a_check_and_a_write_release_the_first(
     rig: ThreadSafeRig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -416,14 +450,9 @@ async def test_two_threads_binding_between_a_check_and_a_write_release_the_first
         other.result(10)
         trap.other_done.set()
         racer.result(10)
-        live = manager._redis
-        leaked = [
-            client
-            for client in rig.clients
-            if client is not live and not (client.closed or client.dropped)
-        ]
+        leaked = unreleased_clients(rig, manager, bound, first, second)
         assert leaked == []
-        assert live is not None
+        assert manager._redis is not None
         bound.run(manager.close())
 
 
