@@ -1,31 +1,15 @@
 [
   {
-    "test": "tests/test_decorators/test_access_control.py::test_block_all_clouds_default",
-    "exception": "AssertionError",
-    "message": "assert 200 == 403",
-    "reason": "test-only: 5.0.0 hands the module-level default manager to the first app bound while that app's config lives (guard_core/_utils/app_managers.py:165-180 bind(), guard_core/handlers/ipban_handler.py:129-141 ip_ban_manager_for(); same for cloud_handler_for at guard_core/handlers/cloud_handler.py:562-571, guard_core 5.0.0 wheel), so a test that patches or bans through the module-level default only reaches the app under test when no earlier test's app still holds the default; run alone on the 5.0.0 wheel it passes (verify/wp319/single-tests.txt). upgrade guide v4-to-v5, 'Code that touches the engine directly': 'Managers are per app: ip_ban_manager_for(config), sus_patterns_manager_for(config) and cloud_handler_for(config) resolve the manager of an app. The module-level ip_ban_manager, sus_patterns_handler and cloud_handler stay the default ones.'",
-    "exact": true
-  },
-  {
-    "test": "tests/test_decorators/test_access_control.py::test_cloud_provider_blocking",
-    "exception": "AssertionError",
-    "message": "assert 200 == 403",
-    "reason": "test-only: 5.0.0 hands the module-level default manager to the first app bound while that app's config lives (guard_core/_utils/app_managers.py:165-180 bind(), guard_core/handlers/ipban_handler.py:129-141 ip_ban_manager_for(); same for cloud_handler_for at guard_core/handlers/cloud_handler.py:562-571, guard_core 5.0.0 wheel), so a test that patches or bans through the module-level default only reaches the app under test when no earlier test's app still holds the default; run alone on the 5.0.0 wheel it passes (verify/wp319/single-tests.txt). upgrade guide v4-to-v5, 'Code that touches the engine directly': 'Managers are per app: ip_ban_manager_for(config), sus_patterns_manager_for(config) and cloud_handler_for(config) resolve the manager of an app. The module-level ip_ban_manager, sus_patterns_handler and cloud_handler stay the default ones.'",
-    "exact": true
-  },
-  {
     "test": "tests/test_decorators/test_advanced.py::test_honeypot_detection_configuration[/form-honeypot-expected_fields0-Form honeypot should have trap fields configured]",
     "exception": "AssertionError",
-    "message": "assert 'trap_fields' in ('config', 'trap_names')",
-    "reason": "test-only: asserts the closure variable names of honeypot_validator (trap_fields), which became trap_names; the decorator behavior is unchanged",
-    "exact": true
+    "message": "assert 'trap_fields' in (",
+    "reason": "test-only: asserts the closure variable names of honeypot_validator (tests/test_decorators/test_advanced.py:184, 'trap_fields' in validator.__code__.co_freevars); the closure now holds the trap_names set built at guard_core/decorators/advanced.py:127 and the helpers imported at :132-143, so the free variables are FORM_MEDIA_TYPE, JSON_MEDIA_TYPE, MULTIPART_MEDIA_TYPE, config, form_has_filled_trap, json_has_filled_trap and more (the judge matches the message up to the tuple, so pytest's verbosity does not matter); the decorator behavior is unchanged"
   },
   {
     "test": "tests/test_decorators/test_advanced.py::test_honeypot_detection_configuration[/json-honeypot-expected_fields1-JSON honeypot should have trap fields configured]",
     "exception": "AssertionError",
-    "message": "assert 'trap_fields' in ('config', 'trap_names')",
-    "reason": "test-only: asserts the closure variable names of honeypot_validator (trap_fields), which became trap_names; the decorator behavior is unchanged",
-    "exact": true
+    "message": "assert 'trap_fields' in (",
+    "reason": "test-only: asserts the closure variable names of honeypot_validator (tests/test_decorators/test_advanced.py:184, 'trap_fields' in validator.__code__.co_freevars); the closure now holds the trap_names set built at guard_core/decorators/advanced.py:127 and the helpers imported at :132-143, so the free variables are FORM_MEDIA_TYPE, JSON_MEDIA_TYPE, MULTIPART_MEDIA_TYPE, config, form_has_filled_trap, json_has_filled_trap and more (the judge matches the message up to the tuple, so pytest's verbosity does not matter); the decorator behavior is unchanged"
   },
   {
     "test": "tests/test_decorators/test_advanced.py::test_honeypot_form_detection",
@@ -85,6 +69,20 @@
     "exact": true
   },
   {
+    "test": "tests/test_decorators/test_extension_integration.py::test_time_window_normal",
+    "exception": "AssertionError",
+    "message": "assert False is True",
+    "reason": "the CHANGELOG entry \"`@time_window` compares minutes, so `'9:00'` is 09:00\" (LEDGER 1.08) and the CHANGELOG entry \"A time-window evaluation error denies the request instead of allowing it\": the test (tests/test_decorators/test_extension_integration.py:238) patches guard_core.sync.core.validation.validator.datetime and sets only now().strftime, so the 5.0.0 check reads .hour and .minute (guard_core/sync/_utils/time_window.py:32) from a MagicMock, the comparison raises TypeError, and the evaluation error denies (same file, :39-44); a real clock gives the window the tag's test intends",
+    "exact": true
+  },
+  {
+    "test": "tests/test_decorators/test_extension_integration.py::test_time_window_overnight",
+    "exception": "AssertionError",
+    "message": "assert False is True",
+    "reason": "the CHANGELOG entry \"`@time_window` compares minutes, so `'9:00'` is 09:00\" (LEDGER 1.08) and the CHANGELOG entry \"A time-window evaluation error denies the request instead of allowing it\": the test (tests/test_decorators/test_extension_integration.py:214) patches guard_core.sync.core.validation.validator.datetime and sets only now().strftime, so the 5.0.0 check reads .hour and .minute (guard_core/sync/_utils/time_window.py:32) from a MagicMock, the comparison raises TypeError, and the evaluation error denies (same file, :39-44); a real clock gives the window the tag's test intends",
+    "exact": true
+  },
+  {
     "test": "tests/test_decorators/test_rate_limiting.py::test_rate_limiting_endpoints_response[/geo-rate-limited-Geo rate limited endpoint-geo_rate_limit endpoint]",
     "exception": "ValueError",
     "message": "Route 'tests.test_decorators.test_rate_limiting.rate_limiting_decorator_app.<locals>.geo_rate_limited_endpoint' uses geo_rate_limit but no GeoIP database is con",
@@ -101,13 +99,6 @@
     "exception": "AssertionError",
     "message": "assert 'X-Content-Type-Options' not in Headers([('Content-Type', 'application/json'), ('Content-Length', '24'), ('X-Content-Type-Options', 'nosniff'), ('X-Frame",
     "reason": "upgrade guide v4-to-v5, Responses that changed: '`bypass([\"all\"])` route | no security headers ... | security headers applied, bypass applies in passive mode'"
-  },
-  {
-    "test": "tests/test_extension/test_security_extension.py::test_cloud_ip_blocking",
-    "exception": "AssertionError",
-    "message": "assert 200 == 403",
-    "reason": "test-only: 5.0.0 hands the module-level default manager to the first app bound while that app's config lives (guard_core/_utils/app_managers.py:165-180 bind(), guard_core/handlers/ipban_handler.py:129-141 ip_ban_manager_for(); same for cloud_handler_for at guard_core/handlers/cloud_handler.py:562-571, guard_core 5.0.0 wheel), so a test that patches or bans through the module-level default only reaches the app under test when no earlier test's app still holds the default; run alone on the 5.0.0 wheel it passes (verify/wp319/single-tests.txt). upgrade guide v4-to-v5, 'Code that touches the engine directly': 'Managers are per app: ip_ban_manager_for(config), sus_patterns_manager_for(config) and cloud_handler_for(config) resolve the manager of an app. The module-level ip_ban_manager, sus_patterns_handler and cloud_handler stay the default ones.'",
-    "exact": true
   },
   {
     "test": "tests/test_extension/test_security_extension.py::test_fallback_to_pipeline",
@@ -140,18 +131,6 @@
     "exception": "AssertionError",
     "message": "Expected 'error' to have been called once. Called 0 times.",
     "reason": "test-only: mocks Redis keys(); prefix-wide clears use SCAN and UNLINK now. upgrade guide: \"Redis KEYS is gone from every prefix-wide clear and listing (SCAN and UNLINK instead)\""
-  },
-  {
-    "test": "tests/test_extension/test_security_extension.py::test_redis_initialization",
-    "exception": "AssertionError",
-    "message": "Expected 'initialize' to have been called once. Called 3 times.",
-    "reason": "test-only: counts initialize calls on mocked handlers (now one per app handler); internal call counts, user behavior unchanged. upgrade guide v4-to-v5, 'Code that touches the engine directly': 'Managers are per app: ip_ban_manager_for(config), sus_patterns_manager_for(config) and cloud_handler_for(config) resolve the manager of an app. The module-level ip_ban_manager, sus_patterns_handler and cloud_handler stay the default ones.'"
-  },
-  {
-    "test": "tests/test_extension/test_security_extension.py::test_redis_initialization_without_ipinfo_and_cloud",
-    "exception": "AssertionError",
-    "message": "Expected 'initialize' to have been called once. Called 2 times.",
-    "reason": "test-only: counts initialize calls on mocked handlers (now one per app handler); internal call counts, user behavior unchanged. upgrade guide v4-to-v5, 'Code that touches the engine directly': 'Managers are per app: ip_ban_manager_for(config), sus_patterns_manager_for(config) and cloud_handler_for(config) resolve the manager of an app. The module-level ip_ban_manager, sus_patterns_handler and cloud_handler stay the default ones.'"
   },
   {
     "test": "tests/test_extension_lifecycle.py::test_redis_unavailable_at_first_request_returns_503_and_retries",
