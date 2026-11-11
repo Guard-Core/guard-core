@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Iterator
+from typing import TypeVar
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -8,6 +9,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.app_managers import release_app
 from guard_core.sync._utils.app_scope import app_scope_of, in_app_scope
 from guard_core.sync.core.checks import build_default_pipeline
+from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.implementations.ip_security import IpSecurityCheck
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
@@ -22,6 +24,7 @@ from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 from tests.test_sync.protocol_only_redis import REDIS_URL
 
+_CheckT = TypeVar("_CheckT", bound=SecurityCheck)
 _IP = "203.0.113.90"
 _OTHER_WORKER_IP = "203.0.113.91"
 
@@ -82,8 +85,11 @@ def _request(client_ip: str, path: str = "/api/test") -> MagicMock:
     return request
 
 
-def _check_of(pipeline: SecurityCheckPipeline, kind: type) -> IpSecurityCheck:
-    return next(check for check in pipeline.checks if isinstance(check, kind))
+def _check_of(pipeline: SecurityCheckPipeline, kind: type[_CheckT]) -> _CheckT:
+    for check in pipeline.checks:
+        if isinstance(check, kind):
+            return check
+    raise AssertionError(f"the pipeline has no {kind.__name__}")
 
 
 def test_a_late_ban_after_another_app_took_the_default_lands_on_the_rebind() -> None:
