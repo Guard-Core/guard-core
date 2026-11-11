@@ -673,7 +673,16 @@ _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
     "        raise TimeoutError(_TOTAL_BOUND_EXCEEDED)\n"
 )
 
+_ASYNC_CURRENT_OWNER_SRC = (
+    "def _current_owner() -> int:\n    return id(asyncio.current_task())\n"
+)
+
+_SYNC_CURRENT_OWNER_REPLACEMENT = (
+    "def _current_owner() -> int:\n    return threading.get_ident()\n"
+)
+
 SUBS: list[tuple[str, str]] = [
+    (re.escape(_ASYNC_CURRENT_OWNER_SRC), _SYNC_CURRENT_OWNER_REPLACEMENT),
     (
         re.escape(_ASYNC_CURRENT_SCOPE_SRC),
         _SYNC_CURRENT_SCOPE_REPLACEMENT.replace("\\", "\\\\"),
@@ -910,7 +919,29 @@ SUBS: list[tuple[str, str]] = [
     (r'"guard_core\.decorators"', '"guard_core.sync.decorators"'),
 ]
 
+_SYNC_SPAWN_HELPERS_REPLACEMENT = (
+    "def _spawn_in_this_context(work: Callable[[], None]) -> threading.Thread:\n"
+    "    # a pool that copies the context makes the thread inherit it, as a task does\n"
+    "    import contextvars\n"
+    "\n"
+    "    spawned = threading.Thread(\n"
+    "        target=contextvars.copy_context().run, args=(work,), daemon=True\n"
+    "    )\n"
+    "    spawned.start()\n"
+    "    return spawned\n"
+    "\n"
+    "\n"
+    "def _finished(spawned: threading.Thread) -> None:\n"
+    "    spawned.join()\n"
+    "\n"
+    "\n"
+)
+
 TEST_SUBS: list[tuple[str, str]] = [
+    (
+        r"(?s)def _spawn_in_this_context\(.*?def _finished\(.*?\n\n\n",
+        _SYNC_SPAWN_HELPERS_REPLACEMENT.replace("\\", "\\\\"),
+    ),
     (
         r"from tests\.conftest import \(([^)]+)\)",
         r"from tests.test_sync.conftest import (\1)",

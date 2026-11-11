@@ -412,3 +412,116 @@ def test_a_held_lock_release_leaves_no_rule_exempt_network_for_the_next_app() ->
     config_b = _config()
     HandlerInitializer(config_b)
     assert ip_ban_manager_for(config_b).rule_exempt_networks == ()
+
+
+def _spawn_in_this_context(work: Callable[[], None]) -> threading.Thread:
+    # a pool that copies the context makes the thread inherit it, as a task does
+    import contextvars
+
+    spawned = threading.Thread(
+        target=contextvars.copy_context().run, args=(work,), daemon=True
+    )
+    spawned.start()
+    return spawned
+
+
+def _finished(spawned: threading.Thread) -> None:
+    spawned.join()
+
+
+def _emergency_rules() -> DynamicRules:
+    return DynamicRules(
+        rule_id="wp644",
+        version=1,
+        timestamp=datetime.now(timezone.utc),
+        emergency_mode=True,
+        emergency_whitelist=["203.0.113.9"],
+    )
+
+
+class _SpawningAgent:
+    """A host agent handler that makes a task while the apply announces its plan."""
+
+    def __init__(self) -> None:
+        self.rules = _emergency_rules()
+        self.go = threading.Event()
+        self.spawned: list[threading.Thread] = []
+        self.child_work: Callable[[], None] | None = None
+
+    def get_dynamic_rules(self) -> DynamicRules:
+        return self.rules
+
+    def send_event(self, event: object) -> None:
+        if self.child_work is None or self.spawned:
+            return
+        work = self.child_work
+
+        def child() -> None:
+            self.go.wait()
+            work()
+
+        self.spawned.append(_spawn_in_this_context(child))
+
+
+def test_a_task_made_inside_a_cycle_runs_its_own_cycle_after_a_release() -> None:
+    config, config_b = _config(rules=True), _config(rules=True)
+    bind_app_managers(config)
+    manager = DynamicRuleManager(config)
+    agent = _SpawningAgent()
+    manager.agent_handler = cast(SyncAgentHandlerProtocol, agent)
+    agent.child_work = manager.force_update
+    manager._apply_rules(agent.rules)
+    assert len(agent.spawned) == 1
+    release_app(config)
+    HandlerInitializer(config_b)
+    assert DynamicRuleManager(config_b) is manager
+    manager.agent_handler = cast(SyncAgentHandlerProtocol, agent)
+    agent.rules = _rules()
+    agent.go.set()
+    _finished(agent.spawned[0])
+    assert manager.current_rules is not None
+
+
+def test_a_task_made_in_one_managers_cycle_runs_its_own_on_another() -> None:
+    config_a, config_b = _config(rules=True), _config(rules=True)
+    bind_app_managers(config_a)
+    manager_a = DynamicRuleManager(config_a)
+    bind_app_managers(config_b)
+    manager_b = DynamicRuleManager(config_b)
+    assert manager_b is not manager_a
+    agent_a, agent_b = _SpawningAgent(), _Agent()
+    manager_a.agent_handler = cast(SyncAgentHandlerProtocol, agent_a)
+    manager_b.agent_handler = cast(SyncAgentHandlerProtocol, agent_b)
+    manager_b.mark_released()
+    agent_a.child_work = manager_b.force_update
+    manager_a._apply_rules(agent_a.rules)
+    manager_a.mark_released()
+    agent_a.go.set()
+    _finished(agent_a.spawned[0])
+    assert manager_b.current_rules is not None
+
+
+class _ChildReleases:
+    def __init__(self, manager: DynamicRuleManager, config: SyncSecurityConfig) -> None:
+        self.manager, self.config = manager, config
+        self.child_saw_the_release: bool | None = None
+
+    def get_dynamic_rules(self) -> DynamicRules:
+        def child() -> None:
+            release_app(self.config)
+            self.child_saw_the_release = self.manager._released_since_entry()
+
+        _finished(_spawn_in_this_context(child))
+        return _rules()
+
+
+def test_a_child_awaited_in_a_cycle_sees_a_release_and_the_cycle_stops() -> None:
+    config = _config(rules=True)
+    bind_app_managers(config)
+    manager = DynamicRuleManager(config)
+    agent = _ChildReleases(manager, config)
+    manager.agent_handler = cast(SyncAgentHandlerProtocol, agent)
+    with pytest.raises(RunStopped):
+        manager.update_rules()
+    assert agent.child_saw_the_release is True
+    assert manager.current_rules is None

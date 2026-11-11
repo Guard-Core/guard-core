@@ -69,11 +69,16 @@ _RUN_STOP: ContextVar[asyncio.Event | None] = ContextVar(
 )
 
 
-# The release epoch of the manager an apply, expiry or revoke started on; compared with
-# the manager's own, so a release that lands during its awaits ends it.
-_ENTRY_EPOCH: ContextVar[int | None] = ContextVar(
+# The manager, the task and the release epoch a rule cycle started with, as ids (never
+# the objects: a copied context must not keep a released app alive); the epoch is
+# compared with the manager's own, so a release that lands during its awaits ends it.
+_ENTRY_EPOCH: ContextVar[tuple[int, int, int] | None] = ContextVar(
     "guard_core_rule_entry_epoch", default=None
 )
+
+
+def _current_owner() -> int:
+    return id(asyncio.current_task())
 
 
 class DynamicRuleManager(
@@ -182,12 +187,16 @@ class DynamicRuleManager(
 
     @contextmanager
     def _entry_epoch_scope(self) -> Iterator[None]:
-        """The epoch of the whole rule cycle: the outermost scope takes it and the
-        scopes nested inside keep it, so a release during the fetch ends the cycle."""
-        if _ENTRY_EPOCH.get() is not None:
+        """The epoch of the whole rule cycle: the outermost scope of this manager in
+        this task takes it and the scopes nested inside keep it, so a release during
+        the fetch ends the cycle. A task made inside a cycle copies its context but
+        starts its own cycle."""
+        owner = _current_owner()
+        entry = _ENTRY_EPOCH.get()
+        if entry is not None and entry[:2] == (id(self), owner):
             yield
             return
-        token = _ENTRY_EPOCH.set(self._release_epoch)
+        token = _ENTRY_EPOCH.set((id(self), owner, self._release_epoch))
         try:
             yield
         finally:
@@ -195,7 +204,11 @@ class DynamicRuleManager(
 
     def _released_since_entry(self) -> bool:
         entry = _ENTRY_EPOCH.get()
-        return entry is not None and entry != self._release_epoch
+        return (
+            entry is not None
+            and entry[0] == id(self)
+            and entry[2] != self._release_epoch
+        )
 
     def _end_if_released_since_entry(self) -> None:
         if self._released_since_entry():
