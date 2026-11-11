@@ -8,7 +8,8 @@ import pytest
 from guard_core._utils.app_managers import release_app
 from guard_core._utils.rule_attribution_shared import _APP_RULE_MANAGERS
 from guard_core.handlers._background_stop import background_task_is_live
-from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
+from guard_core.handlers._dynamic_rule_intake import RunStopped
+from guard_core.handlers.dynamic_rule_handler import _RUN_STOP, DynamicRuleManager
 from guard_core.models import DynamicRules, SecurityConfig
 
 
@@ -119,3 +120,27 @@ async def test_an_update_in_flight_at_release_applies_nothing_and_ends(
     apply_rules.assert_not_called()
     assert manager.current_rules is None
     assert not background_task_is_live(run)
+
+
+async def test_a_stopped_run_does_not_enter_the_apply() -> None:
+    manager = DynamicRuleManager(_config())
+    stop_event = asyncio.Event()
+    stop_event.set()
+    token = _RUN_STOP.set(stop_event)
+    try:
+        with pytest.raises(RunStopped):
+            await manager._apply_rules(_rules())
+    finally:
+        _RUN_STOP.reset(token)
+
+
+async def test_a_run_ends_when_its_update_reports_it_was_stopped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config()
+    manager = DynamicRuleManager(config)
+    monkeypatch.setattr(manager, "_hydrate_last_known_rules", AsyncMock())
+    monkeypatch.setattr(manager, "update_rules", AsyncMock(side_effect=RunStopped))
+    await manager.initialize_agent(Mock())
+    await asyncio.sleep(0.2)
+    assert not background_task_is_live(manager.update_task)

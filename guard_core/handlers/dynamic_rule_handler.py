@@ -301,6 +301,8 @@ class DynamicRuleManager(
                 except asyncio.CancelledError:
                     self.logger.info("Dynamic rule update loop cancelled")
                     break
+                except RunStopped:
+                    break
                 except Exception as e:
                     self.logger.error(f"Error in dynamic rule update loop: {e}")
                     if run_stop.is_set():

@@ -1,3 +1,13 @@
+def _patterns_the_survivors_rules_hold(survivors: list[object]) -> set[str]:
+    from guard_core._utils.rule_attribution_shared import _APP_RULE_MANAGERS
+
+    held: set[str] = set()
+    for other in survivors:
+        rules = getattr(_APP_RULE_MANAGERS.resolve(other), "current_rules", None)
+        held.update(getattr(rules, "suspicious_patterns", ()))
+    return held
+
+
 def withdraw_rule_patterns(config: object) -> None:
     """Remove the patterns the rules of the released app created from a pattern
     default another app still shares, unless that app's current rule set holds the
@@ -11,16 +21,13 @@ def withdraw_rule_patterns(config: object) -> None:
     from guard_core.handlers._suspatterns_registry import remove_default_pattern_rows
     from guard_core.handlers.suspatterns_handler import _APP_PATTERN_MANAGERS
 
-    survivors = _APP_PATTERN_MANAGERS.other_apps_on_the_default(config)
+    survivors: list[object] = list(
+        _APP_PATTERN_MANAGERS.other_apps_on_the_default(config)
+    )
     owner = _APP_RULE_MANAGERS.resolve(config)
     patterns = _APP_PATTERN_MANAGERS.served_default()
     if not survivors or owner is None or patterns is None:
         return
-    held_by_survivors: set[str] = set()
-    for other in survivors:
-        rules = getattr(_APP_RULE_MANAGERS.resolve(other), "current_rules", None)
-        if rules is not None:
-            held_by_survivors.update(rules.suspicious_patterns)
-    for pattern in list(owner._owned_patterns):
-        if pattern not in held_by_survivors:
-            remove_default_pattern_rows(patterns, pattern)
+    kept = _patterns_the_survivors_rules_hold(survivors)
+    for pattern in [p for p in owner._owned_patterns if p not in kept]:
+        remove_default_pattern_rows(patterns, pattern)

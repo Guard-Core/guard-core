@@ -13,9 +13,10 @@ from guard_core.sync.protocols.agent_protocol import (
 )
 
 
-class RunStopped(Exception):
+class RunStopped(BaseException):
     """The update loop run that fetched these rules was stopped (its app was
-    released) before it applied them."""
+    released) before it applied them. Not an ``Exception``, so ``update_rules`` does
+    not log it as a failure; the run's loop ends on it."""
 
 
 class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin):
@@ -35,6 +36,8 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
     _run_was_stopped: Callable[[], bool]
 
     def _should_update_rules(self, rules: DynamicRulesProtocol) -> bool:
+        if self._run_was_stopped():
+            return False
         current = self.current_rules
         if not current:
             return True
@@ -120,9 +123,6 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
             if not self._should_update_rules(rules):
                 return
 
-            if self._run_was_stopped():
-                return
-
             self._send_rule_received_event(rules)
 
             self.logger.info(
@@ -137,7 +137,5 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
 
             self._send_rule_applied_event(rules, skipped)
 
-        except RunStopped:
-            return
         except Exception as e:
             self.logger.error(f"Failed to update dynamic rules: {e}")

@@ -1033,10 +1033,10 @@ def apply_subs(content: str, subs: list[tuple[str, str]]) -> str:
 
 POST_FIXUPS: list[tuple[str, str]] = [
     (
-        r"([ \t]+)except Exception:\n\s+self\.logger\.info"
-        r"\(\"Dynamic rule update loop cancelled\"\)\n\s+break\n\s+"
-        r"except Exception as e:",
-        r"\1except Exception as e:",
+        r"[ \t]+except Exception:\n\s+self\.logger\.info"
+        r"\(\"Dynamic rule update loop cancelled\"\)\n\s+break\n"
+        r"(?=\s+except (?:RunStopped|Exception as e):)",
+        "",
     ),
     (
         r"                pass\n\n                coro = self\._send_geo_event\(\n"

@@ -300,6 +300,8 @@ class DynamicRuleManager(
                     self._interruptible_sleep(
                         self.config.dynamic_rule_interval, run_stop
                     )
+                except RunStopped:
+                    break
                 except Exception as e:
                     self.logger.error(f"Error in dynamic rule update loop: {e}")
                     if run_stop.is_set():
