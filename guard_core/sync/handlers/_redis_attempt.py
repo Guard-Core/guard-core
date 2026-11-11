@@ -13,6 +13,9 @@ class ConnectionLocks:
     def here(self) -> threading.Lock:
         return self._lock
 
+    def any_locked(self) -> bool:
+        return self._lock.locked()
+
 
 class RedisAttemptSlot:
     """The one reconnect attempt a degraded manager runs off the request path, on a

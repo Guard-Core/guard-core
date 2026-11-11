@@ -9,6 +9,7 @@ from guard_core.sync._utils.pattern_source_redaction import (
     _redact_pattern_source_of_app,
 )
 from guard_core.sync.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
+from guard_core.sync.handlers._dynamic_rule_intake import RunStopped
 from guard_core.sync.handlers._dynamic_rule_plan import DynamicRulePlan
 from guard_core.sync.handlers._ipban_rule_exempt import (
     DYNAMIC_RULE_BAN_REASON,
@@ -22,6 +23,7 @@ from guard_core.sync.protocols.agent_protocol import (
 
 if TYPE_CHECKING:
     from guard_core.sync.handlers.ipban_handler import IPBanManager
+    from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 
 def _redact_pattern_list(patterns: list[str], config: SyncSecurityConfig) -> list[str]:
@@ -35,6 +37,16 @@ class RuleSideEffects:
     skipped: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class RuleTargets:
+    """What one apply writes onto, captured once at its start: the app can be
+    released during its awaits, and the next app then takes the default managers."""
+
+    config: SyncSecurityConfig
+    ban_manager: "IPBanManager"
+    patterns_manager: "SusPatternsManager"
+
+
 class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     config: SyncSecurityConfig
     agent_handler: SyncAgentHandlerProtocol | None
@@ -42,13 +54,34 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     _owned_patterns: list[str]
     _refresh_attribution: Callable[[], None]
     ban_manager_of_the_app: Callable[[], "IPBanManager"]
+    _run_was_stopped: Callable[[], bool]
+
+    def _capture_rule_targets(self) -> RuleTargets:
+        from guard_core.sync.handlers.suspatterns_handler import (
+            sus_patterns_manager_for,
+        )
+
+        return RuleTargets(
+            self.config,
+            self.ban_manager_of_the_app(),
+            sus_patterns_manager_for(self.config),
+        )
+
+    def _targets_or_live(self, targets: RuleTargets | None) -> RuleTargets:
+        return targets or self._capture_rule_targets()
+
+    def _end_run_if_stopped(self) -> None:
+        if self._run_was_stopped():
+            raise RunStopped
 
     def _apply_side_effects(
         self,
         rules: DynamicRulesProtocol,
         effects: RuleSideEffects | None = None,
         exempt_ips: list[str] | None = None,
+        targets: RuleTargets | None = None,
     ) -> None:
+        targets = self._targets_or_live(targets)
         effects = effects or RuleSideEffects()
         if rules.ip_blacklist:
             self._apply_ip_bans(
@@ -56,15 +89,21 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
                 rules.ip_ban_duration,
                 effects.created_bans,
                 effects.skipped,
+                targets,
             )
 
+        self._end_run_if_stopped()
         whitelist = rules.ip_whitelist if exempt_ips is None else exempt_ips
         if whitelist:
-            self._apply_ip_whitelist(whitelist)
+            self._apply_ip_whitelist(whitelist, targets)
 
+        self._end_run_if_stopped()
         if rules.suspicious_patterns:
             self._apply_pattern_rules(
-                rules.suspicious_patterns, effects.created_patterns, effects.skipped
+                rules.suspicious_patterns,
+                effects.created_patterns,
+                effects.skipped,
+                targets,
             )
 
     def _owned_after(
@@ -73,16 +112,20 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         kept = [entry for entry in dict.fromkeys(listed) if entry in previously_owned]
         return [*kept, *created]
 
-    def _undo_side_effects(self, effects: RuleSideEffects) -> None:
-        self._revoke_owned(effects.created_bans, effects.created_patterns)
+    def _undo_side_effects(
+        self, effects: RuleSideEffects, targets: RuleTargets | None = None
+    ) -> None:
+        self._revoke_owned(effects.created_bans, effects.created_patterns, targets)
 
-    def _revoke_owned(self, bans: list[str], patterns: list[str]) -> None:
-        ip_ban_manager = self.ban_manager_of_the_app()
-        from guard_core.sync.handlers.suspatterns_handler import (
-            sus_patterns_manager_for,
-        )
-
-        patterns_manager = sus_patterns_manager_for(self.config)
+    def _revoke_owned(
+        self,
+        bans: list[str],
+        patterns: list[str],
+        targets: RuleTargets | None = None,
+    ) -> None:
+        targets = self._targets_or_live(targets)
+        ip_ban_manager = targets.ban_manager
+        patterns_manager = targets.patterns_manager
         revoked: list[tuple[str, int]] = []
         for ip in bans:
             try:
@@ -109,7 +152,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
                 patterns_manager.remove_pattern(pattern)
                 self.logger.info(
                     "Dynamic rule: Revoked suspicious pattern "
-                    f"{_redact_pattern_source_of_app(pattern, self.config)}"
+                    f"{_redact_pattern_source_of_app(pattern, targets.config)}"
                 )
             except Exception as e:
                 self.logger.error(f"Failed to revoke suspicious pattern: {e}")
@@ -120,12 +163,15 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         duration: int,
         created: list[str] | None = None,
         skipped: list[str] | None = None,
+        targets: RuleTargets | None = None,
     ) -> None:
+        targets = self._targets_or_live(targets)
         created = created if created is not None else []
         skipped = skipped if skipped is not None else []
         for ip in ip_list:
+            self._end_run_if_stopped()
             try:
-                self._ban_rule_ip(ip, duration, created, skipped)
+                self._ban_rule_ip(ip, duration, created, skipped, targets)
             except Exception as e:
                 self.logger.error(f"Failed to ban IP {ip}: {e}")
 
@@ -135,10 +181,11 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         duration: int,
         created: list[str],
         skipped: list[str],
+        targets: RuleTargets,
     ) -> None:
-        ip_ban_manager = self.ban_manager_of_the_app()
+        ip_ban_manager = targets.ban_manager
 
-        canonical = rule_ban_target(ip, nat64_table_of(self.config))[1]
+        canonical = rule_ban_target(ip, nat64_table_of(targets.config))[1]
         takes_ownership = (
             canonical not in self._owned_bans
             and not ip_ban_manager.is_ip_banned(canonical)
@@ -152,8 +199,10 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         if refusal is not None:
             skipped.append(f"ip_blacklist: {ip} (ban refused: {refusal})")
 
-    def _apply_ip_whitelist(self, ip_list: list[str]) -> None:
-        ip_ban_manager = self.ban_manager_of_the_app()
+    def _apply_ip_whitelist(
+        self, ip_list: list[str], targets: RuleTargets | None = None
+    ) -> None:
+        ip_ban_manager = self._targets_or_live(targets).ban_manager
 
         ranges = [ip for ip in ip_list if "/" in ip]
         if ranges:
@@ -175,34 +224,33 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         patterns: list[str],
         created: list[str] | None = None,
         skipped: list[str] | None = None,
+        targets: RuleTargets | None = None,
     ) -> None:
-        from guard_core.sync.handlers.suspatterns_handler import (
-            sus_patterns_manager_for,
-        )
-
+        targets = self._targets_or_live(targets)
         created = created if created is not None else []
         skipped = skipped if skipped is not None else []
-        patterns_manager = sus_patterns_manager_for(self.config)
+        patterns_manager = targets.patterns_manager
         known = set(patterns_manager.patterns)
         candidates = [p for p in dict.fromkeys(patterns) if p not in known]
         rejected: list[str] = []
         added: list[str] = []
         for pattern in candidates:
+            self._end_run_if_stopped()
             if patterns_manager.add_pattern(pattern):
                 created.append(pattern)
                 added.append(pattern)
             else:
                 rejected.append(pattern)
         if added:
-            shown = _redact_pattern_list(added, self.config)
+            shown = _redact_pattern_list(added, targets.config)
             self.logger.info(f"Dynamic rule: Added suspicious patterns {shown}")
 
         if rejected:
             skipped.extend(
                 f"suspicious_patterns: pattern {pattern!r} rejected"
-                for pattern in _redact_pattern_list(rejected, self.config)
+                for pattern in _redact_pattern_list(rejected, targets.config)
             )
-            redacted = _redact_pattern_list(rejected, self.config)
+            redacted = _redact_pattern_list(rejected, targets.config)
             self.logger.warning(f"Dynamic rule: rejected patterns {redacted}")
 
     def _announce_emergency_mode(self, whitelist: list[str]) -> None:
@@ -214,27 +262,34 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
             self._send_emergency_event(whitelist)
 
     def _revoke_stale_side_effects(
-        self, rules: DynamicRulesProtocol, effects: RuleSideEffects
+        self,
+        rules: DynamicRulesProtocol,
+        effects: RuleSideEffects,
+        targets: RuleTargets | None = None,
     ) -> None:
-        nat64 = nat64_table_of(self.config)
+        targets = self._targets_or_live(targets)
+        nat64 = nat64_table_of(targets.config)
         listed = [rule_ban_target(ip, nat64)[1] for ip in rules.ip_blacklist]
         previous = [rule_ban_target(ip, nat64)[1] for ip in self._owned_bans]
         bans = self._owned_after(listed, previous, effects.created_bans)
         patterns = self._owned_after(
             rules.suspicious_patterns, self._owned_patterns, effects.created_patterns
         )
-        stale_bans = self._stale_rule_bans(set(listed))
+        stale_bans = self._stale_rule_bans(set(listed), targets)
         stale_patterns = [p for p in self._owned_patterns if p not in patterns]
         self._owned_bans, self._owned_patterns = bans, patterns
-        self._revoke_owned(stale_bans, stale_patterns)
+        self._revoke_owned(stale_bans, stale_patterns, targets)
 
-    def _stale_rule_bans(self, listed: set[str]) -> list[str]:
+    def _stale_rule_bans(
+        self, listed: set[str], targets: RuleTargets | None = None
+    ) -> list[str]:
         """The bans a rule owns, here or in Redis (a worker that restarted or
         never applied the earlier set owns nothing locally), that the new set
         does not list."""
-        ip_ban_manager = self.ban_manager_of_the_app()
+        targets = self._targets_or_live(targets)
+        ip_ban_manager = targets.ban_manager
 
-        nat64 = nat64_table_of(self.config)
+        nat64 = nat64_table_of(targets.config)
         owned = [rule_ban_target(ip, nat64)[1] for ip in self._owned_bans]
         try:
             owned.extend(ip_ban_manager.owned_rule_ban_targets())

@@ -22,6 +22,9 @@ class ConnectionLocks:
             lock = self._locks[loop] = asyncio.Lock()
         return lock
 
+    def any_locked(self) -> bool:
+        return any(lock.locked() for lock in self._locks.values())
+
 
 class RedisAttemptSlot:
     """The one reconnect attempt a degraded manager runs off the request path. The

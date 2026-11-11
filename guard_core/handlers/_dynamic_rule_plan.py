@@ -137,13 +137,17 @@ class DynamicRulePlanMixin:
     )
 
     async def _build_plan(
-        self, rules: DynamicRulesProtocol, base: dict[str, object]
+        self,
+        rules: DynamicRulesProtocol,
+        base: dict[str, object],
+        config: SecurityConfig | None = None,
     ) -> DynamicRulePlan:
+        config = config or self.config
         problems = find_malformed_values(rules)
         if problems:
             raise MalformedDynamicRules(problems)
         plan = DynamicRulePlan(state=dict(base))
-        valid_user_agents = await self._validate_user_agents(plan, rules)
+        valid_user_agents = await self._validate_user_agents(plan, rules, config)
         self._plan_countries(plan, rules)
         self._plan_cloud_providers(plan, rules)
         self._plan_user_agents(plan, valid_user_agents)
@@ -151,11 +155,13 @@ class DynamicRulePlanMixin:
         self._plan_rate_limits(plan, rules)
         self._plan_feature_toggles(plan, rules)
         self._plan_emergency_mode(plan, rules)
-        plan.prepared = prepare_config_batch(self.config, plan.state, plan.validated)
+        plan.prepared = prepare_config_batch(config, plan.state, plan.validated)
         return plan
 
-    def _swap_config(self, plan: DynamicRulePlan) -> None:
-        apply_config_batch(self.config, plan.prepared)
+    def _swap_config(
+        self, plan: DynamicRulePlan, config: SecurityConfig | None = None
+    ) -> None:
+        apply_config_batch(config or self.config, plan.prepared)
 
     def _plan_countries(
         self, plan: DynamicRulePlan, rules: DynamicRulesProtocol
@@ -214,8 +220,12 @@ class DynamicRulePlanMixin:
         plan.note(f"Dynamic rule: Blocked cloud providers {merged}")
 
     async def _validate_user_agents(
-        self, plan: DynamicRulePlan, rules: DynamicRulesProtocol
+        self,
+        plan: DynamicRulePlan,
+        rules: DynamicRulesProtocol,
+        config: SecurityConfig | None = None,
     ) -> list[str] | None:
+        config = config or self.config
         user_agents = rules.blocked_user_agents
         if not user_agents:
             return None
@@ -226,14 +236,12 @@ class DynamicRulePlanMixin:
         from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
         from guard_core.utils import _MAX_USER_AGENT_MATCH_LENGTH
 
-        cache_path = getattr(
-            self.config, "detection_pattern_validation_cache_path", None
-        )
+        cache_path = getattr(config, "detection_pattern_validation_cache_path", None)
         compiler = PatternCompiler(
             validation_cache=(
                 PatternValidationCache(cache_path) if cache_path else None
             ),
-            redaction_names=sus_patterns_manager_for(self.config),
+            redaction_names=sus_patterns_manager_for(config),
         )
         validate = functools.partial(
             compiler.validate_pattern_safety,
@@ -249,13 +257,13 @@ class DynamicRulePlanMixin:
                 rejected.append((pattern, reason))
         if rejected:
             for pattern, _reason in rejected:
-                shown = _redact_pattern_source_of_app(pattern, self.config)
+                shown = _redact_pattern_source_of_app(pattern, config)
                 plan.skipped.append(
                     f"blocked_user_agents: pattern {shown!r} failed the ReDoS validator"
                 )
             plan.note(
                 f"Dynamic rule: rejected blocked_user_agents patterns failing the "
-                f"ReDoS validator: {_redact_rejected_patterns(rejected, self.config)}",
+                f"ReDoS validator: {_redact_rejected_patterns(rejected, config)}",
                 logging.WARNING,
             )
         return valid

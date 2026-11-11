@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import weakref
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from ipaddress import ip_address
@@ -26,6 +27,7 @@ from guard_core.handlers._background_stop import (
 from guard_core.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
     RuleSideEffects,
+    RuleTargets,
 )
 from guard_core.handlers._dynamic_rule_attribution import (
     RuleAttribution,
@@ -40,6 +42,8 @@ from guard_core.handlers._dynamic_rule_plan import (
     DynamicRulePlanMixin,
 )
 from guard_core.handlers._dynamic_rule_snapshot import DynamicRuleSnapshotMixin
+from guard_core.handlers._ipban_cache import _Network
+from guard_core.handlers._redis_attempt import ConnectionLocks
 from guard_core.handlers.ipban_handler import IPBanManager, ip_ban_manager_for
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import (
@@ -78,9 +82,10 @@ class DynamicRuleManager(
     last_update: float = 0
     current_rules: DynamicRulesProtocol | None = None
     update_task: asyncio.Task | None = None
-    _lock: asyncio.Lock
+    _connection_locks: ConnectionLocks
     _stop_event: asyncio.Event
     _active_base_snapshot: dict[str, object] | None = None
+    _active_base_owner: weakref.ReferenceType[SecurityConfig] | None = None
     _last_skipped_expired_rule: tuple[str, int] | None = None
     _last_ignored_platform_default: tuple[str, int] | None = None
     _last_rejected_rule: tuple[str, int, str] | None = None
@@ -107,6 +112,25 @@ class DynamicRuleManager(
         if manager is cls._instance:
             serve_config_of_the_live_app(manager, config)
         return manager
+
+    @property
+    def _lock(self) -> asyncio.Lock:
+        """One lock per running loop: a contended asyncio.Lock binds the loop it first
+        waited on, and a default manager outlives the app (and loop) that used it."""
+        return self._connection_locks.here()
+
+    def _base_snapshot_of(self, config: SecurityConfig) -> dict[str, object] | None:
+        """The base taken from this config, never the one a previous app left."""
+        owner = self._active_base_owner
+        if owner is not None and owner() is not config:
+            return None
+        return self._active_base_snapshot
+
+    def _keep_base_snapshot(
+        self, base: dict[str, object], config: SecurityConfig
+    ) -> None:
+        self._active_base_snapshot = base
+        self._active_base_owner = weakref.ref(config)
 
     def use_ban_manager(self, manager: IPBanManager) -> None:
         """The ban manager this app was bound to, handed in by its initializer after
@@ -145,7 +169,11 @@ class DynamicRuleManager(
         # the network, so a held lock leaves the overlay in place: the stopped run
         # applies nothing more (the run check in ``_apply_rules``) and the app's own
         # next initialization replaces it.
-        if self.current_rules is None or self.config is None or self._lock.locked():
+        if (
+            self.current_rules is None
+            or self.config is None
+            or self._connection_locks.any_locked()
+        ):
             return
         try:
             self._revert_to_base_config()
@@ -164,7 +192,7 @@ class DynamicRuleManager(
         instance.last_update = 0
         instance.current_rules = None
         instance.update_task = None
-        instance._lock = asyncio.Lock()
+        instance._connection_locks = ConnectionLocks()
         instance._stop_event = asyncio.Event()
         instance._active_base_snapshot = None
         instance._last_skipped_expired_rule = None
@@ -324,11 +352,13 @@ class DynamicRuleManager(
 
     def _revert_to_base_config(self) -> None:
         self.ban_manager_of_the_app().set_rule_exempt_ips(())
-        if self._active_base_snapshot is not None:
-            self._restore_config(self._active_base_snapshot)
+        base = self._base_snapshot_of(self.config)
+        if base is not None:
+            self._restore_config(base)
         self.current_rules = None
         self._current_fingerprint = None
         self._active_base_snapshot = None
+        self._active_base_owner = None
         self._refresh_attribution()
 
     async def _check_rule_expiry(self) -> None:
@@ -391,31 +421,50 @@ class DynamicRuleManager(
 
     async def _apply_rules(self, rules: DynamicRulesProtocol) -> list[str]:
         async with self._lock:
-            if self._run_was_stopped():
-                raise RunStopped
-            base = self._active_base_snapshot
+            self._end_run_if_stopped()
+            targets = self._capture_rule_targets()
+            base = self._base_snapshot_of(targets.config)
             if base is None:
                 base = self._snapshot_config()
-            plan = await self._build_plan(rules, base)
+            plan = await self._build_plan(rules, base, targets.config)
+            self._end_run_if_stopped()
             effects = RuleSideEffects()
-            ip_ban_manager = self.ban_manager_of_the_app()
-            previous_exempt = ip_ban_manager.rule_exempt_networks
+            previous_exempt = targets.ban_manager.rule_exempt_networks
             try:
-                ip_ban_manager.set_rule_exempt_ips(plan.exempt_ips)
-                await self._apply_side_effects(rules, effects, plan.exempt_ips)
-                self._swap_config(plan)
-            except Exception as e:
-                ip_ban_manager.rule_exempt_networks = previous_exempt
-                await self._undo_side_effects(effects)
-                self.logger.error(f"Failed to apply dynamic rules: {e}")
+                await self._write_plan(rules, plan, effects, targets)
+            except BaseException as e:
+                await self._roll_back(effects, targets, previous_exempt)
+                if isinstance(e, Exception):
+                    self.logger.error(f"Failed to apply dynamic rules: {e}")
                 raise
-            self._active_base_snapshot = base
+            self._keep_base_snapshot(base, targets.config)
             self._log_unreachable_ban_thresholds_after_swap(base, plan)
-            await self._revoke_stale_side_effects(rules, effects)
+            await self._revoke_stale_side_effects(rules, effects, targets)
             self._refresh_attribution(rules)
             await self._announce_plan(plan)
             await self._persist_last_known_rules(rules)
             return [*plan.skipped, *effects.skipped]
+
+    async def _write_plan(
+        self,
+        rules: DynamicRulesProtocol,
+        plan: DynamicRulePlan,
+        effects: RuleSideEffects,
+        targets: RuleTargets,
+    ) -> None:
+        targets.ban_manager.set_rule_exempt_ips(plan.exempt_ips)
+        await self._apply_side_effects(rules, effects, plan.exempt_ips, targets)
+        self._end_run_if_stopped()
+        self._swap_config(plan, targets.config)
+
+    async def _roll_back(
+        self,
+        effects: RuleSideEffects,
+        targets: RuleTargets,
+        previous_exempt: tuple[_Network, ...],
+    ) -> None:
+        targets.ban_manager.rule_exempt_networks = previous_exempt
+        await self._undo_side_effects(effects, targets)
 
     async def get_current_rules(self) -> DynamicRulesProtocol | None:
         return self.current_rules
