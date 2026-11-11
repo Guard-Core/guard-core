@@ -2,16 +2,14 @@
   {
     "test": "tests/test_decorators/test_advanced.py::test_honeypot_detection_configuration[/form-honeypot-expected_fields0-Form honeypot should have trap fields configured]",
     "exception": "AssertionError",
-    "message": "assert 'trap_fields' in ('FORM_MEDIA_TYPE', 'JSON_MEDIA_TYPE', 'MULTIPART_MEDIA_TYPE', 'config', 'form_has_filled_trap', 'json_has_filled_trap', ...)",
-    "reason": "test-only: asserts the closure variable names of honeypot_validator (tests/test_decorators/test_advanced.py:184, 'trap_fields' in validator.__code__.co_freevars); the closure now holds the trap_names set built at guard_core/decorators/advanced.py:127 and the helpers imported at :132-143, so the free variables are FORM_MEDIA_TYPE, JSON_MEDIA_TYPE, MULTIPART_MEDIA_TYPE, config, form_has_filled_trap, json_has_filled_trap and more (pytest elides the tail); the decorator behavior is unchanged",
-    "exact": true
+    "message": "assert 'trap_fields' in (",
+    "reason": "test-only: asserts the closure variable names of honeypot_validator (tests/test_decorators/test_advanced.py:184, 'trap_fields' in validator.__code__.co_freevars); the closure now holds the trap_names set built at guard_core/decorators/advanced.py:127 and the helpers imported at :132-143, so the free variables are FORM_MEDIA_TYPE, JSON_MEDIA_TYPE, MULTIPART_MEDIA_TYPE, config, form_has_filled_trap, json_has_filled_trap and more (the judge matches the message up to the tuple, so pytest's verbosity does not matter); the decorator behavior is unchanged"
   },
   {
     "test": "tests/test_decorators/test_advanced.py::test_honeypot_detection_configuration[/json-honeypot-expected_fields1-JSON honeypot should have trap fields configured]",
     "exception": "AssertionError",
-    "message": "assert 'trap_fields' in ('FORM_MEDIA_TYPE', 'JSON_MEDIA_TYPE', 'MULTIPART_MEDIA_TYPE', 'config', 'form_has_filled_trap', 'json_has_filled_trap', ...)",
-    "reason": "test-only: asserts the closure variable names of honeypot_validator (tests/test_decorators/test_advanced.py:184, 'trap_fields' in validator.__code__.co_freevars); the closure now holds the trap_names set built at guard_core/decorators/advanced.py:127 and the helpers imported at :132-143, so the free variables are FORM_MEDIA_TYPE, JSON_MEDIA_TYPE, MULTIPART_MEDIA_TYPE, config, form_has_filled_trap, json_has_filled_trap and more (pytest elides the tail); the decorator behavior is unchanged",
-    "exact": true
+    "message": "assert 'trap_fields' in (",
+    "reason": "test-only: asserts the closure variable names of honeypot_validator (tests/test_decorators/test_advanced.py:184, 'trap_fields' in validator.__code__.co_freevars); the closure now holds the trap_names set built at guard_core/decorators/advanced.py:127 and the helpers imported at :132-143, so the free variables are FORM_MEDIA_TYPE, JSON_MEDIA_TYPE, MULTIPART_MEDIA_TYPE, config, form_has_filled_trap, json_has_filled_trap and more (the judge matches the message up to the tuple, so pytest's verbosity does not matter); the decorator behavior is unchanged"
   },
   {
     "test": "tests/test_decorators/test_advanced.py::test_honeypot_form_detection",
@@ -74,14 +72,14 @@
     "test": "tests/test_decorators/test_extension_integration.py::test_time_window_normal",
     "exception": "AssertionError",
     "message": "assert False is True",
-    "reason": "CHANGELOG.md:165 (LEDGER 1.08, the time window compares minutes) and CHANGELOG.md:260 (a time-window evaluation error denies the request): the test (tests/test_decorators/test_extension_integration.py:238) patches guard_core.sync.core.validation.validator.datetime and sets only now().strftime, so the 5.0.0 check reads .hour and .minute (guard_core/sync/_utils/time_window.py:32) from a MagicMock, the comparison raises TypeError, and the evaluation error denies (same file, :39-44); a real clock gives the window the tag's test intends",
+    "reason": "the CHANGELOG entry \"`@time_window` compares minutes, so `'9:00'` is 09:00\" (LEDGER 1.08) and the CHANGELOG entry \"A time-window evaluation error denies the request instead of allowing it\": the test (tests/test_decorators/test_extension_integration.py:238) patches guard_core.sync.core.validation.validator.datetime and sets only now().strftime, so the 5.0.0 check reads .hour and .minute (guard_core/sync/_utils/time_window.py:32) from a MagicMock, the comparison raises TypeError, and the evaluation error denies (same file, :39-44); a real clock gives the window the tag's test intends",
     "exact": true
   },
   {
     "test": "tests/test_decorators/test_extension_integration.py::test_time_window_overnight",
     "exception": "AssertionError",
     "message": "assert False is True",
-    "reason": "CHANGELOG.md:165 (LEDGER 1.08, the time window compares minutes) and CHANGELOG.md:260 (a time-window evaluation error denies the request): the test (tests/test_decorators/test_extension_integration.py:214) patches guard_core.sync.core.validation.validator.datetime and sets only now().strftime, so the 5.0.0 check reads .hour and .minute (guard_core/sync/_utils/time_window.py:32) from a MagicMock, the comparison raises TypeError, and the evaluation error denies (same file, :39-44); a real clock gives the window the tag's test intends",
+    "reason": "the CHANGELOG entry \"`@time_window` compares minutes, so `'9:00'` is 09:00\" (LEDGER 1.08) and the CHANGELOG entry \"A time-window evaluation error denies the request instead of allowing it\": the test (tests/test_decorators/test_extension_integration.py:214) patches guard_core.sync.core.validation.validator.datetime and sets only now().strftime, so the 5.0.0 check reads .hour and .minute (guard_core/sync/_utils/time_window.py:32) from a MagicMock, the comparison raises TypeError, and the evaluation error denies (same file, :39-44); a real clock gives the window the tag's test intends",
     "exact": true
   },
   {

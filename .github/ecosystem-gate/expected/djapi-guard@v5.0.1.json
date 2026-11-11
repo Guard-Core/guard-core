@@ -40,14 +40,14 @@
     "test": "tests/test_decorators/test_extension_integration.py::test_time_window_normal",
     "exception": "AssertionError",
     "message": "assert False is True",
-    "reason": "CHANGELOG.md:165 (LEDGER 1.08, the time window compares minutes) and CHANGELOG.md:260 (a time-window evaluation error denies the request): the test (tests/test_decorators/test_extension_integration.py:246) patches guard_core.sync.core.validation.validator.datetime and sets only now().strftime, so the 5.0.0 check reads .hour and .minute (guard_core/sync/_utils/time_window.py:32) from a MagicMock, the comparison raises TypeError, and the evaluation error denies (same file, :39-44); a real clock gives the window the tag's test intends",
+    "reason": "the CHANGELOG entry \"`@time_window` compares minutes, so `'9:00'` is 09:00\" (LEDGER 1.08) and the CHANGELOG entry \"A time-window evaluation error denies the request instead of allowing it\": the test (tests/test_decorators/test_extension_integration.py:246) patches guard_core.sync.core.validation.validator.datetime and sets only now().strftime, so the 5.0.0 check reads .hour and .minute (guard_core/sync/_utils/time_window.py:32) from a MagicMock, the comparison raises TypeError, and the evaluation error denies (same file, :39-44); a real clock gives the window the tag's test intends",
     "exact": true
   },
   {
     "test": "tests/test_decorators/test_extension_integration.py::test_time_window_overnight",
     "exception": "AssertionError",
     "message": "assert False is True",
-    "reason": "CHANGELOG.md:165 (LEDGER 1.08, the time window compares minutes) and CHANGELOG.md:260 (a time-window evaluation error denies the request): the test (tests/test_decorators/test_extension_integration.py:219) patches guard_core.sync.core.validation.validator.datetime and sets only now().strftime, so the 5.0.0 check reads .hour and .minute (guard_core/sync/_utils/time_window.py:32) from a MagicMock, the comparison raises TypeError, and the evaluation error denies (same file, :39-44); a real clock gives the window the tag's test intends",
+    "reason": "the CHANGELOG entry \"`@time_window` compares minutes, so `'9:00'` is 09:00\" (LEDGER 1.08) and the CHANGELOG entry \"A time-window evaluation error denies the request instead of allowing it\": the test (tests/test_decorators/test_extension_integration.py:219) patches guard_core.sync.core.validation.validator.datetime and sets only now().strftime, so the 5.0.0 check reads .hour and .minute (guard_core/sync/_utils/time_window.py:32) from a MagicMock, the comparison raises TypeError, and the evaluation error denies (same file, :39-44); a real clock gives the window the tag's test intends",
     "exact": true
   },
   {
