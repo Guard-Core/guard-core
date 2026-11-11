@@ -148,7 +148,9 @@ class PerformanceMonitor:
 
     async def get_slow_patterns(self, limit: int = 10) -> list[PatternReport]:
         """
-        Return patterns exceeding the slow threshold.
+        Return the reports of up to ``limit`` patterns, slowest average
+        execution time first. Only patterns with recorded execution times
+        are ranked; there is no threshold.
         """
 
     async def get_problematic_patterns(self) -> list[PatternReport]:

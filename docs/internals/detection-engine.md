@@ -306,7 +306,7 @@ Detected anomalies are forwarded to every registered callback on every trip. Sen
 | Method                   | Returns                                              |
 |--------------------------|------------------------------------------------------|
 | `get_pattern_report(p)`  | Stats for a specific pattern (executions, matches, timeouts, avg/max/min time) |
-| `get_slow_patterns(n)`   | Top N slowest patterns by average execution time     |
+| `get_slow_patterns(limit=10)` | Reports of up to `limit` patterns, slowest average execution time first (no threshold applies) |
 | `get_problematic_patterns()` | Patterns with >10% timeout rate or consistently slow execution |
 | `get_summary_stats()`    | Overall summary (total executions, avg time, timeout rate, match rate) |
 
