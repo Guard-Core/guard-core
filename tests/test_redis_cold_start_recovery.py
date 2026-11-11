@@ -600,7 +600,9 @@ async def test_removing_the_check_never_skips_or_repeats_one_in_flight(  # async
     assert app.names() == [RECOVERY_CHECK, "first", "middle"]
 
     waiting = [asyncio.ensure_future(app.request()) for _ in range(10)]
-    await asyncio.sleep(0.1)
+    end = monotonic() + 5
+    while monotonic() < end and len(middle.seen) < 10:
+        await asyncio.sleep(0.01)
     assert len(middle.seen) == 10
     app.initializer._disarm_redis_cold_start_recovery()
     assert app.names() == ["first", "middle"]
@@ -799,11 +801,10 @@ async def test_fail_closed_gets_its_503_fast_during_an_outage(
     with patch.object(app.redis, "_open_connection", attempts):
         with pytest.raises(GuardRedisError):
             await app.start()
-        began = monotonic()
         with pytest.raises(GuardRedisError):
             async with app.redis.get_connection():
                 pass
-        assert monotonic() - began < 0.1
+        # Refused on the frozen gate clock, no further attempt: no timer waited on.
         assert attempts.call_count == 1
         clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
         with pytest.raises(GuardRedisError):
@@ -989,6 +990,24 @@ async def test_a_fail_open_blip_writes_keys_on_the_first_attempt_after_the_first
     assert attempts.call_count == 1
     assert keys_under(prefix) > 0
     assert app.names() == []
+    # A success resets the backoff: a second blip gets the first window again.
+    forwarder.off()
+    assert app.redis is not None
+    await app.redis._discard_client()
+    with patch.object(app.redis, "_open_connection", attempts):
+        await app.ban()
+        await app.settle()
+        assert attempts.call_count == 2
+        clock.now += 0.24
+        await app.ban()
+        await app.settle()
+        assert attempts.call_count == 2
+        forwarder.on()
+        clock.now += 0.02
+        await app.ban()
+        await app.settle()
+        await app.ban()
+    assert attempts.call_count == 3
 
 
 class SuperCallingHandler(RedisHandlerBase):

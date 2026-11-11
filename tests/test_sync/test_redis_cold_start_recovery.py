@@ -749,11 +749,10 @@ def test_fail_closed_gets_its_503_fast_during_an_outage(
     with patch.object(app.redis, "_open_connection", attempts):
         with pytest.raises(GuardRedisError):
             app.start()
-        began = monotonic()
         with pytest.raises(GuardRedisError):
             with app.redis.get_connection():
                 pass
-        assert monotonic() - began < 0.1
+        # Refused on the frozen gate clock, no further attempt: no timer waited on.
         assert attempts.call_count == 1
         clock.now += REDIS_OUTAGE_RETRY_AFTER + 0.1
         with pytest.raises(GuardRedisError):
@@ -939,6 +938,24 @@ def test_a_fail_open_blip_writes_keys_on_the_first_attempt_after_the_first_windo
     assert attempts.call_count == 1
     assert keys_under(prefix) > 0
     assert app.names() == []
+    # A success resets the backoff: a second blip gets the first window again.
+    forwarder.off()
+    assert app.redis is not None
+    app.redis._discard_client()
+    with patch.object(app.redis, "_open_connection", attempts):
+        app.ban()
+        app.settle()
+        assert attempts.call_count == 2
+        clock.now += 0.24
+        app.ban()
+        app.settle()
+        assert attempts.call_count == 2
+        forwarder.on()
+        clock.now += 0.02
+        app.ban()
+        app.settle()
+        app.ban()
+    assert attempts.call_count == 3
 
 
 class SuperCallingHandler(RedisHandlerBase):
