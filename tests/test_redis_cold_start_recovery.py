@@ -932,26 +932,35 @@ async def test_a_refused_outage_held_30_s_is_tried_at_most_12_times_and_reported
     assert 1 <= events.count("connection_failed") <= 7
 
 
-async def test_a_fail_closed_blip_serves_within_half_a_second_of_the_restore(
-    forwarder: RedisForwarder, prefix: str
+async def test_a_fail_closed_blip_serves_on_the_first_attempt_after_the_first_window(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
 ) -> None:
+    # Counted in attempts on the gate's clock, not in wall time (see the fail-open
+    # twin below): none inside the first 0.25 s window, one right after it.
     manager = RedisManager(config_for(forwarder.url, prefix, fail_open=False))
     with pytest.raises(GuardRedisError):
         async with manager.get_connection():
             pass
-    await asyncio.sleep(0.1)
     forwarder.on()
-    restored = monotonic()
-    served = None
-    while monotonic() - restored < 2.0:
-        try:
-            async with manager.get_connection() as connection:
-                assert await connection.ping()
-            served = monotonic() - restored
-            break
-        except GuardRedisError:
-            await asyncio.sleep(0.05)
-    assert served is not None and served < 0.5
+    attempts = MagicMock(wraps=manager._open_connection)
+    with patch.object(manager, "_open_connection", attempts):
+        clock.now += 0.24
+        with pytest.raises(GuardRedisError):
+            async with manager.get_connection():
+                pass
+        await settle(manager)
+        assert attempts.call_count == 0
+        clock.now += 0.02
+        for _ in range(2):
+            try:
+                async with manager.get_connection() as connection:
+                    assert await connection.ping()
+                break
+            except GuardRedisError:
+                await settle(manager)
+        else:
+            pytest.fail("never served")
+    assert attempts.call_count == 1
     await manager.close()
 
 
