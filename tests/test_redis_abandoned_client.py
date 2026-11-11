@@ -1,8 +1,10 @@
 import asyncio
+import contextlib
 import gc
 import threading
+import time
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from unittest.mock import Mock
 
 import pytest
@@ -15,6 +17,13 @@ from guard_core._redis_client_loop import EventLoop
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL, suite_redis_prefix
+
+
+@pytest.fixture(autouse=True)
+def _empty_registry() -> Iterator[None]:
+    abandoned._pending.clear()
+    yield
+    abandoned._pending.clear()
 
 
 def _manager() -> RedisManager:
@@ -311,13 +320,28 @@ def test_many_loops_stopping_while_clients_are_abandoned_leave_none_undropped(
     assert abandoned._pending == {}
 
 
-def _strand(client: Redis) -> None:
-    loop = asyncio.new_event_loop()
+class _SlowToAnswerIsClosed(asyncio.SelectorEventLoop):
+    """Widens the window between a sweep listing its entries and claiming them."""
+
+    def is_closed(self) -> bool:
+        time.sleep(0.0005)
+        return super().is_closed()
+
+
+class _LoopThatClosesQuietlyWhenCollected(asyncio.SelectorEventLoop):
+    def __del__(self) -> None:
+        with contextlib.suppress(ValueError):
+            self.close()
+
+
+def _strand(client: Redis, slow: bool = False) -> EventLoop:
+    loop = _SlowToAnswerIsClosed() if slow else asyncio.new_event_loop()
     thread, release = _loop_in_its_last_iteration(loop)
     abandon_client(client, loop)
     release.set()
     thread.join(5)
     assert loop.is_closed()
+    return loop
 
 
 def _pending_token_of(client: Redis) -> int:
@@ -365,32 +389,73 @@ def test_a_callback_and_a_sweep_never_both_drop_the_same_client(
     assert dropped == [first, second]
 
 
-def test_a_callback_racing_a_sweep_drops_each_client_exactly_once(
+def test_callbacks_racing_sweeps_drop_each_client_exactly_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    dropped = _record_drops(monkeypatch)
-    clients = [_new_client() for _ in range(50)]
-    for client in clients:
-        _strand(client)
+    dropped: list[Redis] = []
+
+    def slow_drop(client: Redis) -> None:
+        time.sleep(0.001)  # widens the window between claiming and dropping
+        dropped.append(client)
+
+    monkeypatch.setattr(abandoned, "_drop_connection_sockets", slow_drop)
+    clients = [_new_client() for _ in range(40)]
+    # every loop is closed and kept alive: sweeps and callbacks contend
+    loops = [_strand(client, slow=True) for client in clients]
     tokens = list(abandoned._pending)
-    barrier = threading.Barrier(2)
+    barrier = threading.Barrier(4)
+    failures: list[BaseException] = []
+
+    def contend(action: Callable[[], None]) -> None:
+        barrier.wait()
+        try:
+            action()
+        except BaseException as error:
+            failures.append(error)
 
     def callbacks() -> None:
-        barrier.wait()
         for token in tokens:
             abandoned._drop_pending(token)
 
     def sweeps() -> None:
-        barrier.wait()
         for _ in tokens:
             abandoned.sweep_abandoned_clients()
 
-    workers = [threading.Thread(target=f) for f in (callbacks, sweeps)]
+    workers = [
+        threading.Thread(target=contend, args=(f,))
+        for f in (callbacks, callbacks, sweeps, sweeps)
+    ]
     for worker in workers:
         worker.start()
     for worker in workers:
-        worker.join(10)
+        worker.join(30)
 
+    assert failures == [] and len(loops) == len(clients)
+    assert sorted(map(id, dropped)) == sorted(map(id, clients))
+    assert abandoned._pending == {}
+
+
+def test_loops_collected_before_any_sweep_leave_nothing_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dropped = _record_drops(monkeypatch)
+    clients = [_new_client() for _ in range(25)]
+
+    def stop_and_abandon_to_a_loop_nobody_keeps(client: Redis) -> None:
+        loop = _LoopThatClosesQuietlyWhenCollected()
+        loop.call_soon(loop.stop)
+        loop.run_forever()
+        abandon_client(client, loop)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ResourceWarning)
+        for client in clients:
+            stop_and_abandon_to_a_loop_nobody_keeps(client)
+        gc.collect()
+
+    abandoned.sweep_abandoned_clients()
+
+    assert abandoned._pending == {}
     assert sorted(map(id, dropped)) == sorted(map(id, clients))
 
 

@@ -4,6 +4,7 @@ import atexit
 import itertools
 import logging
 import threading
+import weakref
 from typing import TYPE_CHECKING
 
 from guard_core._redis_client_loop import EventLoop
@@ -48,7 +49,7 @@ def _drop_connection_sockets(client: Redis) -> None:
 
 
 _pending_lock = threading.Lock()
-_pending: dict[int, tuple[Redis, EventLoop]] = {}
+_pending: dict[int, tuple[Redis, weakref.ref[EventLoop]]] = {}
 _pending_ids = itertools.count()
 _logger = logging.getLogger(__name__)
 
@@ -62,25 +63,32 @@ def _drop_once_and_survive_failure(client: Redis) -> None:
 
 def _drop_pending(token: int) -> None:
     # Whoever removes the entry owns the drop, so a sweep and the loop's own
-    # callback never both touch the same connections.
+    # callback never both touch the same connections. The lock also keeps a pop
+    # from resizing the dict while a sweep iterates it.
     with _pending_lock:
         entry = _pending.pop(token, None)
     if entry is not None:
         _drop_once_and_survive_failure(entry[0])
 
 
+def _is_gone_or_closed(loop: EventLoop | None) -> bool:
+    # A collected loop closed itself and discarded its queued drop.
+    return loop is None or loop.is_closed()
+
+
 def _claim_pending(only_closed_loops: bool) -> list[Redis]:
     with _pending_lock:
         tokens = [
             token
-            for token, (_, loop) in _pending.items()
-            if loop.is_closed() or not only_closed_loops
+            for token, (_, loop_ref) in _pending.items()
+            if not only_closed_loops or _is_gone_or_closed(loop_ref())
         ]
         return [_pending.pop(token)[0] for token in tokens]
 
 
 def sweep_abandoned_clients() -> None:
-    """Drop, from the calling thread, every pending client whose loop is closed.
+    """Drop, from the calling thread, every pending client whose loop is closed or
+    was garbage collected (the registry holds loops weakly, so it keeps none alive).
 
     A loop that is stopped but not closed keeps its entry: its scheduled drop is
     still queued and runs on its own thread if it runs again. Each drop is
@@ -115,7 +123,7 @@ def abandon_client(client: Redis, client_loop: EventLoop) -> None:
     sweep_abandoned_clients()
     token = next(_pending_ids)
     with _pending_lock:
-        _pending[token] = (client, client_loop)
+        _pending[token] = (client, weakref.ref(client_loop))
     try:
         client_loop.call_soon_threadsafe(_drop_pending, token)
     except RuntimeError:
