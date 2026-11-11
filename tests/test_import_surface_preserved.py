@@ -656,6 +656,7 @@ _ADAPTER_IMPORTS: dict[str, tuple[str, ...]] = {
         "is_ip_allowed",
         "rate_limit_handler",
         "redis_handler",
+        "release_app",
         "security_headers_manager",
         "sus_patterns_handler",
     ),
@@ -762,6 +763,7 @@ _ADAPTER_IMPORTS: dict[str, tuple[str, ...]] = {
         "*module*",
         "apply_security_headers_settings",
         "endpoint_rate_limit_key_problems",
+        "release_app",
     ),
     "guard_core.sync._utils.app_scope": (
         "_current_app_scope",

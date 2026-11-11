@@ -105,6 +105,8 @@ Not a flip, but new in 5.0.0, for a process or test suite that builds one app af
 
 Call `release_app(config)` (from `guard_core._utils.app_managers`, or `guard_core.sync._utils.app_managers` for the synchronous engine) when an app is finished: the framework's shutdown or lifespan end, or a test fixture's teardown. The next app then binds the default every time. If another app shares the default (same `redis_prefix` and connection), the default keeps serving that app. Calling it twice, or for a config that was never bound, does nothing.
 
+The supported import is `from guard_core import release_app` (async engine) or `from guard_core.sync import release_app` (sync engine).
+
 An app that is never released keeps the handoff that waits for the collector. Adapters call it from their own shutdown where the framework has one. Flask and Django have no app-shutdown event, so there it is a host and test API, never something to call from a per-request hook.
 
 ___

@@ -417,6 +417,15 @@ def test_endpoint_rate_limit_key_problems_imports_from_both_packages() -> None:
     assert "endpoint_rate_limit_key_problems" in guard_core.sync.__all__
 
 
+def test_release_app_imports_from_both_packages() -> None:
+    from guard_core import release_app as async_form
+    from guard_core.sync import release_app as sync_form
+
+    assert async_form is not sync_form
+    assert "release_app" in guard_core.__all__
+    assert "release_app" in guard_core.sync.__all__
+
+
 @pytest.mark.parametrize(
     "package", ["guard_core.protocols", "guard_core.sync.protocols"]
 )
