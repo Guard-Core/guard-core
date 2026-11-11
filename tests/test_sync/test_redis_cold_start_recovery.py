@@ -73,7 +73,7 @@ class RedisForwarder:
     def off(self) -> None:
         listener, self._listener = self._listener, None
         if listener is not None:
-            listener.close()
+            self._close(listener)
         with self._lock:
             sockets, self._open = self._open, []
         for sock in sockets:
@@ -1042,6 +1042,17 @@ def test_an_initialize_that_swallows_the_failure_keeps_the_backoff(
             break
     assert pipeline.get_check_names() == []
     handler.close()
+
+
+def test_a_forwarder_turned_off_mid_accept_refuses_new_connections(
+    forwarder: RedisForwarder,
+) -> None:
+    forwarder.on()
+    time.sleep(0.2)
+    forwarder.off()
+
+    with pytest.raises(ConnectionRefusedError):
+        socket.create_connection(("127.0.0.1", forwarder.port), timeout=2)
 
 
 def test_a_second_outage_after_a_recovery_reports_its_first_failure(
