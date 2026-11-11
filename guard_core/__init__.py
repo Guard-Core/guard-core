@@ -9,10 +9,10 @@ except PackageNotFoundError:
     __version__ = "unknown"
 
 if TYPE_CHECKING:
-    from guard_core._utils.app_managers import release_app
     from guard_core._pydantic_plugin_mute import (
         _mute_pydantic_plugin_instrumentation as _mute_pydantic_plugin_instrumentation,
     )
+    from guard_core._utils.app_managers import release_app
     from guard_core.decorators import RouteConfig, SecurityDecorator
     from guard_core.handlers._dynamic_rule_validation import (
         endpoint_rate_limit_key_problems,
