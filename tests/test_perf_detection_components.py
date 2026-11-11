@@ -49,15 +49,15 @@ def test_ban_store_memory_counts_every_distinct_address() -> None:
 
 
 def test_multipart_cells_build_a_body_of_the_requested_size_for_every_shape() -> None:
-    from perf_gate import multipart_cells
+    from perf_gate import multipart_cell_inputs
 
     for shape in ("mp-flat", "mp-escaped", "mp-binary"):
-        body, content_type = multipart_cells.build_multipart(shape, 4096)
+        body, content_type = multipart_cell_inputs.build_multipart(shape, 4096)
         assert len(body) == 4096
         assert content_type == (
-            f"multipart/form-data; boundary={multipart_cells.BOUNDARY}"
+            f"multipart/form-data; boundary={multipart_cell_inputs.BOUNDARY}"
         )
-        assert body.endswith(f"--{multipart_cells.BOUNDARY}--\r\n".encode())
+        assert body.endswith(f"--{multipart_cell_inputs.BOUNDARY}--\r\n".encode())
 
 
 async def test_the_second_boot_on_one_validation_file_hits_every_pattern() -> None:
@@ -75,22 +75,24 @@ async def test_the_second_boot_on_one_validation_file_hits_every_pattern() -> No
 
 
 def test_multipart_cells_leave_out_the_settings_an_older_engine_lacks() -> None:
-    from perf_gate import multipart_cells
+    from perf_gate import multipart_cell_inputs
 
-    older = multipart_cells._config_kwargs(1048576, {"enable_redis", "rate_limit"})
-    newer = multipart_cells._config_kwargs(
+    older = multipart_cell_inputs._config_kwargs(
+        1048576, {"enable_redis", "rate_limit"}
+    )
+    newer = multipart_cell_inputs._config_kwargs(
         1048576, {"enable_redis", "rate_limit", "async_body_read_max_concurrent"}
     )
     assert set(older) == {"enable_redis", "rate_limit"}
-    assert newer["async_body_read_max_concurrent"] == multipart_cells.SLOTS
+    assert newer["async_body_read_max_concurrent"] == multipart_cell_inputs.SLOTS
 
 
 def test_multipart_cells_count_every_refusal_by_its_reason() -> None:
-    from perf_gate import multipart_cells
+    from perf_gate import multipart_cell_inputs
 
-    multipart_cells._REFUSAL_REASONS.clear()
-    assert multipart_cells._note_refusal(200, "ok") == 200
-    assert multipart_cells._note_refusal(400, " Bad request \n") == 400
-    assert multipart_cells._note_refusal(400, "Bad request") == 400
-    assert multipart_cells._REFUSAL_REASONS == {"400 Bad request": 2}
-    multipart_cells._REFUSAL_REASONS.clear()
+    multipart_cell_inputs._REFUSAL_REASONS.clear()
+    assert multipart_cell_inputs._note_refusal(200, "ok") == 200
+    assert multipart_cell_inputs._note_refusal(400, " Bad request \n") == 400
+    assert multipart_cell_inputs._note_refusal(400, "Bad request") == 400
+    assert multipart_cell_inputs._REFUSAL_REASONS == {"400 Bad request": 2}
+    multipart_cell_inputs._REFUSAL_REASONS.clear()
