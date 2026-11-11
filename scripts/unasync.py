@@ -674,11 +674,11 @@ _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
 )
 
 _ASYNC_CURRENT_OWNER_SRC = (
-    "def _current_owner() -> int:\n    return id(asyncio.current_task())\n"
+    "def _current_owner() -> object:\n    return asyncio.current_task() or _NO_TASK\n"
 )
 
 _SYNC_CURRENT_OWNER_REPLACEMENT = (
-    "def _current_owner() -> int:\n    return threading.get_ident()\n"
+    "def _current_owner() -> object:\n    return threading.current_thread()\n"
 )
 
 SUBS: list[tuple[str, str]] = [
@@ -935,11 +935,32 @@ _SYNC_SPAWN_HELPERS_REPLACEMENT = (
     "    spawned.join()\n"
     "\n"
     "\n"
+    "def _owner_address() -> int:\n"
+    "    return threading.get_ident()\n"
+    "\n"
+    "\n"
+    "def _run_on_the_address_of_a_dead_owner(\n"
+    "    address: int, work: Callable[[], None], bound: int\n"
+    ") -> bool:\n"
+    "    ran: list[bool] = []\n"
+    "\n"
+    "    def probe() -> None:\n"
+    "        if _owner_address() == address:\n"
+    "            ran.append(True)\n"
+    "            work()\n"
+    "\n"
+    "    for _ in range(bound):\n"
+    "        _finished(_spawn_in_this_context(probe))\n"
+    "        if ran:\n"
+    "            return True\n"
+    "    return False\n"
+    "\n"
+    "\n"
 )
 
 TEST_SUBS: list[tuple[str, str]] = [
     (
-        r"(?s)def _spawn_in_this_context\(.*?def _finished\(.*?\n\n\n",
+        r"(?s)def _spawn_in_this_context\(.*?return False\n\n\n",
         _SYNC_SPAWN_HELPERS_REPLACEMENT.replace("\\", "\\\\"),
     ),
     (
