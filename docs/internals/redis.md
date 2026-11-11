@@ -76,7 +76,12 @@ All operations use this context manager, which:
 ### Safe Operations
 
 ```python
-async def safe_operation(self, func, *args, **kwargs) -> Any: ...
+async def safe_operation(
+    self,
+    func: RedisOperation[OperationParams, OperationResult],
+    *args: OperationParams.args,
+    **kwargs: OperationParams.kwargs,
+) -> OperationResult | None: ...
 ```
 
 Wraps any async function that takes a Redis connection as its first argument. Returns `None` if Redis is disabled. Raises `GuardRedisError` on failure.

@@ -48,7 +48,7 @@ async def send_middleware_event(
     request: GuardRequest,
     action_taken: str,
     reason: str,
-    **kwargs: Any,
+    **kwargs: object,
 ) -> None: ...
 ```
 
@@ -104,8 +104,10 @@ async def send_cloud_detection_events(
     client_ip: str,
     cloud_providers_to_check: list[str],
     route_config: RouteConfig | None,
-    cloud_handler: Any,
+    cloud_handler: CloudManager,
     passive_mode: bool,
+    cloud_details: tuple[str, str] | None = None,
+    attribution: dict[str, object] | None = None,
 ) -> None: ...
 ```
 

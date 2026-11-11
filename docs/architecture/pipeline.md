@@ -155,7 +155,7 @@ class SecurityCheck(ABC):
         request: GuardRequest,
         action_taken: str,
         reason: str,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
         await self.middleware.event_bus.send_middleware_event(
             event_type=event_type,

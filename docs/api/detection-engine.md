@@ -61,8 +61,9 @@ class ContentPreprocessor:
         self,
         max_content_length: int = 10000,
         preserve_attack_patterns: bool = True,
-        agent_handler: Any = None,
+        agent_handler: AgentHandlerProtocol | None = None,
         correlation_id: str | None = None,
+        max_full_scan_bytes: int | None = None,
     ):
         """
         Preprocess request content before pattern matching.
@@ -133,24 +134,26 @@ class PerformanceMonitor:
         content_length: int,
         matched: bool,
         timeout: bool = False,
-        agent_handler: Any = None,
+        agent_handler: AgentHandlerProtocol | None = None,
         correlation_id: str | None = None,
     ) -> None:
         """
         Record a single pattern execution metric.
         """
 
-    async def get_summary_stats(self) -> dict[str, Any]:
+    async def get_summary_stats(self) -> PerformanceSummary:
         """
         Return aggregate performance statistics.
         """
 
-    async def get_slow_patterns(self) -> list[dict[str, Any]]:
+    async def get_slow_patterns(self, limit: int = 10) -> list[PatternReport]:
         """
-        Return patterns exceeding the slow threshold.
+        Return the reports of up to ``limit`` patterns, slowest average
+        execution time first. Only patterns with recorded execution times
+        are ranked; there is no threshold.
         """
 
-    async def get_problematic_patterns(self) -> list[dict[str, Any]]:
+    async def get_problematic_patterns(self) -> list[PatternReport]:
         """
         Return patterns with high timeout rates or anomalous execution times.
         """

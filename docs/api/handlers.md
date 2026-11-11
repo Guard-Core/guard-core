@@ -19,16 +19,18 @@ Manages banned IP addresses with a dual-layer cache (TTLCache + Redis).
 
 ```python
 class IPBanManager:
-    banned_ips: TTLCache
-    redis_handler: Any
-    agent_handler: Any
+    banned_ips: MutableMapping[str, float]
+    redis_handler: RedisHandlerProtocol | None
+    agent_handler: AgentHandlerProtocol | None
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(
+        self, redis_handler: RedisHandlerProtocol | None
+    ) -> None:
         """
         Set the Redis handler for distributed ban storage.
         """
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         """
         Set the agent handler for telemetry events.
         """
@@ -70,9 +72,10 @@ class RateLimitManager:
     config: SecurityConfig
     request_timestamps: defaultdict[str, deque[float]]
     logger: logging.Logger
-    redis_handler: Any
-    agent_handler: Any
+    redis_handler: RedisHandlerProtocol | None
+    agent_handler: AgentHandlerProtocol | None
     rate_limit_script_sha: str | None
+    bound_to_app: bool
 
     def __new__(
         cls: type["RateLimitManager"], config: SecurityConfig
@@ -82,12 +85,14 @@ class RateLimitManager:
         SHA and agent handler belong to the middleware that built it.
         """
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(
+        self, redis_handler: RedisHandlerProtocol | None
+    ) -> None:
         """
         Set the Redis handler and load the Lua rate-limiting script.
         """
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         """
         Set the agent handler for telemetry events.
         """
@@ -140,21 +145,21 @@ class CloudManager:
     ip_ranges: dict[str, set[IPv4Network | IPv6Network]]
     network_regions: dict[str, dict[str, str]]
     last_updated: dict[str, datetime | None]
-    redis_handler: Any
-    agent_handler: Any
+    redis_handler: RedisHandlerProtocol | None
+    agent_handler: AgentHandlerProtocol | None
     logger: logging.Logger
 
     async def initialize_redis(
         self,
-        redis_handler: Any,
-        providers: set[str] = _ALL_PROVIDERS,
+        redis_handler: RedisHandlerProtocol,
+        providers: Collection[str] = _ALL_PROVIDERS,
         ttl: int = 3600,
     ) -> None:
         """
         Set the Redis handler and refresh cloud IP ranges with caching.
         """
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         """
         Set the agent handler for telemetry events.
         """
@@ -209,7 +214,7 @@ Provides namespaced Redis operations with connection management and fault tolera
 class RedisManager:
     config: SecurityConfig
     logger: logging.Logger
-    agent_handler: Any
+    agent_handler: EventSink | None
 
     def __new__(cls: type["RedisManager"], config: SecurityConfig) -> "RedisManager":
         """
@@ -221,7 +226,7 @@ class RedisManager:
         Establish the Redis connection. Raises GuardRedisError on failure.
         """
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: EventSink) -> None:
         """
         Set the agent handler for telemetry events.
         """
@@ -237,18 +242,23 @@ class RedisManager:
         Context manager yielding a live Redis connection.
         """
 
-    async def safe_operation(self, func: Any, *args: Any, **kwargs: Any) -> Any:
+    async def safe_operation(
+        self,
+        func: RedisOperation[OperationParams, OperationResult],
+        *args: OperationParams.args,
+        **kwargs: OperationParams.kwargs,
+    ) -> OperationResult | None:
         """
         Execute a function with an auto-managed Redis connection.
         """
 
-    async def get_key(self, namespace: str, key: str) -> Any:
+    async def get_key(self, namespace: str, key: str) -> str | None:
         """
         Get a namespaced key value.
         """
 
     async def set_key(
-        self, namespace: str, key: str, value: Any, ttl: int | None = None
+        self, namespace: str, key: str, value: RedisValue, ttl: int | None = None
     ) -> bool | None:
         """
         Set a namespaced key with optional TTL.
@@ -292,22 +302,26 @@ Applies HTTP security headers (CSP, HSTS, CORS, and defaults) to responses.
 ```python
 class SecurityHeadersManager:
     headers_cache: TTLCache
-    redis_handler: Any
-    agent_handler: Any
+    redis_handler: SecurityHeadersRedisHandler | None
+    agent_handler: AgentHandlerProtocol | None
     logger: logging.Logger
     enabled: bool
     custom_headers: dict[str, str]
     csp_config: dict[str, list[str]] | None
-    hsts_config: dict[str, Any] | None
-    cors_config: dict[str, Any] | None
+    hsts_config: dict[str, object] | None
+    cors_config: dict[str, object] | None
     default_headers: dict[str, str]
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(
+        self,
+        redis_handler: SecurityHeadersRedisHandler,
+        config: SecurityConfig | None = None,
+    ) -> None:
         """
         Set the Redis handler and load/cache header configuration.
         """
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         """
         Set the agent handler for telemetry events.
         """
@@ -345,7 +359,7 @@ class SecurityHeadersManager:
         Return CORS headers for the given origin, or empty dict if disallowed.
         """
 
-    async def validate_csp_report(self, report: dict[str, Any]) -> bool:
+    async def validate_csp_report(self, report: Mapping[str, object]) -> bool:
         """
         Validate and log a CSP violation report. Returns True if valid.
         """
@@ -391,12 +405,12 @@ class BehaviorTracker:
         Create a tracker bound to the given SecurityConfig.
         """
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
         """
         Set the Redis handler for distributed tracking.
         """
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         """
         Set the agent handler for telemetry events.
         """
@@ -450,11 +464,11 @@ class SusPatternsManager:
     custom_patterns: set[str]
     compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
-    redis_handler: Any
-    agent_handler: Any
+    redis_handler: RedisHandlerProtocol | None
+    agent_handler: AgentHandlerProtocol | None
 
     def __new__(
-        cls: type["SusPatternsManager"], config: Any = None
+        cls: type["SusPatternsManager"], config: object = None
     ) -> "SusPatternsManager":
         """
         Singleton constructor. Optionally accepts a config to initialize
@@ -462,12 +476,14 @@ class SusPatternsManager:
         analyzer, performance monitor).
         """
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(
+        self, redis_handler: RedisHandlerProtocol | None
+    ) -> None:
         """
         Set the Redis handler and load cached custom patterns.
         """
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         """
         Set the agent handler for telemetry events.
         """
@@ -479,10 +495,12 @@ class SusPatternsManager:
         context: str = "unknown",
         correlation_id: str | None = None,
         enabled_categories: set[str] | None = None,
-    ) -> dict[str, Any]:
+        *,
+        content_preview: str | LazyPreview | None = None,
+    ) -> DetectionResult:
         """
         Run full detection (regex + semantic) on content.
-        Returns a result dict with is_threat, threat_score, threats, etc.
+        Returns a DetectionResult with is_threat, threat_score, threats, etc.
         When enabled_categories is None, all built-in categories run.
         Custom patterns always run regardless of the filter.
         """
@@ -527,7 +545,7 @@ class SusPatternsManager:
     ) -> list[tuple[re.Pattern, frozenset[str], str]]: ...
 
     @classmethod
-    async def get_performance_stats(cls) -> dict[str, Any] | None:
+    async def get_performance_stats(cls) -> PerformanceStats | None:
         """
         Return performance statistics if the monitor is active.
         """

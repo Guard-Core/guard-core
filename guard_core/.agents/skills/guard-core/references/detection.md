@@ -13,6 +13,7 @@ result = await SusPatternsManager().detect(
     context="query_param",  # one of the context zones
     correlation_id=None,
     enabled_categories=None,  # subset of the 19, None = all
+    content_preview=None,  # keyword-only: str | LazyPreview | None, for logs and events
 )
 ```
 
@@ -20,7 +21,7 @@ result = await SusPatternsManager().detect(
 
 ## detect() return shape
 
-`dict[str, Any]` with at least: `is_threat: bool`, `threat_score`, `threats` (list of regex + semantic threat dicts), `regex_threats`, `semantic_threats`, `matched_patterns`, `timeouts`, `execution_time_ms`, `detection_method` (`"enhanced"` when a `PatternCompiler` is wired, else `"legacy"`).
+`DetectionResult`, a `TypedDict` (`guard_core/handlers/suspatterns_handler.py:702-713`) with exactly these keys: `is_threat: bool`, `threat_score: float`, `threats: list[dict[str, JsonValue]]` (regex + semantic threat dicts), `context: str`, `original_length: int`, `processed_length: int`, `execution_time: float`, `detection_method: str` (`"enhanced"` when a `PatternCompiler` is wired, else `"legacy"`), `timeouts: list[str]`, `correlation_id: str | None`.
 
 For a boolean + pattern-name result, use `detect_pattern_match(content, ip_address, context, correlation_id) -> tuple[bool, str | None]`.
 
@@ -35,6 +36,12 @@ class DetectionResult:
     trigger_info: str
     threat_categories: list[str] = field(default_factory=list)
     threat_scores: dict[str, float] = field(default_factory=dict)
+    body_read_error: str | None = None
+    body_read_detail: str = ""
+    correlation_id: str | None = None
+    matched_pattern_source: str | None = None
+    queue_wait_seconds: float | None = None
+    queue_wait_surface: str | None = None
 ```
 
 ## The 19 categories

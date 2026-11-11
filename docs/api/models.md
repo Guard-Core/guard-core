@@ -73,7 +73,7 @@ class SecurityConfig(BaseModel):
 
     enforce_https: bool = Field(default=False)
 
-    security_headers: dict[str, Any] | None = Field(default_factory=...)
+    security_headers: dict[str, object] | None = Field(default_factory=...)
 
     custom_request_check: (
         Callable[[GuardRequest], Awaitable[GuardResponse | None]] | None

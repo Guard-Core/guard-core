@@ -15,7 +15,7 @@ The `GuardRequest` protocol lives at `guard_core/protocols/request_protocol.py`:
 
 ```python
 from collections.abc import Mapping
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -32,14 +32,14 @@ class GuardRequest(Protocol):
     @property
     def client_host(self) -> str | None: ...
     @property
-    def headers(self) -> Mapping[str, str]: ...
+    def headers(self) -> GuardRequestHeaders: ...
     @property
     def query_params(self) -> Mapping[str, str]: ...
     async def body(self) -> bytes: ...
     @property
-    def state(self) -> Any: ...
+    def state(self) -> RequestState: ...
     @property
-    def scope(self) -> dict[str, Any]: ...
+    def scope(self) -> dict[str, object]: ...
 ```
 
 The protocol is `runtime_checkable`, so you can verify your implementation at runtime with `isinstance(your_request, GuardRequest)`.
@@ -70,11 +70,14 @@ Starlette's `Request` object is close to the `GuardRequest` protocol but does no
 
 ```python
 from collections.abc import Mapping
-from typing import Any
 
 from starlette.requests import Request
 
-from guard_core.protocols.request_protocol import GuardRequest
+from guard_core.protocols.request_protocol import (
+    GuardRequest,
+    GuardRequestHeaders,
+    RequestState,
+)
 
 
 class StarletteGuardRequest:
@@ -107,7 +110,7 @@ class StarletteGuardRequest:
         return None
 
     @property
-    def headers(self) -> Mapping[str, str]:
+    def headers(self) -> GuardRequestHeaders:
         return self._request.headers
 
     @property
@@ -118,12 +121,13 @@ class StarletteGuardRequest:
         return await self._request.body()
 
     @property
-    def state(self) -> Any:
+    def state(self) -> RequestState:
         return self._request.state
 
     @property
-    def scope(self) -> dict[str, Any]:
-        return self._request.scope
+    def scope(self) -> dict[str, object]:
+        scope = self._request.scope
+        return scope if isinstance(scope, dict) else dict(scope)
 ```
 
 Full Implementation Example: Flask
@@ -134,9 +138,10 @@ Flask requests are synchronous. The adapter must bridge that gap. Wrap the body 
 ```python
 from collections.abc import Mapping
 from types import SimpleNamespace
-from typing import Any
 
 from flask import Flask, Request
+
+from guard_core.protocols.request_protocol import GuardRequestHeaders
 
 
 class FlaskGuardRequest:
@@ -146,8 +151,8 @@ class FlaskGuardRequest:
         self._state = SimpleNamespace()
         self._scope = self._build_scope()
 
-    def _build_scope(self) -> dict[str, Any]:
-        scope: dict[str, Any] = {"app": self._app}
+    def _build_scope(self) -> dict[str, object]:
+        scope: dict[str, object] = {"app": self._app}
         rule = self._request.url_rule
         if rule:
             scope["route"] = rule
@@ -179,7 +184,7 @@ class FlaskGuardRequest:
         return self._request.remote_addr
 
     @property
-    def headers(self) -> Mapping[str, str]:
+    def headers(self) -> GuardRequestHeaders:
         return dict(self._request.headers)
 
     @property
@@ -194,7 +199,7 @@ class FlaskGuardRequest:
         return self._state
 
     @property
-    def scope(self) -> dict[str, Any]:
+    def scope(self) -> dict[str, object]:
         return self._scope
 ```
 
@@ -206,9 +211,10 @@ Django's `HttpRequest` requires the most translation work:
 ```python
 from collections.abc import Mapping
 from types import SimpleNamespace
-from typing import Any
 
 from django.http import HttpRequest
+
+from guard_core.protocols.request_protocol import GuardRequestHeaders
 
 
 class DjangoGuardRequest:
@@ -254,7 +260,7 @@ class DjangoGuardRequest:
         return self._request.META.get("REMOTE_ADDR")
 
     @property
-    def headers(self) -> Mapping[str, str]:
+    def headers(self) -> GuardRequestHeaders:
         return self._headers
 
     @property
@@ -269,8 +275,8 @@ class DjangoGuardRequest:
         return self._state
 
     @property
-    def scope(self) -> dict[str, Any]:
-        scope: dict[str, Any] = {}
+    def scope(self) -> dict[str, object]:
+        scope: dict[str, object] = {}
         if hasattr(self._request, "resolver_match") and self._request.resolver_match:
             scope["route"] = self._request.resolver_match
             scope["app"] = getattr(self._request.resolver_match, "app_name", None)

@@ -143,9 +143,10 @@ async def log_activity(
     level: Literal["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"] | None = "WARNING",
     check_name: str | None = None,
     muted_check_logs: frozenset[str] | None = None,
-    on_block: Callable[[GuardRequest, dict[str, Any]], Any] | None = None,
+    on_block: Callable[[GuardRequest, dict[str, object]], object] | None = None,
     sensitive_headers: frozenset[str] | None = None,
     sensitive_params: frozenset[str] | None = None,
+    sensitive_body_fields: frozenset[str] | None = None,
 ) -> None: ...
 ```
 

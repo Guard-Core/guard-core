@@ -10,7 +10,9 @@ Protocol Reference
 
 guard-core defines its boundaries through `typing.Protocol` classes. Adapter developers must provide concrete implementations of these protocols to bridge their framework's native types into the guard-core engine.
 
-All protocols are decorated with `@runtime_checkable`, meaning you can verify conformance at runtime with `isinstance()`.
+The top-level protocols are decorated with `@runtime_checkable`, meaning you can verify conformance at runtime with `isinstance()`. `RequestState`, `GuardRequestHeaders`, `GuardResponseHeaders` and the middleware sub-protocols are plain `Protocol` classes for static typing.
+
+This page is a summary. The full member list of every protocol, including the optional capability protocols (`BoundedBodyReader`, `IdleBoundedBodyReader`, `BoundedResponseBodyReader`, `MaterializedBodyResponse`), `GuardRequestHeaders`, `GuardResponseHeaders`, `DynamicRulesProtocol`, `CloudIpStoreProtocol` and `RouteIdentity`, is in [Protocols](../api/protocols.md).
 
 ___
 
@@ -23,7 +25,7 @@ The abstraction over any HTTP request object. Every security check receives a `G
 
 ```python
 from collections.abc import Mapping
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -40,14 +42,14 @@ class GuardRequest(Protocol):
     @property
     def client_host(self) -> str | None: ...
     @property
-    def headers(self) -> Mapping[str, str]: ...
+    def headers(self) -> GuardRequestHeaders: ...
     @property
     def query_params(self) -> Mapping[str, str]: ...
     async def body(self) -> bytes: ...
     @property
-    def state(self) -> Any: ...
+    def state(self) -> RequestState: ...
     @property
-    def scope(self) -> dict[str, Any]: ...
+    def scope(self) -> dict[str, object]: ...
 ```
 
 ### Property Reference
@@ -60,11 +62,11 @@ class GuardRequest(Protocol):
 | `url_replace_scheme(scheme)` | `str` | Returns the full URL with the scheme replaced (used for HTTPS redirects) |
 | `method` | `str` | The HTTP method (`"GET"`, `"POST"`, etc.) |
 | `client_host` | `str \| None` | The connecting client's IP address. `None` when unavailable (e.g. Unix sockets) |
-| `headers` | `Mapping[str, str]` | HTTP headers as a read-only mapping. Header names are case-insensitive in HTTP but the mapping implementation determines lookup behavior |
+| `headers` | `GuardRequestHeaders` | HTTP headers as a read-only container (`__getitem__`, `__contains__`, `get`, `keys()`, `items()`; not required to be a `Mapping`). Header names are case-insensitive in HTTP but the container's implementation determines lookup behavior |
 | `query_params` | `Mapping[str, str]` | URL query parameters as a read-only mapping |
 | `body()` | `async -> bytes` | The raw request body. This is an async method because some frameworks read the body lazily |
-| `state` | `Any` | A mutable state object for attaching per-request data. guard-core stores `client_ip`, `route_config`, `is_whitelisted` and, with `whitelist_access_only`, `whitelist_entry` here |
-| `scope` | `dict[str, Any]` | ASGI-style scope dict. Must contain `"app"` key for route resolution to work. Also checked for `"route"` key by behavioral processing |
+| `state` | `RequestState` | A mutable state object for attaching per-request data. guard-core stores `client_ip`, `route_config`, `is_whitelisted` and, with `whitelist_access_only`, `whitelist_entry` here |
+| `scope` | `dict[str, object]` | ASGI-style scope dict for adapters needing lower-level access. guard-core never reads it, so an empty dict satisfies the protocol |
 
 ### Framework Mapping
 
@@ -94,7 +96,7 @@ This table shows what each property maps to in common frameworks:
     Your adapter's `GuardRequest.state` implementation must support arbitrary attribute assignment.
 
 !!! warning "The `scope` dict"
-    Route resolution depends on `request.scope["app"]` having a `.routes` attribute and `request.scope["app"].state.guard_decorator` for decorator lookup. For non-ASGI frameworks, you will need to synthesize this scope dict with at least the `"app"` key pointing to an object that exposes `.routes` and `.state`.
+    guard-core itself never reads `request.scope`, so an empty dict satisfies the protocol. An adapter that resolves routes from it (ASGI `scope["app"]` and `scope["route"]`) does that work before the pipeline runs and records the result on `request.state` (`guard_decorator`, `guard_route_id`, `guard_endpoint_id`, `guard_route_unresolved`). For frameworks with no ASGI scope, synthesize whatever your own route resolution needs.
 
 ___
 
@@ -106,7 +108,6 @@ GuardResponse
 The abstraction over any HTTP response object.
 
 ```python
-from collections.abc import MutableMapping
 from typing import Protocol, runtime_checkable
 
 
@@ -115,7 +116,7 @@ class GuardResponse(Protocol):
     @property
     def status_code(self) -> int: ...
     @property
-    def headers(self) -> MutableMapping[str, str]: ...
+    def headers(self) -> GuardResponseHeaders: ...
     @property
     def body(self) -> bytes | None: ...
 ```
@@ -125,7 +126,7 @@ class GuardResponse(Protocol):
 | Property | Type | Description |
 |---|---|---|
 | `status_code` | `int` | HTTP status code (e.g. `403`, `429`, `503`) |
-| `headers` | `MutableMapping[str, str]` | Response headers. **Must be mutable** -- guard-core writes security headers, CORS headers, and HSTS headers into this mapping |
+| `headers` | `GuardResponseHeaders` | Response headers. **Must be mutable** -- guard-core writes security headers, CORS headers, and HSTS headers into this container. Members: `__getitem__`, `__setitem__`, `__delitem__`, `__contains__`, `get`, `keys()`, `items()` |
 | `body` | `bytes \| None` | The response body, or `None` if no body |
 
 ### Framework Mapping
@@ -136,8 +137,8 @@ class GuardResponse(Protocol):
 | `headers` | `response.headers` | `response.headers` | `response.headers` (Django `HttpResponse`) |
 | `body` | `response.body` | `response.get_data()` | `response.content` |
 
-!!! important "MutableMapping requirement"
-    The `headers` property must return a `MutableMapping[str, str]`. guard-core's `ErrorResponseFactory` writes security headers directly into `response.headers[header_name] = header_value`. If your framework's response headers are immutable, you must wrap them.
+!!! important "GuardResponseHeaders requirement"
+    The `headers` property must return a `GuardResponseHeaders`, which is not required to be a `MutableMapping` (Werkzeug `Headers` is not one). guard-core's `ErrorResponseFactory` writes security headers directly into `response.headers[header_name] = header_value`. If your framework's response headers are immutable, you must wrap them.
 
 ___
 
@@ -196,7 +197,7 @@ Defines what the middleware instance must expose so that security checks can acc
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
@@ -210,23 +211,25 @@ class GuardMiddlewareProtocol(Protocol):
     suspicious_request_counts: dict[str, dict[str, int]]
 
     @property
-    def event_bus(self) -> Any: ...
+    def guard_decorator(self) -> RouteDecoratorRegistryProtocol | None: ...
     @property
-    def route_resolver(self) -> Any: ...
+    def event_bus(self) -> SecurityEventBusProtocol: ...
     @property
-    def response_factory(self) -> Any: ...
+    def route_resolver(self) -> RouteResolverProtocol: ...
     @property
-    def rate_limit_handler(self) -> Any: ...
+    def response_factory(self) -> ResponseFactoryProtocol | None: ...
     @property
-    def agent_handler(self) -> Any: ...
+    def rate_limit_handler(self) -> RateLimitHandlerProtocol | None: ...
     @property
-    def geo_ip_handler(self) -> Any: ...
+    def agent_handler(self) -> AgentHandlerProtocol | None: ...
     @property
-    def guard_response_factory(self) -> Any: ...
+    def geo_ip_handler(self) -> GeoIPHandlerOfThisTree | None: ...
+    @property
+    def guard_response_factory(self) -> GuardResponseFactory | None: ...
 
     async def create_error_response(
         self, status_code: int, default_message: str
-    ) -> Any: ...
+    ) -> GuardResponse: ...
 
     async def refresh_cloud_ip_ranges(self) -> None: ...
 ```
@@ -244,13 +247,14 @@ class GuardMiddlewareProtocol(Protocol):
 
 | Property | Typical Type | Description |
 |---|---|---|
-| `event_bus` | `SecurityEventBus` | Dispatches security events to the agent |
-| `route_resolver` | `RouteConfigResolver` | Resolves route-level decorator configurations |
-| `response_factory` | `ErrorResponseFactory` | Creates error responses and applies security headers |
-| `rate_limit_handler` | `RateLimitManager` | Checks and enforces rate limits |
+| `event_bus` | `SecurityEventBus` (satisfies `SecurityEventBusProtocol`) | Dispatches security events to the agent |
+| `route_resolver` | `RouteConfigResolver` (satisfies `RouteResolverProtocol`) | Resolves route-level decorator configurations |
+| `response_factory` | `ErrorResponseFactory \| None` (satisfies `ResponseFactoryProtocol`) | Creates error responses and applies security headers; `None` for a host that builds none |
+| `rate_limit_handler` | `RateLimitManager \| None` (satisfies `RateLimitHandlerProtocol`) | Checks and enforces rate limits |
 | `agent_handler` | `AgentHandlerProtocol \| None` | Guard agent telemetry client (or `None` if disabled) |
-| `geo_ip_handler` | `GeoIPHandler \| None` | GeoIP lookup handler (or `None` if not configured) |
-| `guard_response_factory` | `GuardResponseFactory` | The adapter-provided response factory |
+| `geo_ip_handler` | `GeoIPHandlerOfThisTree \| None` (the `GeoIPHandler` of this tree) | GeoIP lookup handler (or `None` if not configured) |
+| `guard_response_factory` | `GuardResponseFactory \| None` | The adapter-provided response factory |
+| `guard_decorator` | `RouteDecoratorRegistryProtocol \| None` | The route-decorator registry the engine reads for per-route configs and their revision; `None` or an absent attribute means no route configs |
 
 ### Method Reference
 
@@ -280,6 +284,8 @@ class GeoIPHandler(Protocol):
     async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None: ...
     async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None: ...
     def get_country(self, ip: str) -> str | None: ...
+    async def refresh(self) -> None: ...
+    def close(self) -> None: ...
 ```
 
 guard-core ships with `IPInfoManager` as a default implementation. Adapters can provide custom implementations for other GeoIP providers.
@@ -291,15 +297,23 @@ guard-core ships with `IPInfoManager` as a default implementation. Adapters can 
 ```python
 @runtime_checkable
 class RedisHandlerProtocol(Protocol):
-    async def get_key(self, namespace: str, key: str) -> Any: ...
+    config: SecurityConfig
+
+    async def get_key(self, namespace: str, key: str) -> str | None: ...
+    async def get_many(self, pairs: Sequence[tuple[str, str]]) -> list[str | None]: ...
     async def set_key(
-        self, namespace: str, key: str, value: Any, ttl: int | None = None
+        self, namespace: str, key: str, value: RedisValue, ttl: int | None = None
     ) -> bool | None: ...
     async def delete(self, namespace: str, key: str) -> int | None: ...
     async def keys(self, pattern: str) -> list[str] | None: ...
     async def initialize(self) -> None: ...
-    def get_connection(self) -> AsyncContextManager[Any]: ...
+    def get_connection(self) -> AsyncContextManager[Redis]: ...
+    # ... and 18 more: set_key_if_absent, incr, write_atomically, delete_pattern,
+    # the ban, sliding-window and detection-strike methods, initialize_agent and
+    # is_connected. The full list is in docs/api/protocols.md.
 ```
+
+This excerpt names only some members. The complete list, with every signature, is in [Protocols](../api/protocols.md#redishandlerprotocol).
 
 guard-core ships with `RedisManager` as the default implementation using the `redis` Python package.
 
@@ -311,13 +325,14 @@ guard-core ships with `RedisManager` as the default implementation using the `re
 @runtime_checkable
 class AgentHandlerProtocol(Protocol):
     async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None: ...
-    async def send_event(self, event: Any) -> None: ...
-    async def send_metric(self, metric: Any) -> None: ...
+    async def send_event(self, event: object) -> None: ...
+    async def send_metric(self, metric: object) -> None: ...
     async def start(self) -> None: ...
     async def stop(self) -> None: ...
     async def flush_buffer(self) -> None: ...
-    async def get_dynamic_rules(self) -> Any | None: ...
+    async def get_dynamic_rules(self) -> DynamicRulesProtocol | None: ...
     async def health_check(self) -> bool: ...
+    def get_stats(self) -> dict[str, JsonValue]: ...
 ```
 
 Implemented by the `guard-agent` package. Only active when `SecurityConfig.enable_agent = True`.

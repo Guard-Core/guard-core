@@ -163,7 +163,7 @@ Providers named only by a route's `block_clouds` are loaded like the global ones
 The `IPInfoManager` instance's `get_status()` reports the same three fields as [`cloud_handler.get_status()`](cloud-providers.md#provider-status), `ready`, `last_refreshed`, `entries`, so a caller polling both subsystems gets a uniform shape:
 
 ```python
-def get_status(self) -> dict[str, Any]:
+def get_status(self) -> dict[str, bool | int | datetime | None]:
     return {
         "ready": self.is_initialized,
         "last_refreshed": self.last_refreshed,

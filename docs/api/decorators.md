@@ -78,11 +78,11 @@ Provides IP-based and geographic access control decorators.
 
 **Available Decorators:**
 
-- `@guard_deco.require_ip(whitelist=[], blacklist=[])` - IP address filtering
-- `@guard_deco.block_countries(countries=[])` - Block specific countries
-- `@guard_deco.allow_countries(countries=[])` - Allow only specific countries
-- `@guard_deco.block_clouds(providers=[])` - Block cloud provider IPs
-- `@guard_deco.bypass(checks=[])` - Bypass specific security checks
+- `@guard_deco.require_ip(whitelist=None, blacklist=None)` - IP address filtering
+- `@guard_deco.block_countries(countries)` - Block specific countries
+- `@guard_deco.allow_countries(countries)` - Allow only specific countries
+- `@guard_deco.block_clouds(providers=None)` - Block cloud provider IPs
+- `@guard_deco.bypass(checks)` - Bypass specific security checks
 
 ### AuthenticationMixin
 
@@ -91,9 +91,10 @@ Provides authentication and authorization decorators.
 **Available Decorators:**
 
 - `@guard_deco.require_https()` - Force HTTPS
-- `@guard_deco.require_auth(type="bearer")` - Require authentication. The built-in types `bearer` and `basic` match in any case (`"Basic"` and `"BEARER"` mean the built-in schemes, as HTTP auth scheme names are case-insensitive); any other type is kept as given. A capitalized built-in type gets the built-in prefix check, challenge and log redaction, and since 5.0.0 its verifier receives only the credential, as the lowercase types do (4.x passed it the whole `Authorization` header, so a verifier that parses that header must read the credential instead). The decorator logs one WARNING per route at registration naming the type; write the lowercase type to say it plainly. `require_authorization_header(scheme=...)` folds its scheme the same way.
-- `@guard_deco.api_key_auth(header_name="X-API-Key")` - API key authentication
-- `@guard_deco.require_headers(headers={})` - Require specific headers
+- `@guard_deco.require_auth(type="bearer", verifier=None)` - Require authentication. The built-in types `bearer` and `basic` match in any case (`"Basic"` and `"BEARER"` mean the built-in schemes, as HTTP auth scheme names are case-insensitive); any other type is kept as given. A capitalized built-in type gets the built-in prefix check, challenge and log redaction, and since 5.0.0 its verifier receives only the credential, as the lowercase types do (4.x passed it the whole `Authorization` header, so a verifier that parses that header must read the credential instead). The decorator logs one WARNING per route at registration naming the type; write the lowercase type to say it plainly. `require_authorization_header(scheme=...)` folds its scheme the same way.
+- `@guard_deco.api_key_auth(header_name="X-API-Key", verifier=None)` - API key authentication
+- `@guard_deco.require_headers(headers)` - Require specific headers
+- `@guard_deco.require_authorization_header(scheme="bearer")` - Require an `Authorization` header of the given scheme
 
 **`require_headers` semantics**
 
@@ -115,8 +116,8 @@ Provides rate limiting decorators.
 
 **Available Decorators:**
 
-- `@guard_deco.rate_limit(requests=10, window=60)` - Basic rate limiting
-- `@guard_deco.geo_rate_limit(limits={})` - Geographic rate limiting
+- `@guard_deco.rate_limit(requests, window=60)` - Basic rate limiting
+- `@guard_deco.geo_rate_limit(limits)` - Geographic rate limiting
 
 ### BehavioralMixin
 
@@ -124,10 +125,10 @@ Provides behavioral analysis and monitoring decorators.
 
 **Available Decorators:**
 
-- `@guard_deco.usage_monitor(max_calls, window, action)` - Monitor endpoint usage
-- `@guard_deco.return_monitor(pattern, max_occurrences, window, action)` - Monitor return patterns
-- `@guard_deco.behavior_analysis(rules=[])` - Apply multiple behavioral rules
-- `@guard_deco.suspicious_frequency(max_frequency, window, action)` - Detect suspicious frequency
+- `@guard_deco.usage_monitor(max_calls, window=3600, action="ban")` - Monitor endpoint usage
+- `@guard_deco.return_monitor(pattern, max_occurrences, window=86400, action="ban")` - Monitor return patterns
+- `@guard_deco.behavior_analysis(rules)` - Apply multiple behavioral rules
+- `@guard_deco.suspicious_frequency(max_frequency, window=300, action="ban")` - Detect suspicious frequency
 
 ### ContentFilteringMixin
 
@@ -135,12 +136,12 @@ Provides content and request filtering decorators.
 
 **Available Decorators:**
 
-- `@guard_deco.block_user_agents(patterns=[])` - Block user agent patterns
-- `@guard_deco.content_type_filter(allowed_types=[])` - Filter content types
+- `@guard_deco.block_user_agents(patterns)` - Block user agent patterns
+- `@guard_deco.content_type_filter(allowed_types)` - Filter content types
 - `@guard_deco.max_request_size(size_bytes)` - Limit request size
-- `@guard_deco.require_referrer(allowed_domains=[])` - Require specific referrers
+- `@guard_deco.require_referrer(allowed_domains)` - Require specific referrers
 - `@guard_deco.custom_validation(validator)` - Add custom validation logic
-- `@guard_deco.detection_exclusion(headers=None, params=None, body_fields=None, categories=None, scan_body=None)` - Per-route detection scoping
+- `@guard_deco.detection_exclusion(headers=None, params=None, body_fields=None, categories=None, scan_body=None, semantic_headers=None, path_params=None)` - Per-route detection scoping
 
 **`require_referrer` semantics**
 
@@ -152,15 +153,18 @@ Provides content and request filtering decorators.
 def detection_exclusion(
     self,
     headers: set[str] | None = None,
-    params: set[str] | None = None,
-    body_fields: set[str] | None = None,
+    params: set[str] | dict[str, set[str]] | None = None,
+    body_fields: set[str] | dict[str, set[str]] | None = None,
     categories: set[str] | None = None,
     scan_body: bool | None = None,
     semantic_headers: set[str] | None = None,
-) -> Callable[[Callable[..., Any]], Callable[..., Any]]: ...
+    path_params: set[str] | dict[str, set[str]] | None = None,
+) -> Callable[
+    [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+]: ...
 ```
 
-All six kwargs are optional (`set[str] | None` for `headers`/`body_fields`/`categories`/`semantic_headers`, `set[str] | dict[str, set[str]] | None` for `params`, `bool | None` for `scan_body`). Passing `None` (or omitting) leaves the corresponding `RouteConfig` field unset, the route inherits the global `SecurityConfig` value at request time. Passing a value replaces the inherited value at this route only.
+All seven kwargs are optional (`set[str] | None` for `headers`/`categories`/`semantic_headers`, `set[str] | dict[str, set[str]] | None` for `params`/`body_fields`/`path_params`, `bool | None` for `scan_body`). Passing `None` (or omitting) leaves the corresponding `RouteConfig` field unset, the route inherits the global `SecurityConfig` value at request time. Passing a value replaces the inherited value at this route only.
 
 - `headers`, header names skipped by detection. Merged with `SecurityConfig.excluded_detection_headers` and the hardcoded default exclusion list.
 - `params`, query parameter names skipped by detection, as a set (every category) or a mapping of name to a set of categories (only those categories). Replaces (does not merge with) the global value when set.
@@ -168,6 +172,7 @@ All six kwargs are optional (`set[str] | None` for `headers`/`body_fields`/`cate
 - `categories`, categories the regex scanner runs at this route. Replaces the global `enabled_detection_categories`. Custom user patterns always run regardless.
 - `semantic_headers`, header names whose values skip the semantic analyzer only (regex scanning is unchanged). Merged with `SecurityConfig.excluded_semantic_detection_headers`.
 - `scan_body`, whether to scan the request body at this route. Replaces the global `detection_scan_body` when set.
+- `path_params`, route parameter names (a set, or a `{name: {categories}}` map) whose captured value may contain a probe token without being flagged; see the 5.0.0 release notes.
 
 ```python
 @app.post("/api/markdown-editor/save")
@@ -185,9 +190,9 @@ Provides advanced detection and time-based decorators.
 
 **Available Decorators:**
 
-- `@guard_deco.time_window(start_time, end_time, timezone)` - Time-based access control
+- `@guard_deco.time_window(start_time, end_time, timezone="UTC")` - Time-based access control
 - `@guard_deco.suspicious_detection(enabled=True)` - Toggle suspicious pattern detection
-- `@guard_deco.honeypot_detection(trap_fields=[])` - Detect bots using honeypot fields (a filled trap field returns 403 and bans the client IP on the first hit unless `threat_ban_config["honeypot"]` says otherwise). Every method is inspected, the query string included, for urlencoded, multipart and JSON bodies. Media types and trap field names match case-insensitively, JSON is walked through nested objects and arrays and through every occurrence of a duplicated key, and any present value other than `null`, an empty string or whitespace counts as filled (`0`, `false` and `[]` too). JSON in UTF-8 (with or without a BOM), UTF-16 and UTF-32 is parsed. A body larger than `detection_max_body_inspect_bytes` is not fully inspected and logs a WARNING
+- `@guard_deco.honeypot_detection(trap_fields)` - Detect bots using honeypot fields (a filled trap field returns 403 and bans the client IP on the first hit unless `threat_ban_config["honeypot"]` says otherwise). Every method is inspected, the query string included, for urlencoded, multipart and JSON bodies. Media types and trap field names match case-insensitively, JSON is walked through nested objects and arrays and through every occurrence of a duplicated key, and any present value other than `null`, an empty string or whitespace counts as filled (`0`, `false` and `[]` too). JSON in UTF-8 (with or without a BOM), UTF-16 and UTF-32 is parsed. A body larger than `detection_max_body_inspect_bytes` is not fully inspected and logs a WARNING
 
 ___
 

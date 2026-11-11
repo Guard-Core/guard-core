@@ -14,8 +14,9 @@ Protocol Definitions
 Both protocols live at `guard_core/protocols/response_protocol.py`:
 
 ```python
-from collections.abc import MutableMapping
 from typing import Protocol, runtime_checkable
+
+from guard_core.protocols.response_protocol import GuardResponseHeaders
 
 
 @runtime_checkable
@@ -23,7 +24,7 @@ class GuardResponse(Protocol):
     @property
     def status_code(self) -> int: ...
     @property
-    def headers(self) -> MutableMapping[str, str]: ...
+    def headers(self) -> GuardResponseHeaders: ...
     @property
     def body(self) -> bytes | None: ...
 
@@ -36,7 +37,7 @@ class GuardResponseFactory(Protocol):
 
 ### GuardResponse
 
-The response object returned by your factory and ultimately sent back to the client. The `headers` property **must be mutable** -- guard-core's `ErrorResponseFactory` writes security headers (HSTS, CSP, X-Frame-Options, etc.) directly onto the response via `response.headers[header_name] = header_value`.
+The response object returned by your factory and ultimately sent back to the client. The `headers` property returns a `GuardResponseHeaders` and **must be mutable** -- guard-core's `ErrorResponseFactory` writes security headers (HSTS, CSP, X-Frame-Options, etc.) directly onto the response via `response.headers[header_name] = header_value`.
 
 `status_code`, `headers`, and `body` are the complete *required* `GuardResponse` surface; implementing just those three is enough to pass the pipeline.
 
@@ -92,9 +93,9 @@ Implementation: FastAPI / Starlette
 -----------------------------------
 
 ```python
-from collections.abc import MutableMapping
-
 from starlette.responses import PlainTextResponse, RedirectResponse, Response
+
+from guard_core.protocols.response_protocol import GuardResponseHeaders
 
 
 class StarletteGuardResponse:
@@ -106,7 +107,7 @@ class StarletteGuardResponse:
         return self._response.status_code
 
     @property
-    def headers(self) -> MutableMapping[str, str]:
+    def headers(self) -> GuardResponseHeaders:
         return self._response.headers
 
     @property
@@ -147,11 +148,10 @@ Implementation: Flask
 Flask's `Response` has mutable headers but uses `data` instead of `body`:
 
 ```python
-from collections.abc import MutableMapping
-from typing import Any
-
 from flask import Response, redirect
 from werkzeug.datastructures import Headers
+
+from guard_core.protocols.response_protocol import GuardResponseHeaders
 
 
 class FlaskGuardResponse:
@@ -165,7 +165,7 @@ class FlaskGuardResponse:
         return self._response.status_code
 
     @property
-    def headers(self) -> MutableMapping[str, str]:
+    def headers(self) -> GuardResponseHeaders:
         return self._response.headers
 
     @property
@@ -193,9 +193,9 @@ Implementation: Django
 Django's `HttpResponse` has a dict-like `headers` property (Django 3.2+):
 
 ```python
-from collections.abc import MutableMapping
-
 from django.http import HttpResponse, HttpResponseRedirect
+
+from guard_core.protocols.response_protocol import GuardResponseHeaders
 
 
 class DjangoGuardResponse:
@@ -207,7 +207,7 @@ class DjangoGuardResponse:
         return self._response.status_code
 
     @property
-    def headers(self) -> MutableMapping[str, str]:
+    def headers(self) -> GuardResponseHeaders:
         return self._response.headers
 
     @property
@@ -260,9 +260,13 @@ class ResponseContext:
     logger: Logger
     metrics_collector: MetricsCollector
 
-    agent_handler: Any | None = None
+    agent_handler: AgentHandlerProtocol | None = None
+    redis_handler: RedisHandlerProtocol | None = None
     guard_decorator: BaseSecurityDecorator | None = None
-    response_factory: Any = field(default=None)
+    response_factory: GuardResponseFactory | None = None
+    security_headers_manager: SecurityHeadersManager = field(
+        default_factory=SecurityHeadersManager.isolated
+    )
 ```
 
 Security Headers

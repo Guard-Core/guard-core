@@ -61,9 +61,10 @@ async def log_activity(
     level: Literal["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"] | None = "WARNING",
     check_name: str | None = None,
     muted_check_logs: frozenset[str] | None = None,
-    on_block: Callable[[GuardRequest, dict[str, Any]], Any] | None = None,
+    on_block: Callable[[GuardRequest, dict[str, object]], object] | None = None,
     sensitive_headers: frozenset[str] | None = None,
     sensitive_params: frozenset[str] | None = None,
+    sensitive_body_fields: frozenset[str] | None = None,
 ) -> None:
     """
     Universal logging function for all types of requests and activities.
@@ -167,7 +168,7 @@ is_user_agent_allowed
 ---------------------
 
 ```python
-async def is_user_agent_allowed(user_agent: str, config: Any) -> bool:
+async def is_user_agent_allowed(user_agent: str, config: SecurityConfig) -> bool:
     """
     Check if user agent is allowed.
     """
@@ -178,7 +179,7 @@ check_ip_country
 
 ```python
 async def check_ip_country(
-    request: str | GuardRequest, config: Any, geo_ip_handler: GeoIPHandler
+    request: str | GuardRequest, config: SecurityConfig, geo_ip_handler: GeoIPHandler
 ) -> bool:
     """
     Check if IP is from a blocked country.
@@ -191,12 +192,13 @@ is_ip_allowed
 ```python
 async def is_ip_allowed(
     ip: str,
-    config: Any,
+    config: SecurityConfig,
     geo_ip_handler: GeoIPHandler | None = None,
     *,
     skip_ip_lists: bool = False,
     skip_countries: bool = False,
     skip_clouds: bool = False,
+    skip_whitelist: bool = False,
 ) -> bool:
     """
     Check if IP address is allowed. `skip_ip_lists`/`skip_countries` let a
@@ -281,7 +283,7 @@ extract_client_ip
 ```python
 async def extract_client_ip(
     request: GuardRequest,
-    config: Any,
+    config: ForwardedForConfig,
     agent_handler: AgentHandlerProtocol | None = None,
 ) -> str:
     """
