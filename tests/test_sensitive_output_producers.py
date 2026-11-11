@@ -360,6 +360,10 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
 }
 
 NON_REQUEST_PRODUCERS: dict[str, str] = {
+    "_redis_abandoned_client.py:_drop_everything_pending_at_exit": (
+        "one fixed-text WARNING at interpreter exit carrying only a count of "
+        "abandoned clients: no repr, URL, exception text or request data, infra only"
+    ),
     "_redis_abandoned_client.py:_drop_once_and_survive_failure": (
         "one fixed-text ERROR when dropping an abandoned Redis client raised: no "
         "exception text, no request data, no request is in scope, infra only"

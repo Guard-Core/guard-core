@@ -88,7 +88,9 @@ def _claim_pending(only_closed_loops: bool) -> list[Redis]:
 
 def sweep_abandoned_clients() -> None:
     """Drop, from the calling thread, every pending client whose loop is closed or
-    was garbage collected (the registry holds loops weakly, so it keeps none alive).
+    was garbage collected. The registry holds the loop weakly, but a connected
+    client keeps its loop alive (client, pool, connection, writer, transport, loop),
+    so only a never-connected client's loop can be collected.
 
     A loop that is stopped but not closed keeps its entry: its scheduled drop is
     still queued and runs on its own thread if it runs again. Each drop is
@@ -98,6 +100,16 @@ def sweep_abandoned_clients() -> None:
 
 
 def _drop_everything_pending_at_exit() -> None:
+    with _pending_lock:
+        still_open = sum(
+            not _is_gone_or_closed(loop_ref()) for _, loop_ref in _pending.values()
+        )
+    if still_open:
+        _logger.warning(
+            "Abandoned Redis clients were dropped at exit while their event loop "
+            "was neither closed nor collected: %d",
+            still_open,
+        )
     for client in _claim_pending(only_closed_loops=False):
         _drop_once_and_survive_failure(client)
 
@@ -117,8 +129,14 @@ def abandon_client(client: Redis, client_loop: EventLoop) -> None:
     for a loop that is already closed, otherwise at the first later sweep that sees
     it closed (the next ``abandon_client``, connect, close or reconnect attempt on
     any manager, or ``sweep_abandoned_clients``) or at interpreter exit. That is the
-    residual window: the sockets stay open until then. A drop that raises is logged
-    and never stops the other pending drops or this client's own.
+    residual window: the sockets stay open until then. A connected client abandoned
+    to a loop that is stopped and then dropped without ``close()`` stays pending,
+    sockets open, until that loop is closed and a sweep runs, or until interpreter
+    exit (the connection keeps the loop alive). A host that repeats that misuse
+    leaks one socket set per cycle until exit, which asyncio already flags with an
+    unclosed-loop ResourceWarning; exit logs one warning with the count. A drop
+    that raises is logged and never stops the other pending drops or this client's
+    own.
     """
     sweep_abandoned_clients()
     token = next(_pending_ids)

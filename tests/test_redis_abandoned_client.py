@@ -4,6 +4,7 @@ import gc
 import threading
 import time
 import warnings
+import weakref
 from collections.abc import Callable, Iterator
 from unittest.mock import Mock
 
@@ -552,3 +553,71 @@ def test_close_drops_a_stranded_client_without_another_abandon(
     asyncio.run(manager.close())
 
     assert stranded in dropped
+
+
+def test_a_connected_client_keeps_its_stopped_loop_alive_until_the_loop_is_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dropped = _record_drops(monkeypatch)
+
+    async def connect() -> Redis:
+        client = _new_client()
+        await client.ping()
+        return client
+
+    loop = asyncio.new_event_loop()
+    client = loop.run_until_complete(connect())
+    connection = _connections_of(client)[0]
+    assert connection._writer is not None
+    transport = connection._writer.transport
+    abandon_client(client, loop)
+    loop_ref = weakref.ref(loop)
+    del loop, client, connection
+    gc.collect()
+    abandoned.sweep_abandoned_clients()
+
+    resolved = loop_ref()
+    assert resolved is not None and len(abandoned._pending) == 1 and dropped == []
+    resolved.close()
+    del resolved
+    abandoned.sweep_abandoned_clients()
+
+    assert abandoned._pending == {} and len(dropped) == 1
+    assert transport.is_closing()
+
+
+def test_exit_warns_once_with_the_count_of_clients_whose_loop_is_still_open(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    _record_drops(monkeypatch)
+    open_loops = [asyncio.new_event_loop() for _ in range(2)]
+    closed_loop = asyncio.new_event_loop()
+    closed_loop.close()
+    for loop in open_loops:
+        abandon_client(_new_client(), loop)
+    abandoned._pending[next(abandoned._pending_ids)] = (
+        _new_client(),
+        weakref.ref(closed_loop),
+    )
+
+    with caplog.at_level("WARNING", logger=abandoned.__name__):
+        abandoned._drop_everything_pending_at_exit()
+    for loop in open_loops:
+        loop.close()
+
+    assert [r.getMessage() for r in caplog.records] == [
+        "Abandoned Redis clients were dropped at exit while their event loop "
+        "was neither closed nor collected: 2"
+    ]
+
+
+def test_exit_logs_nothing_when_every_pending_loop_is_closed(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    _record_drops(monkeypatch)
+    _strand(_new_client())
+
+    with caplog.at_level("WARNING", logger=abandoned.__name__):
+        abandoned._drop_everything_pending_at_exit()
+
+    assert caplog.records == []
