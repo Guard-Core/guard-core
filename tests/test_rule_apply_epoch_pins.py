@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -27,7 +27,7 @@ from guard_core.handlers._dynamic_rule_application import (
 )
 from guard_core.handlers._dynamic_rule_intake import RunStopped
 from guard_core.handlers._dynamic_rule_plan import DynamicRulePlan
-from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
+from guard_core.handlers.dynamic_rule_handler import _ENTRY_EPOCH, DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 from guard_core.models import DynamicRules, SecurityConfig
@@ -615,5 +615,38 @@ async def test_a_task_on_the_address_of_the_dead_cycle_task_runs_its_own_cycle()
         ) = await _one_attempt_at_a_task_on_the_address_of_the_dead_cycle_task()
         if agent.reused:
             break
-    assert agent.reused is True
+    assert agent.reused is True, (
+        "CPython never reused the dead task's address in 25 attempts; "
+        "allocator-dependent pin"
+    )
     assert manager.current_rules is not None
+
+
+async def test_a_dead_owner_leaves_the_entry_and_a_new_owner_takes_the_epoch() -> None:
+    config = _config()
+    bind_app_managers(config)
+    manager = DynamicRuleManager(config)
+    entries: list[Any] = []
+
+    async def the_cycle() -> None:
+        with manager._entry_epoch_scope():
+            entries.append(_ENTRY_EPOCH.get())
+
+    await _finished(_spawn_in_this_context(the_cycle))
+    await asyncio.sleep(0)
+    gc.collect()
+    entry = entries[0]
+    assert entry[1]() is None
+    manager.mark_released()
+    assert entry[2] != manager._release_epoch
+    taken: list[int] = []
+
+    async def a_new_owner() -> None:
+        _ENTRY_EPOCH.set(entry)
+        with manager._entry_epoch_scope():
+            current = _ENTRY_EPOCH.get()
+            assert current is not None
+            taken.append(current[2])
+
+    await _finished(_spawn_in_this_context(a_new_owner))
+    assert taken == [manager._release_epoch]
