@@ -69,16 +69,24 @@ _RUN_STOP: ContextVar[threading.Event | None] = ContextVar(
 )
 
 
-# The manager, the task and the release epoch a rule cycle started with, as ids (never
-# the objects: a copied context must not keep a released app alive); the epoch is
-# compared with the manager's own, so a release that lands during its awaits ends it.
-_ENTRY_EPOCH: ContextVar[tuple[int, int, int] | None] = ContextVar(
-    "guard_core_rule_entry_epoch", default=None
-)
+class _NoTask:
+    """Stands in for the task of a coroutine driven without one."""
 
 
-def _current_owner() -> int:
-    return threading.get_ident()
+_NO_TASK = _NoTask()
+
+
+# The manager, the task and the release epoch a rule cycle started with, the first two
+# as weak references (never the objects: a copied context must not keep a released app
+# alive; never ids: a freed address is reused at once, a dead referent is not); the
+# epoch is compared with the manager's own, so a release during its awaits ends it.
+_ENTRY_EPOCH: ContextVar[
+    tuple[weakref.ref["DynamicRuleManager"], weakref.ref[object], int] | None
+] = ContextVar("guard_core_rule_entry_epoch", default=None)
+
+
+def _current_owner() -> object:
+    return threading.current_thread()
 
 
 class DynamicRuleManager(
@@ -193,10 +201,12 @@ class DynamicRuleManager(
         starts its own cycle."""
         owner = _current_owner()
         entry = _ENTRY_EPOCH.get()
-        if entry is not None and entry[:2] == (id(self), owner):
+        if entry is not None and entry[0]() is self and entry[1]() is owner:
             yield
             return
-        token = _ENTRY_EPOCH.set((id(self), owner, self._release_epoch))
+        token = _ENTRY_EPOCH.set(
+            (weakref.ref(self), weakref.ref(owner), self._release_epoch)
+        )
         try:
             yield
         finally:
@@ -205,9 +215,7 @@ class DynamicRuleManager(
     def _released_since_entry(self) -> bool:
         entry = _ENTRY_EPOCH.get()
         return (
-            entry is not None
-            and entry[0] == id(self)
-            and entry[2] != self._release_epoch
+            entry is not None and entry[0]() is self and entry[2] != self._release_epoch
         )
 
     def _end_if_released_since_entry(self) -> None:

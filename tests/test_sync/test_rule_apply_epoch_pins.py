@@ -1,4 +1,6 @@
+import gc
 import threading
+import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -429,6 +431,27 @@ def _finished(spawned: threading.Thread) -> None:
     spawned.join()
 
 
+def _owner_address() -> int:
+    return threading.get_ident()
+
+
+def _run_on_the_address_of_a_dead_owner(
+    address: int, work: Callable[[], None], bound: int
+) -> bool:
+    ran: list[bool] = []
+
+    def probe() -> None:
+        if _owner_address() == address:
+            ran.append(True)
+            work()
+
+    for _ in range(bound):
+        _finished(_spawn_in_this_context(probe))
+        if ran:
+            return True
+    return False
+
+
 def _emergency_rules() -> DynamicRules:
     return DynamicRules(
         rule_id="wp644",
@@ -525,3 +548,74 @@ def test_a_child_awaited_in_a_cycle_sees_a_release_and_the_cycle_stops() -> None
         manager.update_rules()
     assert agent.child_saw_the_release is True
     assert manager.current_rules is None
+
+
+class _AddressReuseAgent:
+    """A host agent handler whose announce step makes a long-lived host task H."""
+
+    def __init__(
+        self, manager: DynamicRuleManager, config_b: SyncSecurityConfig
+    ) -> None:
+        self.manager, self.config_b = manager, config_b
+        self.rules = _emergency_rules()
+        self.go = threading.Event()
+        self.cycle_address = 0
+        self.host: list[threading.Thread] = []
+        self.reused: bool | None = None
+
+    def get_dynamic_rules(self) -> DynamicRules:
+        return self.rules
+
+    def send_event(self, event: object) -> None:
+        if self.host:
+            return
+        self.cycle_address = _owner_address()
+        self.host.append(_spawn_in_this_context(self._host))
+
+    def _host(self) -> None:
+        self.go.wait()
+        self.reused = _run_on_the_address_of_a_dead_owner(
+            self.cycle_address, self._release_rebind_and_force, 1000
+        )
+
+    def _release_rebind_and_force(self) -> None:
+        release_app(self.manager.config)
+        HandlerInitializer(self.config_b)
+        assert DynamicRuleManager(self.config_b) is self.manager
+        self.manager.agent_handler = cast(SyncAgentHandlerProtocol, _Agent())
+        self.manager.force_update()
+
+
+def _one_attempt_at_a_task_on_the_address_of_the_dead_cycle_task() -> tuple[
+    _AddressReuseAgent, DynamicRuleManager
+]:
+    config, config_b = _config(rules=True), _config(rules=True)
+    bind_app_managers(config)
+    manager = DynamicRuleManager(config)
+    agent = _AddressReuseAgent(manager, config_b)
+    manager.agent_handler = cast(SyncAgentHandlerProtocol, agent)
+
+    def the_cycle() -> None:
+        manager._apply_rules(agent.rules)
+
+    _finished(_spawn_in_this_context(the_cycle))
+    time.sleep(0)
+    gc.collect()
+    agent.go.set()
+    _finished(agent.host[0])
+    if not agent.reused:
+        release_app(config)
+    return agent, manager
+
+
+def test_a_task_on_the_address_of_the_dead_cycle_task_runs_its_own_cycle() -> None:
+    # another object can take the freed address first, so a miss is retried afresh
+    for _ in range(25):
+        (
+            agent,
+            manager,
+        ) = _one_attempt_at_a_task_on_the_address_of_the_dead_cycle_task()
+        if agent.reused:
+            break
+    assert agent.reused is True
+    assert manager.current_rules is not None

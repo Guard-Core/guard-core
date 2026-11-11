@@ -1,4 +1,5 @@
 import asyncio
+import gc
 import threading
 from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass
@@ -428,6 +429,27 @@ async def _finished(spawned: asyncio.Task[None]) -> None:
     await spawned
 
 
+def _owner_address() -> int:
+    return id(asyncio.current_task())
+
+
+async def _run_on_the_address_of_a_dead_owner(
+    address: int, work: Callable[[], Awaitable[None]], bound: int
+) -> bool:
+    ran: list[bool] = []
+
+    async def probe() -> None:
+        if _owner_address() == address:
+            ran.append(True)
+            await work()
+
+    for _ in range(bound):
+        await _finished(_spawn_in_this_context(probe))
+        if ran:
+            return True
+    return False
+
+
 def _emergency_rules() -> DynamicRules:
     return DynamicRules(
         rule_id="wp644",
@@ -524,3 +546,74 @@ async def test_a_child_awaited_in_a_cycle_sees_a_release_and_the_cycle_stops() -
         await manager.update_rules()
     assert agent.child_saw_the_release is True
     assert manager.current_rules is None
+
+
+class _AddressReuseAgent:
+    """A host agent handler whose announce step makes a long-lived host task H."""
+
+    def __init__(self, manager: DynamicRuleManager, config_b: SecurityConfig) -> None:
+        self.manager, self.config_b = manager, config_b
+        self.rules = _emergency_rules()
+        self.go = asyncio.Event()
+        self.cycle_address = 0
+        self.host: list[asyncio.Task[None]] = []
+        self.reused: bool | None = None
+
+    async def get_dynamic_rules(self) -> DynamicRules:
+        return self.rules
+
+    async def send_event(self, event: object) -> None:
+        if self.host:
+            return
+        self.cycle_address = _owner_address()
+        self.host.append(_spawn_in_this_context(self._host))
+
+    async def _host(self) -> None:
+        await self.go.wait()
+        self.reused = await _run_on_the_address_of_a_dead_owner(
+            self.cycle_address, self._release_rebind_and_force, 1000
+        )
+
+    async def _release_rebind_and_force(self) -> None:
+        release_app(self.manager.config)
+        HandlerInitializer(self.config_b)
+        assert DynamicRuleManager(self.config_b) is self.manager
+        self.manager.agent_handler = cast(AgentHandlerProtocol, _Agent())
+        await self.manager.force_update()
+
+
+async def _one_attempt_at_a_task_on_the_address_of_the_dead_cycle_task() -> tuple[
+    _AddressReuseAgent, DynamicRuleManager
+]:
+    config, config_b = _config(rules=True), _config(rules=True)
+    bind_app_managers(config)
+    manager = DynamicRuleManager(config)
+    agent = _AddressReuseAgent(manager, config_b)
+    manager.agent_handler = cast(AgentHandlerProtocol, agent)
+
+    async def the_cycle() -> None:
+        await manager._apply_rules(agent.rules)
+
+    await _finished(_spawn_in_this_context(the_cycle))
+    await asyncio.sleep(0)
+    gc.collect()
+    agent.go.set()
+    await _finished(agent.host[0])
+    if not agent.reused:
+        release_app(config)
+    return agent, manager
+
+
+async def test_a_task_on_the_address_of_the_dead_cycle_task_runs_its_own_cycle() -> (
+    None
+):
+    # another object can take the freed address first, so a miss is retried afresh
+    for _ in range(25):
+        (
+            agent,
+            manager,
+        ) = await _one_attempt_at_a_task_on_the_address_of_the_dead_cycle_task()
+        if agent.reused:
+            break
+    assert agent.reused is True
+    assert manager.current_rules is not None
