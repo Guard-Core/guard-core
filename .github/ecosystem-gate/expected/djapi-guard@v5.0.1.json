@@ -75,13 +75,6 @@
     "reason": "upgrade guide v4-to-v5, Responses that changed: '`bypass([\"all\"])` route | no security headers ... | security headers applied, bypass applies in passive mode'"
   },
   {
-    "test": "tests/test_middleware.py::TestDjangoAPIGuard::test_cloud_ip_blocking",
-    "exception": "AssertionError",
-    "message": "assert 200 == 403",
-    "reason": "test-only: 5.0.0 hands the module-level default manager to the first app bound while that app's config lives (guard_core/_utils/app_managers.py:165-180 bind(), guard_core/handlers/ipban_handler.py:129-141 ip_ban_manager_for(); same for cloud_handler_for at guard_core/handlers/cloud_handler.py:562-571, guard_core 5.0.0 wheel), so a test that patches or bans through the module-level default only reaches the app under test when no earlier test's app still holds the default; run alone on the 5.0.0 wheel it passes (verify/wp319/single-tests.txt). upgrade guide v4-to-v5, 'Code that touches the engine directly': 'Managers are per app: ip_ban_manager_for(config), sus_patterns_manager_for(config) and cloud_handler_for(config) resolve the manager of an app. The module-level ip_ban_manager, sus_patterns_handler and cloud_handler stay the default ones.'",
-    "exact": true
-  },
-  {
     "test": "tests/test_middleware.py::TestDjangoAPIGuard::test_fallback_to_pipeline",
     "exception": "guard_core.exceptions.GuardRedisError",
     "message": "Redis rate limiting unavailable",
@@ -112,11 +105,5 @@
     "exception": "AssertionError",
     "message": "Expected 'error' to have been called once. Called 0 times.",
     "reason": "test-only: mocks Redis keys(); prefix-wide clears use SCAN and UNLINK now. upgrade guide: \"Redis KEYS is gone from every prefix-wide clear and listing (SCAN and UNLINK instead)\""
-  },
-  {
-    "test": "tests/test_middleware.py::TestDjangoAPIGuard::test_redis_initialization",
-    "exception": "AssertionError",
-    "message": "Expected 'initialize' to have been called once. Called 5 times.",
-    "reason": "test-only: counts initialize calls on mocked handlers (now one per app handler); internal call counts, user behavior unchanged. upgrade guide v4-to-v5, 'Code that touches the engine directly': 'Managers are per app: ip_ban_manager_for(config), sus_patterns_manager_for(config) and cloud_handler_for(config) resolve the manager of an app. The module-level ip_ban_manager, sus_patterns_handler and cloud_handler stay the default ones.'"
   }
 ]
