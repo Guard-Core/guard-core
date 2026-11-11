@@ -90,7 +90,7 @@ def _next_app_after_a_dropped_one(mode: str, released: bool) -> dict[str, str]:
     _bind_an_app_and_drop_it(released)
     if mode == "gc_collect":
         gc.collect()
-    junk = [[] for _ in range(len(_KINDS) * 400)]
+    junk: list[list[int]] = [[] for _ in range(len(_KINDS) * 400)]
     del junk
     return _which_each_kind_got(_no_redis_config())
 

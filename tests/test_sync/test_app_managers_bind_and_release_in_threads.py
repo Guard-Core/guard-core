@@ -4,16 +4,11 @@ from collections.abc import Iterator
 
 import pytest
 
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.app_managers import AppManagers, release_app
 
 _THREADS = 8
 _ROUNDS = 3000
-
-
-class _NoRedisConfig:
-    redis_url = None
-    enable_redis = False
-    redis_prefix = "wp616:threads:"
 
 
 class _Manager:
@@ -28,9 +23,8 @@ def fast_thread_switching() -> Iterator[None]:
     sys.setswitchinterval(before)
 
 
-def test_bind_and_release_from_many_threads_leave_no_error_and_a_free_default(
-    fast_thread_switching: None,
-) -> None:
+@pytest.mark.usefixtures("fast_thread_switching")
+def test_bind_and_release_from_many_threads_leave_no_error_and_a_free_default() -> None:
     managers: AppManagers[_Manager] = AppManagers("pin_threads")
     default = _Manager()
     errors: list[str] = []
@@ -38,7 +32,7 @@ def test_bind_and_release_from_many_threads_leave_no_error_and_a_free_default(
     def bind_then_release() -> None:
         try:
             for _ in range(_ROUNDS):
-                config = _NoRedisConfig()
+                config = SyncSecurityConfig(enable_redis=False)
                 managers.bind(config, default, _Manager)
                 release_app(config)
         except Exception as error:
@@ -50,4 +44,7 @@ def test_bind_and_release_from_many_threads_leave_no_error_and_a_free_default(
     for thread in threads:
         thread.join()
     assert errors == []
-    assert managers.bind(_NoRedisConfig(), default, _Manager) is default
+    assert (
+        managers.bind(SyncSecurityConfig(enable_redis=False), default, _Manager)
+        is default
+    )

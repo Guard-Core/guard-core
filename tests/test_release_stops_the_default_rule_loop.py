@@ -30,6 +30,23 @@ def _defaults_unserved(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     ipban_module.ip_ban_manager.banned_ips.clear()
 
 
+def _loop_task_of(manager: DynamicRuleManager) -> asyncio.Task[None] | None:
+    return manager.update_task
+
+
+def _state_of(
+    manager: DynamicRuleManager,
+) -> tuple[object, object, bool, list[str], list[str], float]:
+    return (
+        manager.update_task,
+        manager.current_rules,
+        manager._hydrated_last_known_rules,
+        manager._owned_bans,
+        manager._owned_patterns,
+        manager.last_update,
+    )
+
+
 def _config(prefix: str | None = None) -> SecurityConfig:
     if prefix is None:
         return SecurityConfig(enable_redis=False, enable_ip_banning=True)
@@ -56,11 +73,7 @@ async def test_release_stops_the_loop_of_a_default_held_alone_and_resets_state()
     release_app(config)
     await asyncio.sleep(0.05)
     assert task.cancelled()
-    assert manager.update_task is None
-    assert manager.current_rules is None
-    assert manager._hydrated_last_known_rules is False
-    assert manager._owned_bans == [] and manager._owned_patterns == []
-    assert manager.last_update == 0
+    assert _state_of(manager) == (None, None, False, [], [], 0)
     second = _config()
     assert DynamicRuleManager(second) is manager
     assert manager.config is second
@@ -105,7 +118,7 @@ def test_release_from_another_thread_with_the_loop_closed_raises_nothing() -> No
     thread.start()
     thread.join()
     assert errors == []
-    assert manager.update_task is None
+    assert _loop_task_of(manager) is None
     task.cancel.assert_not_called()
 
 
