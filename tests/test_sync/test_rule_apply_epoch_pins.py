@@ -649,7 +649,9 @@ def test_a_dead_owner_leaves_the_entry_and_a_new_owner_takes_the_epoch() -> None
     def a_new_owner() -> None:
         _ENTRY_EPOCH.set(entry)
         with manager._entry_epoch_scope():
-            taken.append(_ENTRY_EPOCH.get()[2])
+            current = _ENTRY_EPOCH.get()
+            assert current is not None
+            taken.append(current[2])
 
     _finished(_spawn_in_this_context(a_new_owner))
     assert taken == [manager._release_epoch]

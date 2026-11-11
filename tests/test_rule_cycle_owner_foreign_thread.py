@@ -72,7 +72,7 @@ class _ContextCopyingAgent:
             self.copied = contextvars.copy_context()
 
 
-def _run_on_a_foreign_thread(work: Callable[[], None]) -> int:
+def _run_on_a_foreign_thread(work: Callable[[], object]) -> int:
     # _thread.start_new_thread leaves the threading module unaware of the thread,
     # as a C extension, mod_wsgi, uWSGI or Granian does
     done = _thread.allocate_lock()
