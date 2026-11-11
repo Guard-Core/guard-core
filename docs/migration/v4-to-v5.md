@@ -107,6 +107,8 @@ Call `release_app(config)` (from `guard_core._utils.app_managers`, or `guard_cor
 
 The supported import is `from guard_core import release_app` (async engine) or `from guard_core.sync import release_app` (sync engine).
 
+Release ends the app. The next request through its pipeline binds and initializes it again before any check runs, as the first request of a new app: a pattern added at runtime and bans kept in memory are gone, while state in Redis and state declared in the config come back. A request already past the pipeline's staleness check finishes on the old checks, and releasing an app that still serves requests is a host bug. The dynamic rule loop stops only when the released app held the default rule manager alone. Build the pipeline through `guard_core.core.checks.build_default_pipeline` (the adapters do), which carries the staleness check and the re-initialization.
+
 An app that is never released keeps the handoff that waits for the collector. Adapters call it from their own shutdown where the framework has one. Flask and Django have no app-shutdown event, so there it is a host and test API, never something to call from a per-request hook.
 
 ___
