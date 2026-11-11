@@ -10,6 +10,7 @@ from guard_core._utils.rule_attribution_shared import _APP_RULE_MANAGERS
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.decorators import SecurityDecorator
 from guard_core.handlers import ipban_handler as ipban_module
+from guard_core.handlers._background_stop import stop_task_from_another_thread
 from guard_core.handlers.behavior_handler import BehaviorRule
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
@@ -171,3 +172,27 @@ async def test_a_rule_ban_lands_on_the_manager_of_the_app_that_took_the_default(
     await adopted._apply_ip_bans([_IP], 60, [])
     assert await own.is_ip_banned(_IP, config=third)
     assert not await ipban_module.ip_ban_manager.is_ip_banned(_IP)
+
+
+def test_a_loop_that_closes_between_the_check_and_the_cancel_raises_nothing() -> None:
+    loop = Mock()
+    loop.is_closed.return_value = False
+    loop.is_running.return_value = True
+    loop.call_soon_threadsafe.side_effect = RuntimeError("Event loop is closed")
+    task = Mock(spec=asyncio.Task)
+    task.done.return_value = False
+    task.get_loop.return_value = loop
+    stop_task_from_another_thread(task, asyncio.Event())
+
+
+def test_a_failed_withdrawal_is_logged_and_release_goes_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config()
+    manager = DynamicRuleManager(config)
+    manager.current_rules = Mock()
+    monkeypatch.setattr(
+        manager, "_revert_to_base_config", Mock(side_effect=RuntimeError("boom"))
+    )
+    release_app(config)
+    assert _state_of(manager)[1] is None

@@ -259,7 +259,10 @@ def release_app(config: object) -> None:
 def release_epoch_of(config: object) -> int:
     """How many times this config was released; a pipeline compares it per request
     to learn that its app ended and must bind and initialize again."""
-    epoch: int = config.__dict__.get(RELEASE_EPOCH_RECORD, 0)
+    try:
+        epoch: int = config.__dict__.get(RELEASE_EPOCH_RECORD, 0)
+    except AttributeError:
+        return 0
     return epoch
 
 

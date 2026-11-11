@@ -116,6 +116,7 @@ class DynamicRuleManager(
         stop_task_from_another_thread(self.update_task, self._stop_event)
         self.update_task = None
         self._withdraw_the_applied_rules()
+        self.current_rules = None
         self.last_update = 0
         self._hydrated_last_known_rules = False
         self._owned_bans = []
