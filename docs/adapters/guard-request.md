@@ -73,7 +73,11 @@ from collections.abc import Mapping
 
 from starlette.requests import Request
 
-from guard_core.protocols.request_protocol import GuardRequest, RequestState
+from guard_core.protocols.request_protocol import (
+    GuardRequest,
+    GuardRequestHeaders,
+    RequestState,
+)
 
 
 class StarletteGuardRequest:
@@ -106,7 +110,7 @@ class StarletteGuardRequest:
         return None
 
     @property
-    def headers(self) -> Mapping[str, str]:
+    def headers(self) -> GuardRequestHeaders:
         return self._request.headers
 
     @property
@@ -122,7 +126,8 @@ class StarletteGuardRequest:
 
     @property
     def scope(self) -> dict[str, object]:
-        return dict(self._request.scope)
+        scope = self._request.scope
+        return scope if isinstance(scope, dict) else dict(scope)
 ```
 
 Full Implementation Example: Flask
@@ -135,6 +140,8 @@ from collections.abc import Mapping
 from types import SimpleNamespace
 
 from flask import Flask, Request
+
+from guard_core.protocols.request_protocol import GuardRequestHeaders
 
 
 class FlaskGuardRequest:
@@ -177,7 +184,7 @@ class FlaskGuardRequest:
         return self._request.remote_addr
 
     @property
-    def headers(self) -> Mapping[str, str]:
+    def headers(self) -> GuardRequestHeaders:
         return dict(self._request.headers)
 
     @property
@@ -206,6 +213,8 @@ from collections.abc import Mapping
 from types import SimpleNamespace
 
 from django.http import HttpRequest
+
+from guard_core.protocols.request_protocol import GuardRequestHeaders
 
 
 class DjangoGuardRequest:
@@ -251,7 +260,7 @@ class DjangoGuardRequest:
         return self._request.META.get("REMOTE_ADDR")
 
     @property
-    def headers(self) -> Mapping[str, str]:
+    def headers(self) -> GuardRequestHeaders:
         return self._headers
 
     @property

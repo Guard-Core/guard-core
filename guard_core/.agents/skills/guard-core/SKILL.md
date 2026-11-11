@@ -97,9 +97,9 @@ Implement three protocols to bridge your framework into the pipeline. Everything
 from guard_core.protocols import GuardRequest, GuardResponse, GuardResponseFactory
 ```
 
-`GuardRequest` exposes: `url_path`, `url_scheme`, `url_full`, `url_replace_scheme(scheme)`, `method`, `client_host`, `headers`, `query_params`, `async body()`, `state`, `scope`.
+`GuardRequest` exposes: `url_path`, `url_scheme`, `url_full`, `url_replace_scheme(scheme)`, `method`, `client_host`, `headers` (`GuardRequestHeaders`: `__getitem__`, `__contains__`, `get`, `keys()`, `items()`; not a `Mapping`), `query_params`, `async body()`, `state` (`RequestState`), `scope`.
 
-`GuardResponse` exposes: `status_code`, `headers`, `body`.
+`GuardResponse` exposes: `status_code`, `headers` (`GuardResponseHeaders`: `__getitem__`, `__setitem__`, `__delitem__`, `__contains__`, `get`, `keys()`, `items()`; not a `MutableMapping`), `body`. The optional `MaterializedBodyResponse` adds `body_is_materialized`. The full member list is `docs/api/protocols.md`.
 
 `GuardResponseFactory` exposes: `create_response(content, status_code)`, `create_redirect_response(url, status_code)`.
 
@@ -144,7 +144,7 @@ from guard_core.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.detection_result import DetectionResult
 ```
 
-`SusPatternsManager.detect(content, ip_address, context="unknown", correlation_id=None, enabled_categories=None, *, content_preview=None) -> DetectionResult` (a `TypedDict`) is the primary entry point. It preprocesses (up to 16 decode iterations: URL, HTML entities, base64, hex, Unicode escapes; then a final SQL-comment strip and null-byte strip), matches 148 regex patterns across 19 categories with context filtering, runs a multi-metric semantic score, and returns a `DetectionResult` dict. Detection also scans query-parameter, header, and JSON-key/form-field/multipart-part *names*, not only values, up to `detection_max_scan_values` values per request.
+`SusPatternsManager.detect(content, ip_address, context="unknown", correlation_id=None, enabled_categories=None, *, content_preview=None) -> suspatterns_handler.DetectionResult` (a `TypedDict`, not the `guard_core.detection_result` dataclass imported above) is the primary entry point. It preprocesses (up to 16 decode iterations: URL, HTML entities, base64, hex, Unicode escapes; then a final SQL-comment strip and null-byte strip), matches 148 regex patterns across 19 categories with context filtering, runs a multi-metric semantic score, and returns a `DetectionResult` dict. Detection also scans query-parameter, header, and JSON-key/form-field/multipart-part *names*, not only values, up to `detection_max_scan_values` values per request.
 
 The 19 detection categories (`ALL_DETECTION_CATEGORIES`): `xss`, `sqli`, `dir_traversal`, `path_traversal`, `cmd_injection`, `file_inclusion`, `ldap`, `xml`, `ssrf`, `nosql`, `file_upload`, `template`, `http_split`, `sensitive_file`, `cms_probing`, `recon`, `proto_pollution`, `code_injection`, `deserialization`.
 

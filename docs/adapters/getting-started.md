@@ -93,7 +93,7 @@ A class wrapping your framework's response that exposes the `GuardResponse` prot
 | Member | Type | Purpose |
 |---|---|---|
 | `status_code` | `int` | HTTP status code |
-| `headers` | `MutableMapping[str, str]` | Response headers (must be mutable) |
+| `headers` | `GuardResponseHeaders` | Response headers (must be mutable: `__setitem__` and `__delitem__` plus the read members) |
 | `body` | `bytes \| None` | Response body |
 
 ### 3. GuardResponseFactory

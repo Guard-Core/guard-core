@@ -8,7 +8,7 @@ keywords: protocols, guard request, guard response, middleware protocol, adapter
 Protocols
 =========
 
-Protocols are the most important API surface for adapter developers. Guard-core uses Python `Protocol` classes (PEP 544) to define the contracts that adapters must satisfy. All protocols are `@runtime_checkable`.
+Protocols are the most important API surface for adapter developers. Guard-core uses Python `Protocol` classes (PEP 544) to define the contracts that adapters must satisfy. The top-level protocols are `@runtime_checkable`. `RequestState`, `GuardRequestHeaders`, `GuardResponseHeaders` and the middleware sub-protocols are plain `Protocol` classes for static typing only, so do not pass them to `isinstance`.
 
 ___
 
@@ -56,7 +56,41 @@ class GuardRequest(Protocol):
 | `query_params`      | `Mapping[str, str]` | URL query parameters as a read-only mapping.                  |
 | `body()`            | `bytes` (async)     | The raw request body. May be called multiple times by detection checks. |
 | `state`             | `RequestState`      | A mutable state object for passing data between checks. Must support attribute assignment (`__setattr__(name, value: object)`). |
-| `scope`             | `dict[str, object]` | ASGI-style scope dict. Used for route resolution (`scope["route"]`). |
+| `scope`             | `dict[str, object]` | ASGI-style scope dict for adapters needing lower-level access. guard-core never reads it; the adapter's own route resolution does. |
+
+### RequestState
+
+```python
+class RequestState(Protocol):
+    def __setattr__(self, name: str, value: object, /) -> None: ...
+```
+
+The per-request attribute bag: any name can be set, none is declared. Pass the framework's own bag (Starlette `State`, Flask `g`, a `SimpleNamespace`, or the Django request itself). A name is only there once something set it, so read it back with `getattr` and a default.
+
+### GuardRequestHeaders
+
+```python
+class GuardRequestHeaders(Protocol):
+    def __getitem__(self, key: str, /) -> str: ...
+    def __contains__(self, key: str, /) -> bool: ...
+    @overload
+    def get(self, key: str, /) -> str | None: ...
+    @overload
+    def get(self, key: str, default: str, /) -> str: ...
+    def keys(self) -> Iterable[str]: ...
+    def items(self) -> Iterable[tuple[str, str]]: ...
+```
+
+| Member          | Return Type                    | Description                                                                 |
+|-----------------|--------------------------------|-----------------------------------------------------------------------------|
+| `__getitem__`   | `str`                          | The value under `key`; `KeyError` (or a subclass) when absent.              |
+| `__contains__`  | `bool`                         | Whether a header named `key` is set.                                        |
+| `get(key)`      | `str \| None`                  | The value under `key`, or `None` when absent.                               |
+| `get(key, default)` | `str`                      | The value under `key`, or `default` when absent.                            |
+| `keys()`        | `Iterable[str]`                | The header names; `dict(headers)` reads it.                                 |
+| `items()`       | `Iterable[tuple[str, str]]`    | The `(name, value)` pairs the header scan and the CORS check walk.          |
+
+It is not a `Mapping`: Werkzeug `EnvironHeaders` iterates `(name, value)` pairs, so `__iter__` and `__len__` are not part of the surface. Pass the framework's own header object or a plain `dict[str, str]`; lookups use the container's own casing rules, and only a plain `dict` is case-sensitive.
 
 ### Implementation Notes
 
@@ -69,7 +103,7 @@ class GuardRequest(Protocol):
 
 The adapter's `state` object must support dynamic attribute assignment (e.g., a simple namespace or the framework's built-in state).
 
-**`scope`**: Must include a `"route"` key with an object that has an `endpoint` attribute for decorator resolution. If the framework does not have route objects in scope, decorator-based features will not activate.
+**`scope`**: guard-core never reads it (`grep -rn 'scope' guard_core` outside `protocols/` finds no read of a request scope), so an empty dict satisfies the protocol. An adapter that resolves routes itself may keep the matched route in it (the Starlette adapter uses `scope["route"]`) and records the result on `state` (`guard_decorator`, `guard_route_id`, `guard_endpoint_id`, `guard_route_unresolved`).
 
 **`body()`**: The detection engine calls `body()` to scan request bodies for threats. Adapters should ensure the body is buffered and can be read multiple times (not consumed on first read).
 
@@ -150,7 +184,7 @@ class GuardResponse(Protocol):
     @property
     def status_code(self) -> int: ...
     @property
-    def headers(self) -> MutableMapping[str, str]: ...
+    def headers(self) -> GuardResponseHeaders: ...
     @property
     def body(self) -> bytes | None: ...
 ```
@@ -160,8 +194,33 @@ class GuardResponse(Protocol):
 | Member        | Return Type               | Description                                           |
 |---------------|--------------------------|-------------------------------------------------------|
 | `status_code` | `int`                    | HTTP status code. Used directly by `status:` return-pattern rules. |
-| `headers`     | `MutableMapping[str, str]`| Response headers. Must be mutable for security header injection. |
+| `headers`     | `GuardResponseHeaders`   | Response headers. Must be mutable for security header injection. |
 | `body`        | `bytes \| None`          | Response body bytes, when already fully materialized. **Not** read for behavioral `return_pattern` matching -- see `BoundedResponseBodyReader` below for that. |
+
+### GuardResponseHeaders
+
+```python
+class GuardResponseHeaders(Protocol):
+    def __getitem__(self, key: str, /) -> str: ...
+    def __setitem__(self, key: str, value: str, /) -> None: ...
+    def __delitem__(self, key: str, /) -> None: ...
+    def __contains__(self, key: str, /) -> bool: ...
+    def get(self, key: str, /) -> str | None: ...
+    def keys(self) -> Iterable[str]: ...
+    def items(self) -> Iterable[tuple[str, str]]: ...
+```
+
+| Member         | Return Type                 | Description                                                              |
+|----------------|-----------------------------|--------------------------------------------------------------------------|
+| `__getitem__`  | `str`                       | The value under `key`; `KeyError` (or a subclass) when absent.           |
+| `__setitem__`  | `None`                      | Set `key` to `value`, replacing any value it held.                       |
+| `__delitem__`  | `None`                      | Remove `key`; `KeyError` (or a subclass) when absent.                    |
+| `__contains__` | `bool`                      | Whether a header named `key` is set.                                     |
+| `get(key)`     | `str \| None`               | The value under `key`, or `None` when absent.                            |
+| `keys()`       | `Iterable[str]`             | The header names; `dict(headers)` and `{**headers}` read it.             |
+| `items()`      | `Iterable[tuple[str, str]]` | The `(name, value)` pairs, as the adapter copies them back out.          |
+
+It is not a `MutableMapping`: Werkzeug `Headers` iterates `(name, value)` pairs and a Django response iterates its body, so `__iter__` and `__len__` are not part of the surface. Pass the framework's own header object (Werkzeug `Headers`, Django `ResponseHeaders`, Starlette `MutableHeaders`, Tornado `HTTPHeaders`) or a plain `dict[str, str]`. `append(name, value)` (Starlette `MutableHeaders`) is an optional extra the engine uses when present.
 
 ___
 
@@ -190,6 +249,26 @@ class BoundedResponseBodyReader(Protocol):
 
 !!! danger "Implementations must enforce the bound themselves"
     Exactly as with `BoundedBodyReader` on the request side (see [GHSA-xv6g-49vj-7w9c](https://github.com/Guard-Core/guard-core/security/advisories/GHSA-xv6g-49vj-7w9c)): guard-core defensively slices the returned bytes to `max_bytes`, but that slice only trims what `read_body_prefix` already returned -- it cannot stop an implementation from reading or buffering more than `max_bytes` internally first, and it cannot force a streaming response to keep streaming. Implementations **must not** buffer more than `max_bytes` while producing the prefix. On requests the attacker controls the body directly; on responses the attacker controls only which endpoint they hit and the application produces the body, so any large streaming endpoint (a file download, an export, an SSE stream) can force this read on every request through it once `behavior_scan_response_body` is enabled -- size the cap and pick routes accordingly.
+
+___
+
+MaterializedBodyResponse
+------------------------
+
+Optional capability protocol. An adapter implements it alongside `GuardResponse` to say the response already holds its whole body in memory.
+
+```python
+@runtime_checkable
+class MaterializedBodyResponse(Protocol):
+    @property
+    def body_is_materialized(self) -> bool: ...
+```
+
+| Member                 | Return Type | Description                                                                                  |
+|------------------------|-------------|----------------------------------------------------------------------------------------------|
+| `body_is_materialized` | `bool`      | `True` when the whole body is in memory, so reading `body` costs nothing and consumes nothing. |
+
+It is read once per response by `custom_response_modifier` handling. When it is exactly `True`, the modifier gets the real response: real `body` bytes, one call, no view, no prefetch and no `custom_response_modifier_max_body_bytes` cap. Absent, `False` or any other value keeps the bounded path. Derive it from the framework's own signal, read before anything touches the body: Starlette `Response` holds `body` (`FileResponse` and `StreamingResponse` do not), Django `not response.streaming`, Werkzeug `not response.is_streamed` read before `.data`, Tornado a buffered write rather than a chunked one.
 
 ___
 
@@ -269,7 +348,117 @@ class GuardMiddlewareProtocol(Protocol):
 | `rate_limit_handler`    | `RateLimitHandlerProtocol` or `None`.                   |
 | `agent_handler`         | `AgentHandlerProtocol` or `None`.                       |
 | `geo_ip_handler`        | `GeoIPHandler` (the handler of this tree) or `None`.    |
-| `guard_response_factory`| `GuardResponseFactory` from the adapter.                |
+| `guard_response_factory`| `GuardResponseFactory` from the adapter, or `None`.     |
+
+### Methods
+
+| Method                                          | Return Type              | Description                                                                 |
+|-------------------------------------------------|--------------------------|-----------------------------------------------------------------------------|
+| `create_error_response(status_code, default_message)` (async) | `GuardResponse` | The error response for a denied request: the configured custom message for `status_code`, else `default_message`. |
+| `refresh_cloud_ip_ranges()` (async)             | `None`                   | Refresh the cached cloud-provider ranges and update `last_cloud_ip_refresh`. |
+
+### Middleware sub-protocols
+
+Defined in `guard_core/protocols/middleware_protocol.py`. They are not `@runtime_checkable`.
+
+```python
+class RouteDecoratorRegistryProtocol(Protocol):
+    @property
+    def _route_configs(self) -> Mapping[str, RouteConfig]: ...
+    @property
+    def route_config_revision(self) -> int: ...
+
+
+class RateLimitHandlerProtocol(Protocol):
+    @property
+    def redis_handler(self) -> RedisHandlerProtocol | None: ...
+    @property
+    def agent_handler(self) -> AgentHandlerProtocol | None: ...
+    async def check_rate_limit_tiers(
+        self,
+        request: GuardRequest,
+        client_ip: str,
+        create_error_response: Callable[[int, str], Awaitable[GuardResponse]],
+        tiers: Sequence[RateLimitTier],
+        config: SecurityConfig | None = None,
+        window_identity: str | None = None,
+        verdict: RateLimitVerdict | None = None,
+    ) -> RateLimitBlock | None: ...
+    async def report_rate_limit_block(
+        self,
+        request: GuardRequest,
+        client_ip: str,
+        block: RateLimitBlock,
+        tier: RateLimitTier,
+        config: SecurityConfig | None = None,
+        attribution: dict[str, object] | None = None,
+    ) -> None: ...
+
+
+class SecurityEventBusProtocol(Protocol):
+    @property
+    def agent_handler(self) -> AgentHandlerProtocol | None: ...
+    async def send_middleware_event(
+        self,
+        event_type: str,
+        request: GuardRequest,
+        action_taken: str,
+        reason: str,
+        **kwargs: object,
+    ) -> None: ...
+    async def send_https_violation_event(
+        self, request: GuardRequest, route_config: RouteConfig | None
+    ) -> None: ...
+    async def send_cloud_detection_events(
+        self,
+        request: GuardRequest,
+        client_ip: str,
+        cloud_providers_to_check: list[str],
+        route_config: RouteConfig | None,
+        cloud_handler: CloudManager,
+        passive_mode: bool,
+        cloud_details: tuple[str, str] | None = None,
+        attribution: dict[str, object] | None = None,
+    ) -> None: ...
+
+
+class RouteResolverProtocol(Protocol):
+    def get_route_config(self, request: GuardRequest) -> RouteConfig | None: ...
+    def should_bypass_check(
+        self, check_name: str, route_config: RouteConfig | None
+    ) -> bool: ...
+    def get_cloud_providers_to_check(
+        self, route_config: RouteConfig | None
+    ) -> list[str] | None: ...
+
+
+class ResponseFactoryProtocol(Protocol):
+    @property
+    def security_headers_manager(self) -> object: ...
+    async def create_https_redirect(self, request: GuardRequest) -> GuardResponse: ...
+    async def apply_modifier(
+        self, response: GuardResponse, request: GuardRequest | None = None
+    ) -> GuardResponse: ...
+```
+
+| Protocol                         | Member                                  | Description                                                              |
+|----------------------------------|-----------------------------------------|--------------------------------------------------------------------------|
+| `RouteDecoratorRegistryProtocol` | `_route_configs`                        | Every decorated route's config, keyed by route id.                       |
+|                                  | `route_config_revision`                 | Changes whenever a route config is added or edited.                      |
+| `RateLimitHandlerProtocol`       | `redis_handler`                         | The shared Redis backend, or `None` when rate limits are in memory.      |
+|                                  | `agent_handler`                         | The agent the handler reports blocks to, or `None`.                      |
+|                                  | `check_rate_limit_tiers(...)`           | Count the request against the tiers; the block it hit, or `None`.        |
+|                                  | `report_rate_limit_block(...)`          | Report a rate-limit block to the agent.                                  |
+| `SecurityEventBusProtocol`       | `agent_handler`                         | The agent the bus forwards events to, or `None`.                         |
+|                                  | `send_middleware_event(...)`            | Send one security event to the agent.                                    |
+|                                  | `send_https_violation_event(...)`       | Send the event for a request that required HTTPS.                        |
+|                                  | `send_cloud_detection_events(...)`      | Send the events for a request from a blocked cloud provider.             |
+| `RouteResolverProtocol`          | `get_route_config(request)`             | The request's route config, or `None`.                                   |
+|                                  | `should_bypass_check(check_name, route_config)` | `True` when the route bypasses the named check.                  |
+|                                  | `get_cloud_providers_to_check(route_config)` | The cloud providers to block for the route, or `None`.              |
+| `ResponseFactoryProtocol`        | `security_headers_manager`              | The security-headers manager; readers check its type.                    |
+|                                  | `create_https_redirect(request)` (async) | Build the redirect to the HTTPS URL.                                    |
+|                                  | `apply_modifier(response, request=None)` (async) | Run the configured response modifier over the response.         |
 
 ___
 
@@ -295,6 +484,8 @@ class GeoIPHandler(Protocol):
 |-------------------|-----------------------------------------------------|
 | `is_initialized`  | Whether the handler has been initialized.           |
 | `initialize()`    | Perform async initialization (e.g., download DB).   |
+| `initialize_redis(redis_handler)` | Attach the shared Redis backend for caching the dataset across workers. |
+| `initialize_agent(agent_handler)` | Attach the agent so dataset-refresh failures can be reported. |
 | `get_country(ip)` | Return ISO country code for the IP, or `None`.      |
 | `refresh()`       | Reload the dataset from source (periodic update). Required by the protocol even if a given implementation makes it a no-op. |
 | `close()`         | Release the dataset/file handles.                   |
@@ -388,6 +579,12 @@ class RedisHandlerProtocol(Protocol):
 
 `config` is read directly: the engine uses `config.redis_prefix` and the Redis switches. `get_connection()` must yield a redis-py-compatible asyncio client, because the engine runs pipelines, `evalsha`, `scan_iter`, `zrange` and `execute_command("MGET")` on it. At startup, a handler that lacks any member is reported once with every missing name, through the same path as the other misconfigurations: a warning with `fail_on_misconfiguration=False`, a refusal to start with it on.
 
+### SecurityHeadersRedisHandler
+
+`@runtime_checkable`. The four members the security headers override path calls on a handler: `config: SecurityConfig`, `async get_key(namespace, key) -> str | None`, `async set_key(namespace, key, value, ttl=None) -> bool | None` and `get_connection() -> AsyncContextManager[Redis]`, with the same meaning as on `RedisHandlerProtocol`. A handler registered under a config is kept for that path when it has these four, whatever else of `RedisHandlerProtocol` it lacks.
+
+A handler that implements the members directly keeps its live client in `_redis` (`None` while disconnected): after a cold start under `redis_fail_open` the engine reads that attribute to tell whether a reconnect succeeded. `is_connected()` answers the same question for a handler that keeps its client elsewhere; the engine calls it when the handler has it and falls back to `_redis` otherwise.
+
 ### RedisHandlerBase
 
 Subclass `RedisHandlerBase` (importable from `guard_core` and `guard_core.handlers`) to plug in your own connection handling and keep every other method as `RedisManager` has it. It extends `RedisManager`, so the Lua scripts and the key layout exist once, and unlike `RedisManager` it is not a singleton: each instance keeps its own `config` and client.
@@ -436,3 +633,88 @@ class AgentHandlerProtocol(Protocol):
     async def health_check(self) -> bool: ...
     def get_stats(self) -> dict[str, JsonValue]: ...
 ```
+
+| Member                       | Return Type                 | Description                                                              |
+|------------------------------|-----------------------------|--------------------------------------------------------------------------|
+| `initialize_redis(redis_handler)` (async) | `None`         | Attach the shared Redis backend used for cross-worker buffering.         |
+| `send_event(event)` (async)  | `None`                      | Enqueue a security event for delivery. Must not block or raise.          |
+| `send_metric(metric)` (async)| `None`                      | Enqueue a metric for delivery. Must not block or raise.                  |
+| `start()` (async)            | `None`                      | Start the background buffering/flush and rule-sync loops.                |
+| `stop()` (async)             | `None`                      | Stop the background loops and release resources. Must be idempotent.     |
+| `flush_buffer()` (async)     | `None`                      | Force an immediate send of any buffered events and metrics.              |
+| `get_dynamic_rules()` (async)| `DynamicRulesProtocol \| None` | The latest dynamic rules, or `None` when none are available.           |
+| `health_check()` (async)     | `bool`                      | `True` when the agent can reach its collector.                           |
+| `get_stats()`                | `dict[str, JsonValue]`      | The handler's counters as a JSON-shaped mapping.                         |
+
+`JsonValue` is `str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]` (`guard_core/protocols/agent_protocol.py`).
+
+### DynamicRulesProtocol
+
+`@runtime_checkable`. The read-only view of one rule set that `AgentHandlerProtocol.get_dynamic_rules` returns on every rule poll. `guard_core.models.DynamicRules` and guard-agent's own `DynamicRules` satisfy it as they are. Every member is a property:
+
+| Property                      | Type                              |
+|-------------------------------|-----------------------------------|
+| `rule_id`                     | `str`                             |
+| `version`                     | `int`                             |
+| `timestamp`                   | `datetime`                        |
+| `expires_at`                  | `datetime \| None`                |
+| `ttl`                         | `int`                             |
+| `ip_blacklist`                | `list[str]`                       |
+| `ip_whitelist`                | `list[str]`                       |
+| `ip_ban_duration`             | `int`                             |
+| `blocked_countries`           | `list[str]`                       |
+| `whitelist_countries`         | `list[str]`                       |
+| `global_rate_limit`           | `int \| None`                     |
+| `global_rate_window`          | `int \| None`                     |
+| `endpoint_rate_limits`        | `dict[str, tuple[int, int]]`      |
+| `blocked_cloud_providers`     | `set[str]`                        |
+| `blocked_user_agents`         | `list[str]`                       |
+| `suspicious_patterns`         | `list[str]`                       |
+| `enable_penetration_detection`| `bool \| None`                    |
+| `enable_ip_banning`           | `bool \| None`                    |
+| `enable_rate_limiting`        | `bool \| None`                    |
+| `auto_ban_threshold`          | `int \| None`                     |
+| `auto_ban_duration`           | `int \| None`                     |
+| `enable_rate_limit_auto_ban`  | `bool \| None`                    |
+| `emergency_mode`              | `bool`                            |
+| `emergency_whitelist`         | `list[str]`                       |
+| `emergency_whitelist_only`    | `bool`                            |
+
+___
+
+CloudIpStoreProtocol
+--------------------
+
+```python
+@runtime_checkable
+class CloudIpStoreProtocol(Protocol):
+    async def get(self, provider: str) -> set[str] | None: ...
+    async def set(
+        self, provider: str, ranges: set[str], ttl: int | None = None
+    ) -> None: ...
+    async def clear(self) -> None: ...
+
+
+CloudIpStoreFactory = Callable[[RedisHandlerProtocol | None], CloudIpStoreProtocol]
+```
+
+| Member                     | Description                                                                                       |
+|----------------------------|---------------------------------------------------------------------------------------------------|
+| `get(provider)`            | The cached CIDR ranges for `provider`, or `None` on a miss (an empty set means known, no ranges). |
+| `set(provider, ranges, ttl=None)` | Cache `ranges` for `provider`, expiring after `ttl` seconds.                               |
+| `clear()`                  | Drop all cached provider ranges.                                                                  |
+
+See [Cloud IP store](cloud-ip-store.md) for the contract and the default implementation.
+
+___
+
+RouteIdentity
+-------------
+
+```python
+class RouteIdentity(NamedTuple):
+    handler: object
+    path_params: tuple[tuple[str, str], ...]
+```
+
+The handler a router dispatches to, plus the path parameters it captured. It is an in-process dict key, never persisted and never sent to Redis. `handler` is the dispatched object itself (function, class plus method name tuple, ...), never a qualname string, so two handlers that share a name never compare equal. `path_params` holds the router's converted values as strings, sorted by name, positional args as `"0"`, `"1"`. Import it from `guard_core.protocols`.

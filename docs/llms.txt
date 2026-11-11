@@ -78,7 +78,7 @@ Guard Core is the framework-agnostic security engine that powers the Guard ecosy
 ### Protocol-Based Architecture
 Guard Core defines three runtime-checkable protocols that adapters must implement:
 - `GuardRequest`: url_path, url_scheme, url_full, method, client_host, headers, query_params, body(), state, scope
-- `GuardResponse`: status_code, headers (MutableMapping), body
+- `GuardResponse`: status_code, headers (GuardResponseHeaders), body
 - `GuardResponseFactory`: create_response(content, status_code), create_redirect_response(url, status_code)
 
 ### Security Check Pipeline (17-check catalogue, in order)
