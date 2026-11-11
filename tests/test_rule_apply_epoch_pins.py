@@ -20,13 +20,20 @@ from guard_core.core.initialization.handler_initializer import (
 )
 from guard_core.handlers import ipban_handler as ipban_module
 from guard_core.handlers import suspatterns_handler as patterns_module
+from guard_core.handlers._dynamic_rule_application import (
+    RuleSideEffects,
+    RuleTargets,
+)
 from guard_core.handlers._dynamic_rule_intake import RunStopped
 from guard_core.handlers._dynamic_rule_plan import DynamicRulePlan
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 from guard_core.models import DynamicRules, SecurityConfig
-from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+from guard_core.protocols.agent_protocol import (
+    AgentHandlerProtocol,
+    DynamicRulesProtocol,
+)
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 _IPS = ["203.0.113.131", "203.0.113.132"]
@@ -259,11 +266,13 @@ async def test_a_release_during_an_apply_reverts_that_config_at_its_next_initial
     config, config_b = _config(11), _config(22)
     bind_app_managers(config)
     manager = DynamicRuleManager(config)
+    pre_rule_base = manager._snapshot_config()
     _release_right_after_the_swap(monkeypatch, manager, config, config_b)
     with pytest.raises(RunStopped):
         await manager._apply_rules(_rules(full=False))
     assert config.block_cloud_providers
     HandlerInitializer(config)
+    assert {name: getattr(config, name) for name in pre_rule_base} == pre_rule_base
     assert not config.block_cloud_providers
     assert config.rate_limit == 11
     assert not config_b.block_cloud_providers
@@ -291,3 +300,118 @@ def test_a_config_that_cannot_hold_a_record_has_no_pending_base() -> None:
     nowhere = object()
     record_pending_rule_base(nowhere, {"rate_limit": 1})
     revert_pending_rule_base(cast(SecurityConfig, nowhere))
+
+
+class _EventsAgent:
+    def __init__(self, release_during_fetch: Callable[[], None]) -> None:
+        self.release_during_fetch = release_during_fetch
+        self.events: list[object] = []
+
+    async def get_dynamic_rules(self) -> DynamicRules:
+        gate = threading.Event()
+
+        def release_then_open() -> None:
+            self.release_during_fetch()
+            gate.set()
+
+        threading.Thread(target=release_then_open).start()
+        assert gate.wait(10)
+        return _rules()
+
+    async def send_event(self, event: object) -> None:
+        self.events.append(event)
+
+
+def _rule_cycle_with_a_release_during_the_fetch(
+    config: SecurityConfig, config_b: SecurityConfig
+) -> tuple[DynamicRuleManager, _EventsAgent]:
+    bind_app_managers(config)
+    manager = DynamicRuleManager(config)
+
+    def release_and_bind_next() -> None:
+        release_app(config)
+        HandlerInitializer(config_b)
+        assert DynamicRuleManager(config_b) is manager
+
+    agent = _EventsAgent(release_and_bind_next)
+    manager.agent_handler = cast(AgentHandlerProtocol, agent)
+    return manager, agent
+
+
+async def test_a_release_during_the_fetch_of_the_loop_run_applies_nothing() -> None:
+    config, config_b = _config(rules=True), _config(rules=True)
+    manager, agent = _rule_cycle_with_a_release_during_the_fetch(config, config_b)
+    with pytest.raises(RunStopped):
+        await manager.update_rules()
+    assert agent.events == []
+    assert manager.current_rules is None
+    assert await _nothing_remains_on_the_next_app(config_b)
+    assert not config.block_cloud_providers
+
+
+async def test_a_release_during_the_fetch_of_a_forced_update_applies_nothing() -> None:
+    config, config_b = _config(rules=True), _config(rules=True)
+    manager, agent = _rule_cycle_with_a_release_during_the_fetch(config, config_b)
+    await manager.force_update()
+    assert agent.events == []
+    assert manager.current_rules is None
+    assert await _nothing_remains_on_the_next_app(config_b)
+    assert not config.block_cloud_providers
+
+
+async def test_a_release_from_a_second_thread_during_the_side_effects_ends_the_apply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config, config_b = _config(11), _config(22)
+    bind_app_managers(config)
+    manager = DynamicRuleManager(config)
+    side_effects = manager._apply_side_effects
+    reached, gate = threading.Event(), threading.Event()
+
+    async def gated(
+        rules: DynamicRulesProtocol,
+        effects: RuleSideEffects | None = None,
+        exempt_ips: list[str] | None = None,
+        targets: RuleTargets | None = None,
+    ) -> None:
+        reached.set()
+        assert gate.wait(10)
+        await side_effects(rules, effects, exempt_ips, targets)
+
+    def release_then_open() -> None:
+        assert reached.wait(10)
+        release_app(config)
+        HandlerInitializer(config_b)
+        gate.set()
+
+    monkeypatch.setattr(manager, "_apply_side_effects", gated)
+    releaser = threading.Thread(target=release_then_open)
+    releaser.start()
+    with pytest.raises(RunStopped):
+        await manager._apply_rules(_rules())
+    releaser.join()
+    assert await _nothing_remains_on_the_next_app(config_b)
+    assert config_b.rate_limit == 22
+    assert not config.block_cloud_providers
+
+
+async def test_a_held_lock_release_leaves_no_rule_exempt_network_for_the_next_app() -> (
+    None
+):
+    config = _config()
+    bind_app_managers(config)
+    manager = DynamicRuleManager(config)
+    await manager._apply_rules(
+        DynamicRules(
+            rule_id="wp642",
+            version=1,
+            timestamp=datetime.now(timezone.utc),
+            ip_whitelist=["198.51.100.0/24"],
+        )
+    )
+    assert ip_ban_manager_for(config).rule_exempt_networks
+    async with manager._lock:
+        release_app(config)
+    config_b = _config()
+    HandlerInitializer(config_b)
+    assert ip_ban_manager_for(config_b).rule_exempt_networks == ()

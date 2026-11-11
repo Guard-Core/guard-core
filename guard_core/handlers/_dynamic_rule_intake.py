@@ -1,6 +1,7 @@
 import logging
 import time
 from collections.abc import Awaitable, Callable
+from contextlib import AbstractContextManager
 
 from guard_core._dynamic_rules import content_fingerprint
 from guard_core.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
@@ -34,6 +35,8 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
     _revoke_active_rules: Callable[[DynamicRulesProtocol], Awaitable[None]]
     _apply_rules: Callable[[DynamicRulesProtocol], Awaitable[list[str]]]
     _run_was_stopped: Callable[[], bool]
+    _end_if_released_since_entry: Callable[[], None]
+    _entry_epoch_scope: Callable[[], AbstractContextManager[None]]
 
     def _should_update_rules(self, rules: DynamicRulesProtocol) -> bool:
         if self._run_was_stopped():
@@ -94,6 +97,10 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
         return True
 
     async def update_rules(self) -> None:
+        with self._entry_epoch_scope():
+            await self._update_rules_in_cycle()
+
+    async def _update_rules_in_cycle(self) -> None:
         if not self.config.enable_dynamic_rules or not self.agent_handler:
             return
 
@@ -105,6 +112,7 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
             answer: (
                 DynamicRulesProtocol | None
             ) = await self.agent_handler.get_dynamic_rules()
+            self._end_if_released_since_entry()
             rules = await self._rules_that_apply(answer, marker)
             if rules is None:
                 return
@@ -125,6 +133,7 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
             if not self._should_update_rules(rules):
                 return
 
+            self._end_if_released_since_entry()
             await self._send_rule_received_event(rules)
 
             self.logger.info(

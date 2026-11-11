@@ -1259,10 +1259,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "DynamicRuleSnapshotMixin._clear_last_known_rules": (
         "lines 114,124: persistence cleanup failure for SaaS-pushed rules, infra only"
     ),
-    "handlers/dynamic_rule_handler.py:DynamicRuleManager._apply_rules": (
+    "handlers/dynamic_rule_handler.py:DynamicRuleManager._apply_rules_from_entry": (
         "line 204: applying a SaaS-pushed DynamicRules payload, not a request"
     ),
-    "handlers/dynamic_rule_handler.py:DynamicRuleManager._revoke_active_rules": (
+    "handlers/dynamic_rule_handler.py:DynamicRuleManager._revoke_from_entry": (
         "line 197: rule-revocation lifecycle log, policy metadata only"
     ),
     "handlers/_dynamic_rule_intake.py:DynamicRuleIntakeMixin._reject_if_malformed": (
@@ -1272,7 +1272,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "DynamicRuleIntakeMixin._ignore_platform_default": (
         "line 189: ignores the SaaS platform default shape, policy metadata only"
     ),
-    "handlers/dynamic_rule_handler.py:DynamicRuleManager._check_rule_expiry": (
+    "handlers/dynamic_rule_handler.py:DynamicRuleManager._expire_from_entry": (
         "line 162: rule-expiry lifecycle log, policy metadata only"
     ),
     "handlers/dynamic_rule_handler.py:DynamicRuleManager._withdraw_the_applied_rules": (
@@ -1292,7 +1292,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/dynamic_rule_handler.py:DynamicRuleManager.stop": (
         "line 272: shutdown lifecycle log, not a request"
     ),
-    "handlers/_dynamic_rule_intake.py:DynamicRuleIntakeMixin.update_rules": (
+    "handlers/_dynamic_rule_intake.py:DynamicRuleIntakeMixin._update_rules_in_cycle": (
         "lines 204,215: SaaS rule-fetch/apply lifecycle log, not a request"
     ),
     "handlers/ipban_handler.py:IPBanManager._on_eviction": (
