@@ -1,12 +1,13 @@
 import gc
 import logging
+import weakref
 from collections.abc import Iterator
 from unittest.mock import Mock
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync._utils.app_managers import release_app
+from guard_core.sync._utils.app_managers import AppManagers, release_app
 from guard_core.sync._utils.rule_attribution_shared import _APP_RULE_MANAGERS
 from guard_core.sync.core.checks.implementations.ip_security import IpSecurityCheck
 from guard_core.sync.handlers import cloud_handler as cloud_module
@@ -262,3 +263,11 @@ def test_the_dynamic_rules_default_stays_with_an_app_that_is_never_released() ->
     gc.collect()
     manager = DynamicRuleManager(_no_redis_config())
     assert manager is not DynamicRuleManager._instance
+
+
+def test_a_release_hands_back_even_when_no_default_was_recorded() -> None:
+    managers: AppManagers[object] = AppManagers("pin_without_a_default")
+    config = _no_redis_config()
+    managers._served = weakref.ref(config)
+    release_app(config)
+    assert managers._served is None
