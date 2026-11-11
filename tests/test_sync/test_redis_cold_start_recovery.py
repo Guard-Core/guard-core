@@ -905,24 +905,30 @@ def test_a_fail_closed_blip_serves_within_half_a_second_of_the_restore(
     manager.close()
 
 
-def test_a_fail_open_blip_writes_keys_within_half_a_second_of_the_restore(
-    forwarder: RedisForwarder, prefix: str
+def test_a_fail_open_blip_writes_keys_on_the_first_attempt_after_the_first_window(
+    forwarder: RedisForwarder, prefix: str, clock: Clock
 ) -> None:
+    # The first window after a failed attempt is 0.25 s, so a Redis that is back
+    # inside it is reached by the first attempt after it and by no other. Counted
+    # in attempts on the gate's clock, not in wall time: a loaded host that
+    # stretches a sleep must not read as a slow recovery.
     app = App(config_for(forwarder.url, prefix))
     app.start()
     assert app.request() is None
-    time.sleep(0.1)
     forwarder.on()
-    restored = monotonic()
-    written = None
-    while monotonic() - restored < 2.0:
+    attempts = app.connects()
+    with patch.object(app.redis, "_open_connection", attempts):
+        clock.now += 0.24
         assert app.request() is None
         app.ban()
-        if keys_under(prefix) > 0:
-            written = monotonic() - restored
-            break
-        time.sleep(0.05)
-    assert written is not None and written < 0.5
+        assert attempts.call_count == 0
+        assert keys_under(prefix) == 0
+        clock.now += 0.02
+        assert app.request() is None
+        assert app.request() is None
+        app.ban()
+    assert attempts.call_count == 1
+    assert keys_under(prefix) > 0
     assert app.names() == []
 
 
