@@ -10,6 +10,23 @@ _MARKER = re.compile(r"^(<<<<<<< |=======$|>>>>>>> )", re.MULTILINE)
 
 
 _NOT_A_REPOSITORY = ("not a git repository", "does not point to a valid repository")
+_REPOSITORY_LOCATORS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+)
+
+
+def _git_env_for(root: Path) -> dict[str, str]:
+    env = {k: v for k, v in os.environ.items() if k not in _REPOSITORY_LOCATORS}
+    env.update(
+        LC_ALL="C",
+        LANGUAGE="",
+        GIT_CEILING_DIRECTORIES=str(root.resolve().parent),
+    )
+    return env
 
 
 def _inside_a_work_tree(root: Path = _REPO_ROOT) -> bool:
@@ -18,7 +35,7 @@ def _inside_a_work_tree(root: Path = _REPO_ROOT) -> bool:
         cwd=root,
         capture_output=True,
         text=True,
-        env={**os.environ, "LC_ALL": "C", "LANGUAGE": ""},
+        env=_git_env_for(root),
     )
     if probe.returncode == 0:
         return probe.stdout.strip() == "true"
@@ -33,6 +50,7 @@ def _tracked_files() -> list[Path]:
         cwd=_REPO_ROOT,
         capture_output=True,
         check=True,
+        env=_git_env_for(_REPO_ROOT),
     ).stdout.decode("utf-8")
     return [_REPO_ROOT / name for name in listing.split("\0") if name]
 
@@ -124,3 +142,29 @@ def test_a_gitfile_pointing_at_a_missing_path_is_not_a_work_tree(
     (tmp_path / ".git").write_text("gitdir: /nonexistent/x\n", encoding="utf-8")
 
     assert _inside_a_work_tree(tmp_path) is False
+
+
+def _git_init(path: Path) -> None:
+    path.mkdir()
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+
+
+def test_a_plain_subdirectory_of_a_work_tree_is_not_a_work_tree(
+    tmp_path: Path,
+) -> None:
+    _git_init(tmp_path / "repo")
+    plain = tmp_path / "repo" / "sub"
+    plain.mkdir()
+
+    assert _inside_a_work_tree(plain) is False
+
+
+def test_an_exported_git_dir_does_not_decide_for_a_plain_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _git_init(tmp_path / "other")
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "other" / ".git"))
+
+    assert _inside_a_work_tree(plain) is False
