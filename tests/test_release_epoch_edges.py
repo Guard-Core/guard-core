@@ -137,3 +137,18 @@ def test_the_enricher_has_no_rule_manager_when_dynamic_rules_are_off() -> None:
     enricher = HandlerInitializer(config).build_enricher()
     assert enricher is not None
     assert enricher._context.dynamic_rule_handler is None
+
+
+async def test_a_withdrawal_leaves_the_overlay_while_an_update_holds_the_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = SecurityConfig(enable_redis=False)
+    manager = DynamicRuleManager(config)
+    manager.current_rules = Mock()
+    revert = Mock()
+    monkeypatch.setattr(manager, "_revert_to_base_config", revert)
+    async with manager._lock:
+        manager._withdraw_the_applied_rules()
+    revert.assert_not_called()
+    manager._withdraw_the_applied_rules()
+    revert.assert_called_once()

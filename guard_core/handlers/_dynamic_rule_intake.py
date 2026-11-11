@@ -13,6 +13,11 @@ from guard_core.protocols.agent_protocol import (
 )
 
 
+class RunStopped(Exception):
+    """The update loop run that fetched these rules was stopped (its app was
+    released) before it applied them."""
+
+
 class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin):
     config: SecurityConfig
     agent_handler: AgentHandlerProtocol | None
@@ -27,6 +32,7 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
     _check_rule_expiry: Callable[[], Awaitable[None]]
     _revoke_active_rules: Callable[[DynamicRulesProtocol], Awaitable[None]]
     _apply_rules: Callable[[DynamicRulesProtocol], Awaitable[list[str]]]
+    _run_was_stopped: Callable[[], bool]
 
     def _should_update_rules(self, rules: DynamicRulesProtocol) -> bool:
         current = self.current_rules
@@ -116,6 +122,9 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
             if not self._should_update_rules(rules):
                 return
 
+            if self._run_was_stopped():
+                return
+
             await self._send_rule_received_event(rules)
 
             self.logger.info(
@@ -130,5 +139,7 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
 
             await self._send_rule_applied_event(rules, skipped)
 
+        except RunStopped:
+            return
         except Exception as e:
             self.logger.error(f"Failed to update dynamic rules: {e}")

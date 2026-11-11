@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import threading
 import time
@@ -20,6 +19,7 @@ from guard_core.core.checks._usage_rules_step import (
 )
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.exceptions import GuardRedisError
+from guard_core.handlers._redis_attempt import ConnectionLocks
 from guard_core.handlers._redis_reconnect_gate import REDIS_RECONNECT_WINDOW_SECONDS
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
@@ -64,7 +64,7 @@ class SecurityCheckPipeline:
         self._route_config_revision = route_config_revision
         self._rebuild_lock = threading.Lock()
         self._reinitialize_app = reinitialize_app
-        self._reinitialize_lock = asyncio.Lock()
+        self._reinitialize_locks = ConnectionLocks()
         self._built_release_epoch = self._release_epoch_of(config)
         self._initialized_release_epoch = self._built_release_epoch
         self._check_edits: list[
@@ -277,7 +277,7 @@ class SecurityCheckPipeline:
         reinitialize = self._reinitialize_app
         if reinitialize is None:
             return
-        async with self._reinitialize_lock:
+        async with self._reinitialize_locks.here():
             epoch = self._release_epoch_of(config)
             if epoch == self._initialized_release_epoch:
                 return

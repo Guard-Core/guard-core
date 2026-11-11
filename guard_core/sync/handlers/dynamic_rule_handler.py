@@ -1,5 +1,6 @@
 import logging
 import threading
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from ipaddress import ip_address
 from typing import cast
@@ -18,6 +19,7 @@ from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync._utils.rule_attribution_shared import _APP_RULE_MANAGERS
 from guard_core.sync._utils.whitelist_match import is_listed
 from guard_core.sync.handlers._background_stop import (
+    background_task_is_live,
     stop_before_redis_closes,
     stop_task_from_another_thread,
     stop_task_on_its_own_loop,
@@ -30,7 +32,10 @@ from guard_core.sync.handlers._dynamic_rule_attribution import (
     RuleAttribution,
     build_rule_attribution,
 )
-from guard_core.sync.handlers._dynamic_rule_intake import DynamicRuleIntakeMixin
+from guard_core.sync.handlers._dynamic_rule_intake import (
+    DynamicRuleIntakeMixin,
+    RunStopped,
+)
 from guard_core.sync.handlers._dynamic_rule_plan import (
     DynamicRulePlan,
     DynamicRulePlanMixin,
@@ -48,6 +53,13 @@ def _coerce_naive_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value
+
+
+# The stop event of the loop run this context belongs to; set by the run itself, so a
+# stop can only ever reach the run it was meant for.
+_RUN_STOP: ContextVar[threading.Event | None] = ContextVar(
+    "guard_core_rule_run_stop", default=None
+)
 
 
 class DynamicRuleManager(
@@ -128,7 +140,12 @@ class DynamicRuleManager(
         forget_config(self, "config")
 
     def _withdraw_the_applied_rules(self) -> None:
-        if self.current_rules is None or self.config is None:
+        # An apply, a revoke or an expiry holds ``_lock`` while it works. Reverting
+        # under it would race that write, and waiting for it would block release on
+        # the network, so a held lock leaves the overlay in place: the stopped run
+        # applies nothing more (the run check in ``_apply_rules``) and the app's own
+        # next initialization replaces it.
+        if self.current_rules is None or self.config is None or self._lock.locked():
             return
         try:
             self._revert_to_base_config()
@@ -168,11 +185,13 @@ class DynamicRuleManager(
             if not self._hydrated_last_known_rules:
                 self._hydrated_last_known_rules = True
                 self._hydrate_last_known_rules()
-            if not self.update_task:
-                self._stop_event.clear()
+            if not background_task_is_live(self.update_task):
+                stop_event = threading.Event()
+                self._stop_event = stop_event
                 self.update_task = threading.Thread(
-                    target=self._rule_update_loop, daemon=True
+                    target=self._rule_update_loop, args=(stop_event,), daemon=True
                 )
+
                 self.update_task.start()
                 self.logger.info("Started dynamic rule update loop")
 
@@ -265,17 +284,37 @@ class DynamicRuleManager(
             return bool(rules.blocked_user_agents)
         return False
 
-    def _rule_update_loop(self) -> None:
-        while not self._stop_event.is_set():
-            try:
-                self.update_rules()
-                self._interruptible_sleep(self.config.dynamic_rule_interval)
-            except Exception as e:
-                self.logger.error(f"Error in dynamic rule update loop: {e}")
-                self._interruptible_sleep(min(60, self.config.dynamic_rule_interval))
+    def _run_was_stopped(self) -> bool:
+        stop_event = _RUN_STOP.get()
+        return stop_event is not None and stop_event.is_set()
 
-    def _interruptible_sleep(self, timeout: float) -> None:
-        self._stop_event.wait(timeout=timeout)
+    def _rule_update_loop(self, stop_event: threading.Event | None = None) -> None:
+        run_stop = stop_event if stop_event is not None else self._stop_event
+        token = _RUN_STOP.set(run_stop)
+        try:
+            while not run_stop.is_set():
+                try:
+                    self.update_rules()
+                    if run_stop.is_set():
+                        break
+                    self._interruptible_sleep(
+                        self.config.dynamic_rule_interval, run_stop
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error in dynamic rule update loop: {e}")
+                    if run_stop.is_set():
+                        break
+                    self._interruptible_sleep(
+                        min(60, self.config.dynamic_rule_interval), run_stop
+                    )
+        finally:
+            _RUN_STOP.reset(token)
+
+    def _interruptible_sleep(
+        self, timeout: float, stop_event: threading.Event | None = None
+    ) -> None:
+        event = stop_event if stop_event is not None else self._stop_event
+        event.wait(timeout=timeout)
 
     def _revert_to_base_config(self) -> None:
         self.ban_manager_of_the_app().set_rule_exempt_ips(())
@@ -346,6 +385,8 @@ class DynamicRuleManager(
 
     def _apply_rules(self, rules: DynamicRulesProtocol) -> list[str]:
         with self._lock:
+            if self._run_was_stopped():
+                raise RunStopped
             base = self._active_base_snapshot
             if base is None:
                 base = self._snapshot_config()

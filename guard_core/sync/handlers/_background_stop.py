@@ -48,3 +48,7 @@ def stop_task_from_another_thread(
 ) -> None:
     """Ask a background thread to end without joining it, from any thread."""
     stop_event.set()
+
+
+def background_task_is_live(task: threading.Thread | None) -> bool:
+    return task is not None and task.is_alive()
