@@ -198,6 +198,32 @@ def test_a_host_without_ps_leaves_the_state_unknown(
     assert limited_child._process_state(123) is None
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [OSError("ps cannot start"), subprocess.TimeoutExpired("ps", 0.1)],
+    ids=["os-error", "timeout"],
+)
+def test_a_failing_ps_leaves_the_state_unknown(
+    monkeypatch: pytest.MonkeyPatch, failure: Exception
+) -> None:
+    monkeypatch.setattr(
+        limited_child,
+        "open",
+        lambda *a, **k: _FakeProcStat(b"garbage"),
+        raising=False,
+    )
+    monkeypatch.setattr(limited_child.shutil, "which", lambda name: "/bin/ps")
+    calls: list[list[str]] = []
+
+    def fail(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        raise failure
+
+    monkeypatch.setattr(limited_child.subprocess, "run", fail)
+    assert limited_child._process_state(123) is None
+    assert calls == [["/bin/ps", "-o", "stat=", "-p", "123"]]
+
+
 _READ_PAYLOAD_LENGTH = "import sys; print(len(sys.stdin.read()))"
 
 
