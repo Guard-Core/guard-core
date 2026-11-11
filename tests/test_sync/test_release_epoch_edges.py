@@ -105,3 +105,33 @@ def test_the_enricher_adopts_a_rule_manager_that_holds_the_bound_ban_manager() -
     rules = enricher._context.dynamic_rule_handler
     assert isinstance(rules, DynamicRuleManager)
     assert rules.ban_manager_of_the_app() is ip_ban_manager_for(config)
+
+
+def _rules_of(manager: DynamicRuleManager) -> object:
+    return manager.current_rules
+
+
+def test_a_failed_withdrawal_is_logged_and_release_goes_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = SyncSecurityConfig(enable_redis=False)
+    manager = DynamicRuleManager(config)
+    manager.current_rules = Mock()
+    monkeypatch.setattr(
+        manager, "_revert_to_base_config", Mock(side_effect=RuntimeError("boom"))
+    )
+    release_app(config)
+    assert _rules_of(manager) is None
+
+
+def test_the_enricher_has_no_rule_manager_when_dynamic_rules_are_off() -> None:
+    config = SyncSecurityConfig(
+        enable_redis=False,
+        enable_enrichment=True,
+        enable_agent=True,
+        agent_api_key="k" * 10,
+        agent_project_id="p",
+    )
+    enricher = HandlerInitializer(config).build_enricher()
+    assert enricher is not None
+    assert enricher._context.dynamic_rule_handler is None

@@ -6,11 +6,13 @@ import pytest
 
 from guard_core._utils.app_managers import release_app
 from guard_core.core.checks import build_default_pipeline
+from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.handlers import ipban_handler as ipban_module
 from guard_core.handlers import suspatterns_handler as patterns_module
 from guard_core.handlers.ratelimit_handler import RateLimitBlock
 from guard_core.models import SecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from tests.protocol_only_redis import REDIS_URL
 
 _IP = "203.0.113.90"
@@ -72,12 +74,27 @@ def _request(client_ip: str, path: str = "/api/test") -> MagicMock:
     return request
 
 
+async def _pause() -> None:
+    await asyncio.sleep(0.01)
+
+
+async def _two_first_requests_together(
+    pipeline: SecurityCheckPipeline,
+) -> list[GuardResponse | None]:
+    return list(
+        await asyncio.gather(
+            pipeline._rebuild_response(_request(_IP)),
+            pipeline._rebuild_response(_request(_IP)),
+        )
+    )
+
+
 class _CountingInitializer(HandlerInitializer):
     reinitializations = 0
 
     async def reinitialize_after_release(self) -> None:
         type(self).reinitializations += 1
-        await asyncio.sleep(0.01)
+        await _pause()
         await super().reinitialize_after_release()
 
 
@@ -87,11 +104,7 @@ async def test_two_concurrent_first_requests_after_a_release_initialize_once() -
     pipeline = build_default_pipeline(_middleware(config, initializer))
     _CountingInitializer.reinitializations = 0
     release_app(config)
-    first, second = await asyncio.gather(
-        pipeline._rebuild_response(_request(_IP)),
-        pipeline._rebuild_response(_request(_IP)),
-    )
-    assert first is None and second is None
+    assert await _two_first_requests_together(pipeline) == [None, None]
     assert _CountingInitializer.reinitializations == 1
     await pipeline._rebuild_response(_request(_IP))
     assert _CountingInitializer.reinitializations == 1

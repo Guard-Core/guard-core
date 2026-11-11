@@ -142,7 +142,6 @@ SKIP_TESTS = {
     "test_perf_detection_components.py",
     "test_compiler_cache_loop_and_threads.py",
     "test_release_stops_the_default_rule_loop.py",
-    "test_released_app_initializes_once.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}
@@ -462,6 +461,41 @@ _SYNC_STOP_FROM_THREAD_REPLACEMENT = (
     "    stop_event.set()\n"
 )
 
+_ASYNC_PAUSE_SRC = "async def _pause() -> None:\n    await asyncio.sleep(0.01)\n"
+
+_SYNC_PAUSE_REPLACEMENT = (
+    "def _pause() -> None:\n    import time\n\n    time.sleep(0.01)\n"
+)
+
+_ASYNC_TWO_REQUESTS_SRC = (
+    "async def _two_first_requests_together(\n"
+    "    pipeline: SecurityCheckPipeline,\n"
+    ") -> list[GuardResponse | None]:\n"
+    "    return list(\n"
+    "        await asyncio.gather(\n"
+    "            pipeline._rebuild_response(_request(_IP)),\n"
+    "            pipeline._rebuild_response(_request(_IP)),\n"
+    "        )\n"
+    "    )\n"
+)
+
+_SYNC_TWO_REQUESTS_REPLACEMENT = (
+    "def _two_first_requests_together(\n"
+    "    pipeline: SecurityCheckPipeline,\n"
+    ") -> list[GuardResponse | None]:\n"
+    "    results: list[GuardResponse | None] = []\n"
+    "\n"
+    "    def first_request() -> None:\n"
+    "        results.append(pipeline._rebuild_response(_request(_IP)))\n"
+    "\n"
+    "    threads = [threading.Thread(target=first_request) for _ in range(2)]\n"
+    "    for thread in threads:\n"
+    "        thread.start()\n"
+    "    for thread in threads:\n"
+    "        thread.join()\n"
+    "    return results\n"
+)
+
 _ASYNC_YIELD_SRC = (
     "async def _yield_to_event_loop() -> None:\n    await asyncio.sleep(0)\n"
 )
@@ -634,6 +668,8 @@ SUBS: list[tuple[str, str]] = [
     ),
     (re.escape(_ASYNC_STOP_TASK_SRC), _SYNC_STOP_TASK_REPLACEMENT),
     (re.escape(_ASYNC_STOP_FROM_THREAD_SRC), _SYNC_STOP_FROM_THREAD_REPLACEMENT),
+    (re.escape(_ASYNC_PAUSE_SRC), _SYNC_PAUSE_REPLACEMENT),
+    (re.escape(_ASYNC_TWO_REQUESTS_SRC), _SYNC_TWO_REQUESTS_REPLACEMENT),
     (r"await asyncio\.shield\((.+)\)$", r"\1.join()"),
     (re.escape(_ASYNC_YIELD_SRC), _SYNC_YIELD_REPLACEMENT),
     (

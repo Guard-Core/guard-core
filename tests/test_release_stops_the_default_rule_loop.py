@@ -183,16 +183,3 @@ def test_a_loop_that_closes_between_the_check_and_the_cancel_raises_nothing() ->
     task.done.return_value = False
     task.get_loop.return_value = loop
     stop_task_from_another_thread(task, asyncio.Event())
-
-
-def test_a_failed_withdrawal_is_logged_and_release_goes_on(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    config = _config()
-    manager = DynamicRuleManager(config)
-    manager.current_rules = Mock()
-    monkeypatch.setattr(
-        manager, "_revert_to_base_config", Mock(side_effect=RuntimeError("boom"))
-    )
-    release_app(config)
-    assert _state_of(manager)[1] is None
