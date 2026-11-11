@@ -192,7 +192,13 @@ def test_a_connection_without_its_own_close_or_a_writer_is_left_forgotten() -> N
 
 def _record_drops(monkeypatch: pytest.MonkeyPatch) -> list[Redis]:
     dropped: list[Redis] = []
-    monkeypatch.setattr(abandoned, "_drop_connection_sockets", dropped.append)
+    real_drop = abandoned._drop_connection_sockets
+
+    def drop(client: Redis) -> None:
+        dropped.append(client)
+        real_drop(client)
+
+    monkeypatch.setattr(abandoned, "_drop_connection_sockets", drop)
     return dropped
 
 
@@ -303,3 +309,181 @@ def test_many_loops_stopping_while_clients_are_abandoned_leave_none_undropped(
 
     assert sorted(map(id, dropped)) == sorted(map(id, clients))
     assert abandoned._pending == {}
+
+
+def _strand(client: Redis) -> None:
+    loop = asyncio.new_event_loop()
+    thread, release = _loop_in_its_last_iteration(loop)
+    abandon_client(client, loop)
+    release.set()
+    thread.join(5)
+    assert loop.is_closed()
+
+
+def _pending_token_of(client: Redis) -> int:
+    return next(t for t, (c, _) in abandoned._pending.items() if c is client)
+
+
+def test_a_drop_that_raises_stops_neither_the_others_nor_the_callers_own(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    dropped: list[Redis] = []
+    bad, good, own = _new_client(), _new_client(), _new_client()
+
+    def drop(client: Redis) -> None:
+        if client is bad:
+            raise RuntimeError("boom")
+        dropped.append(client)
+
+    monkeypatch.setattr(abandoned, "_drop_connection_sockets", drop)
+    _strand(bad)
+    _strand(good)
+    closed = asyncio.new_event_loop()
+    closed.close()
+
+    abandon_client(own, closed)
+
+    assert dropped == [good, own] and abandoned._pending == {}
+    assert "An abandoned Redis client could not be dropped" in caplog.text
+    assert "boom" not in caplog.text
+
+
+def test_a_callback_and_a_sweep_never_both_drop_the_same_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dropped = _record_drops(monkeypatch)
+    first, second = _new_client(), _new_client()
+    _strand(first)
+    token = _pending_token_of(first)
+    abandoned._drop_pending(token)
+    abandoned.sweep_abandoned_clients()
+    _strand(second)
+    token = _pending_token_of(second)
+    abandoned.sweep_abandoned_clients()
+    abandoned._drop_pending(token)
+
+    assert dropped == [first, second]
+
+
+def test_a_callback_racing_a_sweep_drops_each_client_exactly_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dropped = _record_drops(monkeypatch)
+    clients = [_new_client() for _ in range(50)]
+    for client in clients:
+        _strand(client)
+    tokens = list(abandoned._pending)
+    barrier = threading.Barrier(2)
+
+    def callbacks() -> None:
+        barrier.wait()
+        for token in tokens:
+            abandoned._drop_pending(token)
+
+    def sweeps() -> None:
+        barrier.wait()
+        for _ in tokens:
+            abandoned.sweep_abandoned_clients()
+
+    workers = [threading.Thread(target=f) for f in (callbacks, sweeps)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(10)
+
+    assert sorted(map(id, dropped)) == sorted(map(id, clients))
+
+
+def test_a_stopped_loop_that_runs_again_drops_on_its_own_thread_never_from_a_sweep(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[int] = []
+    monkeypatch.setattr(
+        abandoned,
+        "_drop_connection_sockets",
+        lambda _client: seen.append(threading.get_ident()),
+    )
+    loop = asyncio.new_event_loop()
+    stopped, run_again = threading.Event(), threading.Event()
+
+    def run() -> None:
+        loop.call_soon(loop.stop)
+        loop.run_forever()
+        stopped.set()
+        run_again.wait(5)
+        loop.run_until_complete(asyncio.sleep(0))
+        loop.close()
+
+    thread = threading.Thread(target=run)
+    thread.start()
+    assert stopped.wait(5)
+    abandon_client(_new_client(), loop)
+    abandoned.sweep_abandoned_clients()
+    assert seen == [] and len(abandoned._pending) == 1
+
+    run_again.set()
+    thread.join(5)
+
+    assert seen == [thread.ident] and abandoned._pending == {}
+
+
+def test_a_stopped_loop_that_is_closed_without_running_again_is_swept_later(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dropped = _record_drops(monkeypatch)
+    loop = asyncio.new_event_loop()
+    loop.call_soon(loop.stop)
+    loop.run_forever()
+    client = _new_client()
+    abandon_client(client, loop)
+    loop.close()
+    assert dropped == []
+
+    abandoned.sweep_abandoned_clients()
+
+    assert dropped == [client]
+
+
+def test_the_exit_hook_drops_whatever_is_still_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dropped = _record_drops(monkeypatch)
+    loop = asyncio.new_event_loop()
+    client = _new_client()
+    abandon_client(client, loop)
+    abandoned.sweep_abandoned_clients()
+    assert dropped == []
+
+    abandoned._drop_everything_pending_at_exit()
+    loop.close()
+
+    assert dropped == [client]
+
+
+def test_the_next_connect_drops_a_stranded_client_without_another_abandon(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dropped = _record_drops(monkeypatch)
+    stranded = _new_client()
+    _strand(stranded)
+
+    manager = _manager()
+    asyncio.run(_use(manager))
+    dropped_by_connect = stranded in dropped
+    asyncio.run(manager.close())
+
+    assert dropped_by_connect
+
+
+def test_close_drops_a_stranded_client_without_another_abandon(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = _manager()
+    asyncio.run(_use(manager))
+    dropped = _record_drops(monkeypatch)
+    stranded = _new_client()
+    _strand(stranded)
+
+    asyncio.run(manager.close())
+
+    assert stranded in dropped

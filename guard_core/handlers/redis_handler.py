@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, NoReturn, TypeGuard, cast
 
 from typing_extensions import AsyncContextManager
 
+from guard_core._redis_abandoned_client import sweep_abandoned_clients
 from guard_core._redis_client_loop import EventLoop, running_loop_or_none
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
 from guard_core._redis_exceptions import (
@@ -313,6 +314,7 @@ class RedisManager(RedisOutageMixin, RedisBanStrikeMixin):
 
     async def _open_connection(self, url: str) -> None:
         config = self.config
+        sweep_abandoned_clients()
         await self._discard_client()
 
         new_redis: Redis | None = None
@@ -397,6 +399,7 @@ class RedisManager(RedisOutageMixin, RedisBanStrikeMixin):
         return self._redis is not None
 
     async def close(self) -> None:
+        sweep_abandoned_clients()
         await self._stop_background_users()
         self._closed = True
         self._degraded = False

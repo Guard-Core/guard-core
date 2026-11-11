@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import atexit
 import itertools
+import logging
 import threading
 from typing import TYPE_CHECKING
 
@@ -12,7 +13,12 @@ if TYPE_CHECKING:
     from redis.asyncio import Redis
     from redis.asyncio.connection import Connection
 
-__all__ = ["abandon_client", "close_sync_client", "sweep_abandoned_clients"]
+__all__ = [
+    "abandon_client",
+    "close_sync_client",
+    "sweep_abandoned_clients",
+    "sweep_no_abandoned_clients",
+]
 
 
 def _close_connection(connection: Connection) -> None:
@@ -44,54 +50,76 @@ def _drop_connection_sockets(client: Redis) -> None:
 _pending_lock = threading.Lock()
 _pending: dict[int, tuple[Redis, EventLoop]] = {}
 _pending_ids = itertools.count()
+_logger = logging.getLogger(__name__)
 
 
-def _drop_pending(token: int, client: Redis) -> None:
+def _drop_once_and_survive_failure(client: Redis) -> None:
+    try:
+        _drop_connection_sockets(client)
+    except Exception:
+        _logger.error("An abandoned Redis client could not be dropped")
+
+
+def _drop_pending(token: int) -> None:
+    # Whoever removes the entry owns the drop, so a sweep and the loop's own
+    # callback never both touch the same connections.
     with _pending_lock:
-        _pending.pop(token, None)
-    _drop_connection_sockets(client)
+        entry = _pending.pop(token, None)
+    if entry is not None:
+        _drop_once_and_survive_failure(entry[0])
+
+
+def _claim_pending(only_closed_loops: bool) -> list[Redis]:
+    with _pending_lock:
+        tokens = [
+            token
+            for token, (_, loop) in _pending.items()
+            if loop.is_closed() or not only_closed_loops
+        ]
+        return [_pending.pop(token)[0] for token in tokens]
 
 
 def sweep_abandoned_clients() -> None:
-    """Drop, from the calling thread, every pending client whose loop stopped running
-    before its scheduled drop ran. Dropping twice is harmless."""
-    with _pending_lock:
-        stranded = [
-            token for token, (_, loop) in _pending.items() if not loop.is_running()
-        ]
-        clients = [_pending.pop(token)[0] for token in stranded]
-    for client in clients:
-        _drop_connection_sockets(client)
+    """Drop, from the calling thread, every pending client whose loop is closed.
+
+    A loop that is stopped but not closed keeps its entry: its scheduled drop is
+    still queued and runs on its own thread if it runs again. Each drop is
+    independent: one that raises is logged and does not stop the others."""
+    for client in _claim_pending(only_closed_loops=True):
+        _drop_once_and_survive_failure(client)
 
 
-atexit.register(sweep_abandoned_clients)
+def _drop_everything_pending_at_exit() -> None:
+    for client in _claim_pending(only_closed_loops=False):
+        _drop_once_and_survive_failure(client)
+
+
+atexit.register(_drop_everything_pending_at_exit)
 
 
 def abandon_client(client: Redis, client_loop: EventLoop) -> None:
     """Release the sockets of a client built under another event loop.
 
     ``aclose`` runs only on the loop that owns the sockets, so this never awaits and
-    never blocks the caller's loop. A running loop drops them on its own thread. A
-    stopped or closed loop is dropped from here at once. A loop in its last iteration
-    (``stop()`` already called, still ``is_running()``) may close without running the
-    scheduled drop, so the client stays pending until this function runs again after
-    that loop stopped, or until interpreter exit, and is then dropped from the
-    sweeping thread. That is the residual window: the sockets stay open until the
-    next ``abandon_client`` call or ``sweep_abandoned_clients`` after the loop ends.
+    never blocks the caller's loop, and it never touches the transports of a loop
+    that may run again from another thread. The drop is scheduled on the owning loop
+    and the client stays pending until it runs. If that loop is closed (also if it
+    closes before running the drop, for example when ``stop()`` was already called
+    on its last iteration) the client is dropped from the calling thread: at once
+    for a loop that is already closed, otherwise at the first later sweep that sees
+    it closed (the next ``abandon_client``, connect, close or reconnect attempt on
+    any manager, or ``sweep_abandoned_clients``) or at interpreter exit. That is the
+    residual window: the sockets stay open until then. A drop that raises is logged
+    and never stops the other pending drops or this client's own.
     """
     sweep_abandoned_clients()
-    if client_loop.is_running():
-        token = next(_pending_ids)
-        with _pending_lock:
-            _pending[token] = (client, client_loop)
-        try:
-            client_loop.call_soon_threadsafe(_drop_pending, token, client)
-        except RuntimeError:
-            with _pending_lock:
-                _pending.pop(token, None)
-        else:
-            return
-    _drop_connection_sockets(client)
+    token = next(_pending_ids)
+    with _pending_lock:
+        _pending[token] = (client, client_loop)
+    try:
+        client_loop.call_soon_threadsafe(_drop_pending, token)
+    except RuntimeError:
+        _drop_pending(token)  # the loop is closed: nothing runs on it any more
 
 
 def close_sync_client(client: SyncRedis, _client_loop: EventLoop) -> None:
@@ -99,3 +127,7 @@ def close_sync_client(client: SyncRedis, _client_loop: EventLoop) -> None:
     ``close`` drops the pool the client owns only from redis-py 5.0.0 on."""
     client.close()
     client.connection_pool.disconnect()
+
+
+def sweep_no_abandoned_clients() -> None:
+    """The sync tree's ``sweep_abandoned_clients``: it keeps none pending."""
