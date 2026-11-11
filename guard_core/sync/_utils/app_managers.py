@@ -251,6 +251,9 @@ def release_app(config: object) -> None:
     pipeline hand-built without ``build_default_pipeline`` has no staleness check
     and is not rebuilt, so an adapter builds through it.
     """
+    from guard_core.sync._utils.rule_pattern_release import withdraw_rule_patterns
+
+    withdraw_rule_patterns(config)
     for managers in tuple(_EVERY_APP_MANAGERS):
         managers.release(config)
     mark_release(config)
@@ -386,6 +389,18 @@ class AppManagers(Generic[_M]):
         if sharing is None:
             return []
         return [other for other in sharing.values() if self.uses_default(other)]
+
+    def other_apps_on_the_default(self, config: object) -> list[_PrefixedRedisConfig]:
+        """The apps, besides this one, that the default of this kind still serves."""
+        default = self.served_default()
+        return [
+            other
+            for other in self._apps_sharing_the_default(default)
+            if other is not config
+        ]
+
+    def served_default(self) -> _M | None:
+        return self._served_default() if self._served_default is not None else None
 
     def release(self, config: object) -> None:
         """The app of this config is finished: forget what it held, and hand the
