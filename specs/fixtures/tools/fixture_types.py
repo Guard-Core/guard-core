@@ -130,12 +130,18 @@ class ConfigCarrier(TypedDict):
     config: NotRequired[JsonObject]
 
 
+class RouterEntry(TypedDict):
+    template: str
+    handler: str
+
+
 class PipelineCaseInput(TypedDict):
     id: str
     config: NotRequired[JsonObject]
     geo_countries: NotRequired[dict[str, str]]
     routes: NotRequired[dict[str, JsonObject]]
     custom_patterns: NotRequired[list[str]]
+    router: NotRequired[list[RouterEntry]]
     drives: list[PipelineStep]
 
 

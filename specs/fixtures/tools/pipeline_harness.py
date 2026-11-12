@@ -20,6 +20,8 @@ Case schema (kind "pipeline"):
       "geo_countries": {"<ip>": "<ISO code>", ...}   # stub geo handler table
       "routes": [ {"path": "/api/x", <RouteConfig overrides>}, ... ],
       "custom_patterns": ["<regex>", ...]            # added as custom rows
+      "router": [ {"template": "/users/{id}", "handler": "users"}, ... ]
+                                                     # optional fake router
       "drives": [
         {"client_ip": "...", "method": "GET", "url_path": "/api",
          "headers": {...}, "body": "...", "stage": "pipeline",
@@ -47,7 +49,7 @@ import contextlib
 import logging
 import re
 import threading
-from collections.abc import Awaitable, Callable, Iterator, Mapping
+from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
 from typing import TypeVar, overload
 
 from fixture_types import (
@@ -55,6 +57,7 @@ from fixture_types import (
     JsonObject,
     PipelineCaseInput,
     RequestStep,
+    RouterEntry,
 )
 from run_fixtures import STAGED_FIELDS
 
@@ -83,6 +86,7 @@ from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.protocols.route_identity import RouteIdentity
 
 _DefaultT = TypeVar("_DefaultT")
 _ResponseModifier = Callable[[GuardResponse], Awaitable[GuardResponse]]
@@ -360,6 +364,45 @@ class _HarnessDecorator:
         return None
 
 
+class _FakeRouter:
+    """The case-level ``router`` table as a framework-free router.
+
+    A template is split on ``/``; ``{name}`` captures one non-empty segment,
+    every other segment matches literally and case-sensitively (no trailing
+    slash tolerance, no ``//`` collapsing, no method). ``handler`` is an
+    opaque string token naming the handler: two templates with the same token
+    are one handler, whatever their paths.
+    """
+
+    def __init__(self, entries: Sequence[RouterEntry]) -> None:
+        self.entries = tuple(
+            (entry["template"].split("/"), entry["handler"]) for entry in entries
+        )
+
+    def resolve_route(self, path: str) -> tuple[RouteIdentity, ...]:
+        segments = path.split("/")
+        found: list[RouteIdentity] = []
+        for template, handler in self.entries:
+            params = self._match(template, segments)
+            if params is not None:
+                found.append(RouteIdentity(handler, tuple(sorted(params.items()))))
+        return tuple(found)
+
+    @staticmethod
+    def _match(template: list[str], segments: list[str]) -> dict[str, str] | None:
+        if len(template) != len(segments):
+            return None
+        params: dict[str, str] = {}
+        for want, got in zip(template, segments, strict=True):
+            if len(want) > 2 and want.startswith("{") and want.endswith("}"):
+                if not got:
+                    return None
+                params[want[1:-1]] = got
+            elif want != got:
+                return None
+        return params
+
+
 class _HarnessMiddleware:
     """Minimal GuardMiddlewareProtocol surface carrying the real config."""
 
@@ -371,9 +414,12 @@ class _HarnessMiddleware:
         routes: dict[str, RouteConfig],
         event_bus: _RecordingEventBus,
         on_block: _RecordingOnBlock,
+        router: _FakeRouter | None = None,
     ) -> None:
         self.config = config
         self.logger = logging.getLogger("corpus.harness")
+        if router is not None:
+            self.resolve_route = router.resolve_route
         self.rate_limit_handler = rate_limit_handler
         self.geo_ip_handler = geo_ip_handler
         self.event_bus = event_bus
@@ -579,6 +625,7 @@ class HarnessCase:
             path: _build_route(path, overrides)
             for path, overrides in case.get("routes", {}).items()
         }
+        self.router = _FakeRouter(case["router"]) if case.get("router") else None
         self.event_bus = _RecordingEventBus(self.config)
         self.rate_limit_handler = RateLimitManager(self.config)
         self.middleware = _HarnessMiddleware(
@@ -588,6 +635,7 @@ class HarnessCase:
             self.routes,
             self.event_bus,
             self.on_block,
+            self.router,
         )
         self.pipeline = build_default_pipeline(self.middleware)
         self.error_factory = ErrorResponseFactory(
@@ -699,6 +747,10 @@ async def run_case(case: PipelineCaseInput) -> list[JsonObject]:
         case_patterns.compiled_custom_patterns.update(custom_rows)
     for drive in case["drives"]:
         request = _PipelineRequest(drive)
+        if harness.router is not None:
+            matched = harness.router.resolve_route(request.url_path)
+            if matched:
+                request.state.guard_route_identity = matched[0]
         record: JsonObject = {}
         harness.event_bus.events.clear()
         harness.on_block.payloads.clear()

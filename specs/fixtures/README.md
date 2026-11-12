@@ -140,6 +140,12 @@ responses, CORS origin echo, wildcard+credentials block), and
 `pipeline_behavior_rules` (global `return_pattern` rules driving an
 in-memory behavior ban, passive-mode suppression).
 
+## Endpoint-limit routing suite (D-27 P4)
+
+`pipeline_endpoint_limit_routing` (`kind: "pipeline"`) pins that an `endpoint_rate_limits` key follows the handler, not the path. A case may carry an optional case-level `router`: a list of `{"template": "/users/{id}", "handler": "users"}`. The runner builds a framework-free router from it: a template is split on `/`, `{name}` captures one non-empty segment into the path parameter `name`, every other segment matches literally and case-sensitively (no trailing-slash tolerance, no `//` collapsing, no method). `handler` is an opaque string token per handler, never per path and never an object identity: two templates with the same token are one handler, and a port maps the token to whatever comparable value its adapters use for a handler.
+
+A runner that replays a case with a `router` MUST give the engine the optional `resolve_route(path)` hook (every route the path reaches, as `(handler token, path parameters sorted by name)`, the empty list when none) and, before each drive, set the request's route identity to the first match of its `url_path` (none when it matches no template). The engine resolves every `endpoint_rate_limits` key through the same hook, so a concrete key `/users/1` reaches handler `users` with `id=1` and a template-looking key `/users/{id}` reaches `users` with `id` equal to the literal text `{id}`. The runner MUST NOT mark a router miss as an unresolved route. A case without `router` defines no hook and sets no identity (the path-only behavior of every other pipeline suite). A runner that cannot supply the hook marks the suite not-run explicitly instead of skipping it.
+
 ## spec 4.1.0 additions: event stream + Redis interop
 
 `event_stream.json` (`kind: "events"`) pins the full engine event surface:

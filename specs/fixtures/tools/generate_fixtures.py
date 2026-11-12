@@ -612,6 +612,8 @@ async def run_corpus(
                     "drives": pipeline_case["drives"],
                     "expected": records,
                 }
+                if "router" in pipeline_case:
+                    observed_case["router"] = pipeline_case["router"]
                 if "custom_patterns" in pipeline_case:
                     observed_case["custom_patterns"] = pipeline_case["custom_patterns"]
                 pipeline_observed.append(observed_case)

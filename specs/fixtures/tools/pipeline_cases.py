@@ -10,7 +10,7 @@ rate-limit 429 + Retry-After, IP-gate 403 "Forbidden".
 
 from __future__ import annotations
 
-from fixture_types import PipelineCaseInput, PipelineStep
+from fixture_types import PipelineCaseInput, PipelineStep, RouterEntry
 
 PIPELINE_SUITES: dict[str, list[PipelineCaseInput]] = {}
 
@@ -1058,5 +1058,100 @@ PIPELINE_SUITES["pipeline_request_body"] = [
                 "saturate_regex_pool": True,
             }
         ],
+    },
+]
+
+
+def _hits(*paths: str) -> list[PipelineStep]:
+    return [{"client_ip": IP, "url_path": path} for path in paths]
+
+
+_STACKED_ROUTER: list[RouterEntry] = [
+    {"template": "/health", "handler": "health"},
+    {"template": "/healthz", "handler": "health"},
+    {"template": "/status", "handler": "status"},
+    {"template": "/users/{id}", "handler": "users"},
+    {"template": "/members/{id}", "handler": "users"},
+    {"template": "/orders/{id}", "handler": "orders"},
+]
+
+PIPELINE_SUITES["pipeline_endpoint_limit_routing"] = [
+    {
+        "id": "stacked_handler_shares_budget",
+        "config": {"rate_limit": 100, "endpoint_rate_limits": {"/health": [2, 60]}},
+        "router": _STACKED_ROUTER,
+        "drives": _hits(
+            "/health",
+            "/healthz",
+            "/health",
+            "/healthz",
+            "/status",
+            "/status",
+            "/status",
+        ),
+    },
+    {
+        "id": "own_handler_not_shared",
+        "config": {"rate_limit": 100, "endpoint_rate_limits": {"/a": [1, 60]}},
+        "router": [
+            {"template": "/a", "handler": "ha"},
+            {"template": "/b", "handler": "hb"},
+        ],
+        "drives": _hits("/a", "/a", "/b", "/b"),
+    },
+    {
+        "id": "concrete_id_key_stays_per_resource",
+        "config": {"rate_limit": 100, "endpoint_rate_limits": {"/users/1": [2, 60]}},
+        "router": _STACKED_ROUTER,
+        "drives": _hits(
+            "/users/1",
+            "/members/1",
+            "/users/1",
+            "/users/2",
+            "/users/2",
+            "/users/2",
+            "/members/2",
+            "/members/1",
+            "/orders/1",
+        ),
+    },
+    {
+        "id": "template_key_is_a_literal_value",
+        "config": {
+            "rate_limit": 100,
+            "endpoint_rate_limits": {"/users/{id}": [1, 60]},
+        },
+        "router": _STACKED_ROUTER,
+        "drives": _hits("/users/1", "/users/1", "/users/{id}", "/users/{id}"),
+    },
+    {
+        "id": "unresolved_key_falls_back_to_normalized_path",
+        "config": {"rate_limit": 100, "endpoint_rate_limits": {"/reports/": [1, 60]}},
+        "router": [
+            {"template": "/reports", "handler": "reports"},
+            {"template": "/other", "handler": "other"},
+        ],
+        "drives": _hits("/reports", "/reports", "/reports/", "/other"),
+    },
+    {
+        "id": "unresolved_key_dot_segments_and_double_slash",
+        "config": {
+            "rate_limit": 100,
+            "endpoint_rate_limits": {"/files/./x//y": [1, 60]},
+        },
+        "router": [{"template": "/files", "handler": "files"}],
+        "drives": _hits("/files/x/y", "/files/x/y", "/files/z"),
+    },
+    {
+        "id": "two_keys_one_handler_every_matched_key_is_enforced",
+        "config": {
+            "rate_limit": 100,
+            "endpoint_rate_limits": {"/h": [3, 60], "/h2": [1, 60]},
+        },
+        "router": [
+            {"template": "/h", "handler": "h"},
+            {"template": "/h2", "handler": "h"},
+        ],
+        "drives": _hits("/h", "/h", "/h2", "/h2"),
     },
 ]
