@@ -117,16 +117,22 @@ async def test_migration_does_not_extend_the_ban_by_time_lost_mid_migration(
     try:
         await _seed_legacy_ban(handler, duration=60)
         async with handler.get_connection() as conn:
-            client_type = type(conn)
-        read_pttl = client_type.pttl
+            async with conn.pipeline() as pipe:
+                pipeline_type = type(pipe)
+        real_execute = pipeline_type.execute
 
-        async def pttl_then_stall(self: object, key: str) -> int:
-            remaining: int = await read_pttl(self, key)
-            if type(self) is client_type:
+        async def execute_then_stall_after_canonical_read(
+            self: object, *args: object, **kw: object
+        ) -> object:
+            names = [str(c[0][0]).upper() for c in vars(self)["command_stack"]]
+            result = await real_execute(self, *args, **kw)
+            if names == ["PTTL", "TIME"]:
                 time.sleep(1.5)
-            return remaining
+            return result
 
-        monkeypatch.setattr(client_type, "pttl", pttl_then_stall)
+        monkeypatch.setattr(
+            pipeline_type, "execute", execute_then_stall_after_canonical_read
+        )
         await ip_ban_manager.initialize_redis(handler)
         monkeypatch.undo()
 
@@ -135,6 +141,45 @@ async def test_migration_does_not_extend_the_ban_by_time_lost_mid_migration(
             pttl_ms = await conn.pttl(f"{prefix}banned_ips:{CANONICAL_FORM}")
 
         assert pttl_ms <= 60_000 - 1_400
+    finally:
+        monkeypatch.undo()
+        await ip_ban_manager.unban_ip(CANONICAL_FORM)
+        ip_ban_manager.redis_handler = None
+        await handler.close()
+
+
+async def test_migration_writes_the_canonical_key_and_its_expiry_in_one_transaction(
+    security_config_redis: SecurityConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = redis_handler_factory(security_config_redis)
+    await handler.initialize()
+    try:
+        await _seed_legacy_ban(handler, duration=60)
+        async with handler.get_connection() as conn:
+            async with conn.pipeline() as pipe:
+                pipeline_type = type(pipe)
+        real_execute = pipeline_type.execute
+        executed: list[tuple[bool, list[str]]] = []
+
+        async def recording_execute(
+            self: object, *args: object, **kw: object
+        ) -> object:
+            state = vars(self)
+            names = [str(c[0][0]).upper() for c in state["command_stack"]]
+            executed.append(
+                (bool(state.get("is_transaction", state.get("transaction"))), names)
+            )
+            return await real_execute(self, *args, **kw)
+
+        monkeypatch.setattr(pipeline_type, "execute", recording_execute)
+        await ip_ban_manager.initialize_redis(handler)
+        monkeypatch.undo()
+
+        assert (True, ["SET", "PEXPIREAT"]) in executed
+        prefix = security_config_redis.redis_prefix
+        async with handler.get_connection() as conn:
+            assert await conn.pttl(f"{prefix}banned_ips:{CANONICAL_FORM}") > 0
     finally:
         monkeypatch.undo()
         await ip_ban_manager.unban_ip(CANONICAL_FORM)

@@ -25,6 +25,11 @@ def _close_if_unusable(obj: object, required_attr: str) -> bool:
     return False
 
 
+def _expiry_ms(redis_time: tuple[int, int], pttl_ms: int) -> int:
+    seconds, microseconds = redis_time
+    return seconds * 1_000 + microseconds // 1_000 + pttl_ms
+
+
 class IpBanMigrationMixin:
     logger: logging.Logger
     redis_handler: RedisHandlerProtocol | None = None
@@ -70,16 +75,22 @@ class IpBanMigrationMixin:
             await pipe.get(key)
             await pipe.pttl(key)
             await pipe.time()
-            value, old_pttl, (seconds, micros) = await pipe.execute()
+            value, old_pttl, old_time = await pipe.execute()
 
         if old_pttl <= 0:
             await conn.delete(key)
             return
 
-        expires_at_ms = seconds * 1000 + micros // 1000 + old_pttl
+        expires_at_ms = _expiry_ms(old_time, old_pttl)
         canonical_key = f"{prefix}{canonical_ip}"
-        new_pttl = await conn.pttl(canonical_key)
-        new_expires_at_ms = (await conn.time())[0] * 1000 + new_pttl
-        if new_pttl < 0 or new_expires_at_ms < expires_at_ms:
-            await conn.set(canonical_key, value, pxat=expires_at_ms)
+        async with conn.pipeline() as pipe:
+            await pipe.pttl(canonical_key)
+            await pipe.time()
+            new_pttl, new_time = await pipe.execute()
+
+        if new_pttl < 0 or _expiry_ms(new_time, new_pttl) < expires_at_ms:
+            async with conn.pipeline(transaction=True) as pipe:
+                await pipe.set(canonical_key, value)
+                await pipe.pexpireat(canonical_key, expires_at_ms)
+                await pipe.execute()
         await conn.delete(key)
