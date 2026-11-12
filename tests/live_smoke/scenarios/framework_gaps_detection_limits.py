@@ -83,6 +83,27 @@ def detection_compiler_timeout_cuts_off_a_slow_pattern_match(
     )
 
 
+SLOW_REQUEST_CONFIG = {
+    "detection_compiler_timeout": 0.1,
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+    "smoke_slow_pattern": "(a+)+$",
+}
+
+
+@scenario(covers={"detection_compiler_timeout"}, config=SLOW_REQUEST_CONFIG)
+def a_request_whose_scan_overruns_the_compiler_timeout_logs_the_warning(
+    ctx: ScenarioContext,
+) -> None:
+    mark = ctx.stack.logs.mark()
+    ctx.client.get("/basic/ip", params={"q": "a" * 23 + "!"})
+
+    lines = ctx.stack.logs.lines_since(mark, "Pattern timeout:")
+    assert any("(a+)+$" in line for line in lines), (
+        "a request whose regex scan used more than detection_compiler_timeout "
+        f"of CPU did not log the documented Pattern timeout warning: {lines!r}"
+    )
+
+
 BODY_READ_TIMEOUT_CONFIG = {
     "body_read_timeout": 0.5,
     "fail_secure": True,

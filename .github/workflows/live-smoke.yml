@@ -20,6 +20,11 @@ on:
 permissions:
   contents: read # check out the repository
 
+env:
+  # The fastapi-guard branch or tag whose example app and wheel the smoke runs. Name
+  # the fastapi-guard release branch until v9.0.0 is tagged, then v9.0.0.
+  LIVE_SMOKE_FASTAPI_GUARD_REF: v9.0.0
+
 concurrency:
   group: live-smoke-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

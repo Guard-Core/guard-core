@@ -43,13 +43,14 @@ async def _smoke_body_reading_modifier(response):
 
 
 smoke_nonce = "unknown"
+smoke_slow_pattern = None
 
 
 def _smoke_apply_overrides() -> None:
     import json as _smoke_json
     import os as _smoke_os
 
-    global security_config, guard, smoke_nonce
+    global security_config, guard, smoke_nonce, smoke_slow_pattern
 
     config_path = _smoke_os.environ.get("SMOKE_CONFIG_PATH")
     overrides: dict = {}
@@ -64,6 +65,7 @@ def _smoke_apply_overrides() -> None:
     smoke_geoip_db = overrides.pop("smoke_geoip_db", None)
     smoke_cors_override = overrides.pop("smoke_cors_override", None)
     smoke_body_reading_modifier = overrides.pop("smoke_body_reading_modifier", False)
+    smoke_slow_pattern = overrides.pop("smoke_slow_pattern", None)
 
     merged = security_config.model_dump()
     merged.update(overrides)
@@ -186,6 +188,18 @@ async def smoke_startup_hook() -> None:
 
         redis_handler = RedisManager(security_config)
     await guard.initialize_behavior_tracking(redis_handler)
+    from app.security import smoke_slow_pattern
+
+    if smoke_slow_pattern:
+        import re
+
+        from guard_core.handlers._suspatterns_sources import _CTX_ALL
+        from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
+
+        manager = sus_patterns_manager_for(security_config)
+        manager.compiled_custom_patterns.add(
+            (re.compile(smoke_slow_pattern), _CTX_ALL, "custom")
+        )
 """
 
 _ROUTES_INIT_MARKER = "smoke_extra_router"
