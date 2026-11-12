@@ -1,4 +1,5 @@
 import logging
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -80,3 +81,37 @@ async def test_a_name_the_template_lacks_warns_once_per_template_and_name(
     assert len(reports) == 2
     assert "'/items/{id}'" in reports[0]
     assert "'/things/{id}'" in reports[1]
+
+
+def _blocking_check(flag: bool) -> SuspiciousActivityCheck:
+    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=flag))
+    check.middleware.create_error_response = AsyncMock(
+        side_effect=lambda status_code, default_message: SimpleNamespace(
+            status_code=status_code, message=default_message
+        )
+    )
+    return check
+
+
+@pytest.mark.parametrize("flag", [True, False])
+@pytest.mark.parametrize("path", ["/wp-admin", "/language"])
+async def test_a_probe_on_a_root_capture_route_is_still_blocked(
+    flag: bool, path: str
+) -> None:
+    request = _request(path, "/{item_id}", {"item_id"})
+
+    response = await _blocking_check(flag).check(request)
+
+    assert response is not None
+    assert response.status_code == 400
+
+
+@pytest.mark.parametrize("flag", [True, False])
+async def test_the_same_probe_after_a_literal_segment_is_still_exempted(
+    flag: bool,
+) -> None:
+    # a declared value is still scanned by the value rules (wp-admin matches there),
+    # so the control is a recon token only the path rows flag
+    request = _request("/items/language", "/items/{item_id}", {"item_id"})
+
+    assert await _blocking_check(flag).check(request) is None
