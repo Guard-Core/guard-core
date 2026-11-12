@@ -54,15 +54,24 @@ def endpoint_rate_limit_key_problems(
 ) -> list[str]:
     from guard_core.core.validation.path_matching import (
         _has_routing_anomaly_in_any_decoding,
+        is_router_template,
     )
 
-    return [
-        f"endpoint_rate_limits[{endpoint}]: {tuple(limit)} "
-        "(a dot segment, an empty segment, a backslash or an encoded dot or "
-        "separator, in any decoding round)"
-        for endpoint, limit in endpoint_rate_limits.items()
-        if _has_routing_anomaly_in_any_decoding(endpoint)
-    ]
+    problems = []
+    for endpoint, limit in endpoint_rate_limits.items():
+        if _has_routing_anomaly_in_any_decoding(endpoint):
+            problems.append(
+                f"endpoint_rate_limits[{endpoint}]: {tuple(limit)} "
+                "(a dot segment, an empty segment, a backslash or an encoded dot "
+                "or separator, in any decoding round)"
+            )
+        if is_router_template(endpoint):
+            problems.append(
+                f"endpoint_rate_limits[{endpoint}]: {tuple(limit)} "
+                "(a router template, which matches only that literal text and so "
+                "limits nothing; write a concrete path)"
+            )
+    return problems
 
 
 def _endpoint_key_problems(rules: DynamicRulesProtocol) -> list[str]:

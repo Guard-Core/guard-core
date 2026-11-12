@@ -70,6 +70,7 @@ def _glob_exclude_path_problems(config: "SecurityConfig[RequestT]") -> list[str]
 def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
     from guard_core.core.validation.path_matching import (
         _has_routing_anomaly_in_any_decoding,
+        is_router_template,
     )
 
     spelling = (
@@ -88,6 +89,14 @@ def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
             f"endpoint_rate_limits key {key!r} {spelling}"
             for key in config.endpoint_rate_limits
             if _has_routing_anomaly_in_any_decoding(key)
+        ),
+        *(
+            f"endpoint_rate_limits key {key!r} is a router template "
+            "({name}, <name> or (?P<name>...)): it matches only that literal "
+            "text, so it limits nothing. Write a concrete path, or put the "
+            "limit on the route with the rate_limit decorator."
+            for key in config.endpoint_rate_limits
+            if is_router_template(key)
         ),
     ]
 

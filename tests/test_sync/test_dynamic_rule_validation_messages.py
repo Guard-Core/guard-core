@@ -122,6 +122,38 @@ def test_the_public_predicate_accepts_a_plain_key() -> None:
     assert endpoint_rate_limit_key_problems({"/api/users": (5, 60)}) == []
 
 
+TEMPLATE_KEYS = [
+    "/users/{id}",
+    "/files/{path:path}",
+    "/users/<id>",
+    "/users/<int:id>",
+    "/users/(?P<id>[0-9]+)",
+]
+
+
+@pytest.mark.parametrize("key", TEMPLATE_KEYS)
+def test_the_public_predicate_refuses_a_router_template_key(key: str) -> None:
+    assert endpoint_rate_limit_key_problems({key: (5, 60)}) == [
+        f"endpoint_rate_limits[{key}]: (5, 60) (a router template, which matches "
+        "only that literal text and so limits nothing; write a concrete path)"
+    ]
+
+
+@pytest.mark.parametrize("key", ["/users/1", "/a-b_c.d", "/a{b", "/a}b{", "/a<b"])
+def test_the_public_predicate_accepts_a_concrete_key(key: str) -> None:
+    assert endpoint_rate_limit_key_problems({key: (5, 60)}) == []
+
+
+def test_a_template_key_is_rejected_as_a_dynamic_rule() -> None:
+    rules = _rules(endpoint_rate_limits={"/users/{id}": (5, 60), "/ok": (5, 60)})
+
+    assert find_malformed_values(rules) == [
+        "endpoint_rate_limits[/users/{id}]: (5, 60) (a router template, which "
+        "matches only that literal text and so limits nothing; write a concrete "
+        "path)"
+    ]
+
+
 @pytest.mark.parametrize("duration", [0, -5])
 def test_a_non_positive_ip_ban_duration_is_a_malformed_value(duration: int) -> None:
     rules = _rules(ip_blacklist=["203.0.113.9"], ip_ban_duration=duration)

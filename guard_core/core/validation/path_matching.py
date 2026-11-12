@@ -5,6 +5,9 @@ from guard_core._utils.request_path import has_routing_anomaly
 
 _PERCENT_RUN = re.compile(r"(?:%[0-9A-Fa-f]{2})+")
 _MAX_DECODE_ROUNDS = 4
+# {name} or {name:conv} (Starlette), <name> or <conv:name> (Flask, Django path()),
+# (?P<name>...) (Tornado, Django re_path): a router matches the key like a request.
+_ROUTER_TEMPLATE = re.compile(r"\{[^{}]+\}|<[^<>]+>")
 
 
 def _decode_percent_run(match: re.Match[str]) -> str:
@@ -85,6 +88,10 @@ def _has_routing_anomaly_in_any_decoding(url_path: str) -> bool:
             return False
         decoded = next_decoded
     return True
+
+
+def is_router_template(key: str) -> bool:
+    return _ROUTER_TEMPLATE.search(key) is not None
 
 
 def router_path_for_exclusion(url_path: str) -> str | None:
