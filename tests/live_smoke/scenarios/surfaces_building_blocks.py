@@ -87,6 +87,23 @@ def admin_routes_serve_localhost_only_and_unban_lifts_a_ban(
         f"the manual unban did not lift the ban: {lifted.status_code}"
     )
 
+    cleared_victim = {"X-Smoke-Client": "203.0.113.61"}
+    for _ in range(3):
+        ctx.client.get("/basic/ip", headers={**cleared_victim, "User-Agent": "badbot"})
+    banned_again = ctx.client.get("/basic/ip", headers=cleared_victim)
+    assert banned_again.status_code == 403, (
+        f"the second client did not end banned: {banned_again.status_code}"
+    )
+    cleared = ctx.client.post(
+        "/admin/clear-cache", headers={"X-Smoke-Client": "127.0.0.1"}
+    )
+    assert cleared.status_code == 200, cleared.text
+    served_again = ctx.client.get("/basic/ip", headers=cleared_victim)
+    assert served_again.status_code == 200, (
+        f"clear-cache did not lift the ban it claims to clear: "
+        f"{served_again.status_code}"
+    )
+
 
 @scenario(
     covers={
