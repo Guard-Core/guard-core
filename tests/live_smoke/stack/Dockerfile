@@ -10,7 +10,8 @@ COPY wheels/ /wheels/
 # fetch_example_app.py builds the fastapi-guard wheel from the example's own tree and,
 # unless LIVE_SMOKE_BASELINE names a released tag, this checkout's guard-core wheel,
 # so the example and the libraries are one commit. For a baseline tag guard-core
-# resolves from PyPI within that tag's own requirements.
+# resolves from PyPI within that tag's own requirements, as of the tag's commit date
+# (baseline-date.txt), so a later guard-core release cannot leak into the baseline.
 RUN uv venv .venv && \
     uv pip install --python .venv/bin/python gunicorn uvicorn websockets redis guard-agent httpx \
         opentelemetry-sdk opentelemetry-exporter-otlp-proto-http logfire && \
@@ -18,7 +19,9 @@ RUN uv venv .venv && \
         uv pip install --python .venv/bin/python /wheels/fastapi_guard-*.whl \
             "$(ls /wheels/guard_core-*.whl)[redis,geo,cloud]"; \
     else \
-        uv pip install --python .venv/bin/python /wheels/fastapi_guard-*.whl; \
+        uv pip install --python .venv/bin/python \
+            --exclude-newer "$(cat /wheels/baseline-date.txt)" \
+            "$(ls /wheels/fastapi_guard-*.whl)[redis,geo,cloud]"; \
     fi && \
     .venv/bin/python -c "import guard_core, importlib.metadata as m; import guard; print('guard-core', m.version('guard-core'), guard_core.__file__, 'fastapi-guard', m.version('fastapi-guard'), guard.__file__)"
 

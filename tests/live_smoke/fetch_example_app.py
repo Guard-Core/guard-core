@@ -13,6 +13,7 @@ REPO_URL = os.environ.get(
 # The 5.0.0 smoke runs fastapi-guard 9.0.0's example. Until that tag exists,
 # set LIVE_SMOKE_FASTAPI_GUARD_LOCAL to a checkout.
 EXAMPLE_REF = "v9.0.0"
+BASELINE_DATE_FILE = "baseline-date.txt"
 
 
 class ExampleUnavailable(RuntimeError):
@@ -43,10 +44,25 @@ def build_wheel(source_repo: Path) -> None:
 
 
 def _use_checkout(source_repo: Path) -> None:
+    wheels = STACK_DIR / "wheels"
+    cutoff = wheels / BASELINE_DATE_FILE
+    cutoff.unlink(missing_ok=True)
     if os.environ.get("LIVE_SMOKE_BASELINE"):
-        # a baseline runs the tag's own guard-core, resolved from PyPI
-        for stale in (STACK_DIR / "wheels").glob("guard_core-*.whl"):
+        # a baseline runs the tag's own guard-core, resolved from PyPI as of the tag's
+        # commit date; the date travels in a file next to the wheels (COPY wheels/
+        # already ships it, so compose and the workflow need no new plumbing)
+        for stale in wheels.glob("guard_core-*.whl"):
             stale.unlink()
+        cutoff.write_text(
+            subprocess.run(
+                ["git", "-C", str(source_repo), "log", "-1", "--format=%cI", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            + "\n",
+            encoding="utf-8",
+        )
     copy_example_app(source_repo)
     build_wheel(source_repo)
 
