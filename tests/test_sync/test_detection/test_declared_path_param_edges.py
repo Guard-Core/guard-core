@@ -47,11 +47,11 @@ def test_a_request_without_a_route_template_reports_no_root_path_param() -> None
     route_config = RouteConfig()
     route_config.excluded_detection_path_params = {"name"}
 
-    check._report_root_capture_path_params(
+    check._report_declared_path_param_problems(
         SyncMockGuardRequest(path="/x"), route_config
     )
 
-    assert check._reported_root_path_params == set()
+    assert check._reported_path_param_problems == set()
 
 
 def test_a_declared_group_that_did_not_take_part_in_the_match_gets_no_span() -> None:

@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from guard_core._misconfiguration import WILDCARD_CORS_CREDENTIALS_PROBLEM
 from guard_core._security_headers_override import (
     PULLED_OVERRIDES,
     OverrideRecord,
@@ -224,17 +225,17 @@ def test_cors_explicit_values_are_kept_and_headers_are_copied(
     assert result["max_age"] == 99
 
 
-def test_a_wildcard_origin_loses_credentials_and_logs_the_error(
+def test_a_wildcard_origin_loses_credentials_and_logs_the_shared_warning(
     manager: SecurityHeadersManager, caplog: pytest.LogCaptureFixture
 ) -> None:
-    with caplog.at_level(logging.ERROR, logger=LOGGER):
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
         result = manager._compute_cors_config(["*"], True, None, None)
 
     assert result is not None
     assert result["allow_credentials"] is False
     assert result["origins"] == ["*"]
-    assert _messages(caplog) == [
-        "CORS config error: Wildcard origin disallowed with credentials"
+    assert [(r.levelno, r.getMessage()) for r in caplog.records] == [
+        (logging.WARNING, WILDCARD_CORS_CREDENTIALS_PROBLEM)
     ]
 
 

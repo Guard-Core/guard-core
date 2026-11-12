@@ -279,7 +279,7 @@ def test_a_handler_for_an_app_without_cors_holds_the_disabled_defaults() -> None
 
 WILDCARD_PROBLEM = (
     "CORS misconfiguration: wildcard origin '*' is incompatible "
-    "with cors_allow_credentials=True"
+    "with cors_allow_credentials=True."
 )
 TRUE_NOTE = "Set fail_on_misconfiguration=False to start with it anyway."
 FALSE_NOTE = "fail_on_misconfiguration=False keeps starting with it."
@@ -331,7 +331,7 @@ def test_the_wildcard_with_credentials_error_names_both_settings() -> None:
     with pytest.raises(
         ValueError,
         match=r"^CORS misconfiguration: wildcard origin '\*' is incompatible "
-        r"with cors_allow_credentials=True "
+        r"with cors_allow_credentials=True\. "
         r"Set fail_on_misconfiguration=False to start with it anyway\.$",
     ):
         CorsHandler(bad)

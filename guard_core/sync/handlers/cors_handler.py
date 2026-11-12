@@ -62,6 +62,8 @@ class CorsHandler:
         self._expose_headers: list[str] = []
 
     def _check_wildcard_with_credentials(self, config: SyncSecurityConfig) -> None:
+        if config._misconfigurations_checked:
+            return
         for problem in wildcard_cors_credentials_problems(config):
             report_misconfiguration(config, problem, logger=cors_logger, stacklevel=4)
 

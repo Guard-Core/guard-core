@@ -976,9 +976,13 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     agent_strict: bool = Field(
         default=False,
         description=(
-            "When True, an enabled agent that cannot be initialized (package "
-            "missing or construction failure) raises at middleware init instead "
-            "of degrading to agent-off."
+            "When True, an enabled agent that cannot be initialized raises "
+            "instead of degrading to agent-off. A missing guard-agent package or "
+            "an invalid agent configuration raises at SecurityConfig "
+            "construction, whatever fail_on_misconfiguration says. The remaining "
+            "runtime case (building the agent handler) surfaces when the "
+            "middleware stack is built, and a server started with its lifespan "
+            "required fails to start."
         ),
     )
 

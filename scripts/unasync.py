@@ -22,6 +22,7 @@ SKIP_SRC = {
     "_pydantic_plugin_mute.py",
     "_security_config_validators.py",
     "_security_config_field_validators.py",
+    "_security_config_return_pattern_rejections.py",
     "_security_config_batch.py",
     "_security_config_typed_validators.py",
     "_security_config_geo_validators.py",

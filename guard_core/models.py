@@ -9,6 +9,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import (
+    BaseModel,
     ConfigDict,
     ModelWrapValidatorHandler,
     PrivateAttr,
@@ -160,6 +161,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     model_config = ConfigDict(arbitrary_types_allowed=True, hide_input_in_errors=True)
 
     _revision: int = PrivateAttr(default=0)
+    _misconfigurations_checked: bool = PrivateAttr(default=False)
     # The app's pattern manager, parked on the instance by sus_patterns_manager_for
     # so the request path reads it as an attribute, without a registry lookup.
     _guard_pattern_manager: ClassVar["SusPatternsManager | None"] = None
@@ -488,6 +490,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def report_misconfigurations(self) -> Self:
+        BaseModel.__setattr__(self, "_misconfigurations_checked", True)
         stated = self.__pydantic_fields_set__
         values = self.__dict__
         if (
@@ -622,7 +625,11 @@ def _start_private_state(self: SecurityConfig[RequestT], context: object, /) -> 
     (its metaclass wraps this one), so the state is already there and is kept."""
     # pydantic 2.12.0 calls this from model_construct before it sets the slot at all
     if getattr(self, "__pydantic_private__", None) is None:
-        object.__setattr__(self, "__pydantic_private__", {"_revision": 0})
+        object.__setattr__(
+            self,
+            "__pydantic_private__",
+            {"_revision": 0, "_misconfigurations_checked": False},
+        )
 
 
 type.__setattr__(SecurityConfig, "model_post_init", _start_private_state)

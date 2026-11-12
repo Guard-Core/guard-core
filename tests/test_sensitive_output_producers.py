@@ -681,6 +681,16 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "it' when an adapter's static_file_exists raises; no request value is "
         "interpolated"
     ),
+    "core/checks/implementations/suspicious_activity.py:"
+    "SuspiciousActivityCheck._report_declared_path_param_problems": (
+        "one WARNING per (route template, declared name) per check instance "
+        "when @detection_exclusion(path_params=...) names a parameter the route "
+        "template cannot honour; the route is the decorated function's "
+        "module-qualified name or the framework's registered route template, "
+        "and the name is the one declared in the decorator, so every interpolated "
+        "value comes from app code and routing config; no header, parameter, URL "
+        "or body value of the request is interpolated"
+    ),
     "handlers/_suspatterns_registry.py:_reconciled_custom_patterns": (
         "logs the fixed text that patterns:custom_list is not what "
         "patterns:custom splits into and that patterns:custom is used; no stored "

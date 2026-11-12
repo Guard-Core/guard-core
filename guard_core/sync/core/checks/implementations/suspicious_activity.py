@@ -2,16 +2,15 @@ import math
 from collections.abc import Collection
 from typing import TYPE_CHECKING
 
-from guard_core._misconfiguration import report_misconfiguration
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.route_gate import (
     ROUTE_TEMPLATE_STATE_ATTR,
     STATIC_FILE_STATE_ATTR,
+    declared_path_param_problems,
     might_be_a_gated_probe,
     might_be_a_static_file,
-    path_params_without_a_literal_segment_before,
     record_route_template,
 )
 from guard_core.sync._utils.rule_attribution import pattern_attribution
@@ -163,7 +162,7 @@ def _refusal(check: SecurityCheck, stalled: bool) -> GuardResponse:
 class SuspiciousActivityCheck(SecurityCheck):
     def __init__(self, middleware: "SyncGuardMiddlewareProtocol") -> None:
         super().__init__(middleware)
-        self._reported_root_path_params: set[tuple[str, str]] = set()
+        self._reported_path_param_problems: set[tuple[str, str]] = set()
 
     @property
     def check_name(self) -> str:
@@ -309,7 +308,7 @@ class SuspiciousActivityCheck(SecurityCheck):
         if might_be_a_gated_probe(str(request.url_path)):
             record_route_template(request, self.middleware, self.logger)
 
-    def _report_root_capture_path_params(
+    def _report_declared_path_param_problems(
         self, request: SyncGuardRequest, route_config: RouteConfig
     ) -> None:
         declared = route_config.excluded_detection_path_params or ()
@@ -317,19 +316,15 @@ class SuspiciousActivityCheck(SecurityCheck):
         if not isinstance(template, str):
             return
         route = str(getattr(request.state, "guard_route_id", template))
-        for name in path_params_without_a_literal_segment_before(template, declared):
-            if (route, name) in self._reported_root_path_params:
+        problems = declared_path_param_problems(template, declared)
+        for name, problem in problems.items():
+            if (template, name) in self._reported_path_param_problems:
                 continue
-            report_misconfiguration(
-                self.config,
+            self._reported_path_param_problems.add((template, name))
+            self.logger.warning(
                 f"@detection_exclusion(path_params=...) on route {route!r} "
-                f"declares {name!r}, which has no literal segment before it in "
-                f"the route template {template!r}: it would exempt the whole "
-                "path from the probe rows.",
-                logger=self.logger,
-                stacklevel=2,
+                f"declares {name!r}, which {problem}"
             )
-            self._reported_root_path_params.add((route, name))
 
     def _record_served_static_file(self, request: SyncGuardRequest) -> None:
         state = request.state
@@ -363,7 +358,7 @@ class SuspiciousActivityCheck(SecurityCheck):
 
         self._record_route_template(request)
         if route_config is not None and route_config.excluded_detection_path_params:
-            self._report_root_capture_path_params(request, route_config)
+            self._report_declared_path_param_problems(request, route_config)
         self._record_served_static_file(request)
         result = get_cached_detection_result(
             request,
