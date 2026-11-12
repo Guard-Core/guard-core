@@ -110,7 +110,7 @@ safe_match = compiler.create_safe_matcher(r"<script.*?>", timeout=2.0)
 result = safe_match(user_input)  # None if timed out
 ```
 
-Every `safe_match` call, and the legacy no-compiler `_check_pattern_with_timeout` path, reports its outcome to module-level success/timeout counters. Four consecutive timed-out submissions replace the shared pool with a fresh one: the stale pool is shut down non-blocking (`shutdown(wait=False)`) and a warning is logged naming the leaked-worker count, so one pathological custom pattern can no longer wedge every worker permanently. Any successful match resets the counter to zero.
+Every `safe_match` call, and the legacy no-compiler `_check_pattern_with_timeout` path, reports its outcome to module-level success/timeout counters; on the legacy path a timeout means a scan still running at the wall backstop, while a finished scan that ran over its CPU budget logs the `Pattern timeout` warning and counts as a success. Four consecutive timed-out submissions replace the shared pool with a fresh one: the stale pool is shut down non-blocking (`shutdown(wait=False)`) and a warning is logged naming the leaked-worker count, so one pathological custom pattern can no longer wedge every worker permanently. Any successful match resets the counter to zero.
 
 **`batch_compile(patterns, validate) -> dict[str, re.Pattern]`** (async)
 
