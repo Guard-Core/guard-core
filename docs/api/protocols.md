@@ -166,6 +166,7 @@ Optional, and what lets an app serve a page that looks like a probe (D-75). A pa
 - Record the matched template as `request.state.guard_route_template` (a `str`) next to `guard_route_unresolved` before the pipeline runs. `\.` and `[.]` are unescaped before the test, so a Tornado `r"/(.*)\.php"` declares `.php`. Text inside `{...}` and `<...>` is removed before the test (never `:name`), so a parameter named `language` or `version` does not declare the probe token.
 - Or implement `route_template(path) -> str | None` on the middleware. guard-core calls it once per request, in the first check of the pipeline, when the request state has no `guard_route_template` yet and the route is not marked unresolved, and records the raw answer on the state. The same raw template is what the events carry as `route_template` and the metrics carry as their `endpoint` tag, after the engine normalises it (`/orgs/{org}/old/{year}`). Keep an LRU in the adapter and clear it when the route set changes.
 - A value in a query or body carries no route and keeps the v4.4.0 behavior.
+- A decoy path must not be registered as a literal route: a route whose template literally contains the probe token (`/wp-login.php`) is clean. An undeclared path, or one served by a catch-all or converter route (whose template carries no token), stays under detection.
 
 ### Static files
 
