@@ -37,6 +37,7 @@ def test_a_ref_that_does_not_exist_fails_with_the_instruction(
 ) -> None:
     repo = _git_repo_without_example(tmp_path / "origin")
     monkeypatch.setattr(fetch_example_app, "REPO_URL", str(repo))
+    monkeypatch.delenv("LIVE_SMOKE_FASTAPI_GUARD_LOCAL", raising=False)
 
     with pytest.raises(fetch_example_app.ExampleUnavailable) as raised:
         fetch_example_app.fetch(ref="v9.0.0")
@@ -50,6 +51,7 @@ def test_a_ref_without_the_example_app_fails_with_the_instruction(
 ) -> None:
     repo = _git_repo_without_example(tmp_path / "origin")
     monkeypatch.setattr(fetch_example_app, "REPO_URL", str(repo))
+    monkeypatch.delenv("LIVE_SMOKE_FASTAPI_GUARD_LOCAL", raising=False)
 
     with pytest.raises(fetch_example_app.ExampleUnavailable) as raised:
         fetch_example_app.fetch(ref="main")

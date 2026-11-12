@@ -55,7 +55,8 @@ def _clone(ref: str, destination: Path) -> None:
     )
     if result.returncode != 0:
         raise ExampleUnavailable(
-            f"fastapi-guard ref {ref} does not exist ({result.stderr.strip()[-200:]}); "
+            f"fastapi-guard ref {ref} does not exist "
+            f"({result.stderr.strip().splitlines()[-1]}); "
             "set LIVE_SMOKE_FASTAPI_GUARD_LOCAL or LIVE_SMOKE_FASTAPI_GUARD_REF"
         )
 
