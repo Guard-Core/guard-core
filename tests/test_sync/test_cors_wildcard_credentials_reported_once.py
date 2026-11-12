@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from guard_core._misconfiguration import WILDCARD_CORS_CREDENTIALS_PROBLEM
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.responses.context import ResponseContext
@@ -96,3 +97,31 @@ def test_a_constructed_config_still_gets_the_handlers_warning(
         CorsHandler(config)
 
     assert len(_warnings(caplog)) == 1
+
+
+def _config_without_the_pair(*, strict: bool) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
+        **{**FIELDS, "cors_allow_credentials": False}, fail_on_misconfiguration=strict
+    )
+
+
+def test_an_assignment_that_adds_the_pair_reports_once_over_many_requests(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = _config_without_the_pair(strict=False)
+
+    with caplog.at_level(logging.DEBUG):
+        caplog.clear()
+        config.cors_allow_credentials = True
+        _serve(config)
+
+    reports = _warnings(caplog)
+    assert len(reports) == 1
+    assert WILDCARD_CORS_CREDENTIALS_PROBLEM in reports[0].getMessage()
+
+
+def test_an_assignment_that_adds_the_pair_raises_under_the_strict_flag() -> None:
+    config = _config_without_the_pair(strict=True)
+
+    with pytest.raises(ValueError, match="wildcard origin"):
+        config.cors_allow_credentials = True
