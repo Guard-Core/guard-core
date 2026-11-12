@@ -141,7 +141,7 @@ async def test_the_carve_rewrite_moves_the_floor_with_the_ban(
             f"{prefix}banned_identities:{carved}",
             base,
             "9999999999.5",
-            600_000,
+            int(time.time() * 1000) + 600_000,
         )
         assert await conn.exists(f"{prefix}ban_floors:banned_identities:{carved}") == 0
         assert await conn.pttl(f"{prefix}ban_floors:banned_identities:{base}") > 290_000

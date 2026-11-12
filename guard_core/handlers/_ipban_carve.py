@@ -6,6 +6,7 @@ from guard_core._utils.nat64 import nat64_table_of
 from guard_core._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.handlers._dynamic_rule_persistence import BAN_FLOORS_NAMESPACE
 from guard_core.handlers._ipban_lookup import IpBanLookupMixin
+from guard_core.handlers._ipban_migration import _expiry_ms
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 if TYPE_CHECKING:
@@ -20,15 +21,24 @@ async def _plan_floor_move(
     conn: "Redis", stem: str, key: str, target: str
 ) -> tuple[str, str, str | None, int]:
     """The floor keys of a carved ban and of its base identity, and the floor to
-    write at the base (None when the carve has none or the base keeps a later)."""
+    write at the base (None when the carve has none or the base keeps a later),
+    with the floor's absolute expiry in milliseconds."""
     floor_stem = (
         f"{stem.removesuffix('banned_identities:')}{BAN_FLOORS_NAMESPACE}:"
         "banned_identities:"
     )
     floor_key, floor_target = f"{floor_stem}{key[len(stem) :]}", f"{floor_stem}{target}"
-    floor, floor_pttl = await conn.get(floor_key), await conn.pttl(floor_key)
-    moves = floor is not None and floor_pttl > await conn.pttl(floor_target)
-    return floor_key, floor_target, floor if moves else None, floor_pttl
+    async with conn.pipeline() as pipe:
+        await pipe.get(floor_key)
+        await pipe.pttl(floor_key)
+        await pipe.pttl(floor_target)
+        await pipe.time()
+        floor, floor_pttl, target_pttl, now = await pipe.execute()
+    floor_expiry_ms = _expiry_ms(now, floor_pttl)
+    moves = floor is not None and (
+        target_pttl < 0 or floor_expiry_ms > _expiry_ms(now, target_pttl)
+    )
+    return floor_key, floor_target, floor if moves else None, floor_expiry_ms
 
 
 class IpBanCarveMixin(IpBanLookupMixin):
@@ -98,11 +108,15 @@ class IpBanCarveMixin(IpBanLookupMixin):
                 target = self._base_identity_if_carve_is_gone(key[len(stem) :])
                 if target is None:
                     continue
-                value, pttl = await conn.get(key), await conn.pttl(key)
+                async with conn.pipeline() as pipe:
+                    await pipe.get(key)
+                    await pipe.pttl(key)
+                    await pipe.time()
+                    value, pttl, now = await pipe.execute()
                 if value is None or pttl <= 0:
                     continue
                 await self._move_identity_key(
-                    redis, conn, stem, key, target, value, pttl
+                    redis, conn, stem, key, target, value, _expiry_ms(now, pttl)
                 )
                 moved += 1
         return moved
@@ -115,18 +129,23 @@ class IpBanCarveMixin(IpBanLookupMixin):
         key: str,
         target: str,
         value: str,
-        pttl: int,
+        expires_at_ms: int,
     ) -> None:
         target_key = f"{stem}{target}"
-        existing = await conn.pttl(target_key)
-        floor_key, floor_target, floor, floor_pttl = await _plan_floor_move(
+        async with conn.pipeline() as pipe:
+            await pipe.pttl(target_key)
+            await pipe.time()
+            existing, now = await pipe.execute()
+        floor_key, floor_target, floor, floor_expires_at_ms = await _plan_floor_move(
             conn, stem, key, target
         )
         async with conn.pipeline(transaction=True) as pipe:
-            if existing < pttl:
-                await pipe.set(target_key, value, px=pttl)
+            if existing < 0 or _expiry_ms(now, existing) < expires_at_ms:
+                await pipe.set(target_key, value)
+                await pipe.pexpireat(target_key, expires_at_ms)
             if floor is not None:
-                await pipe.set(floor_target, floor, px=floor_pttl)
+                await pipe.set(floor_target, floor)
+                await pipe.pexpireat(floor_target, floor_expires_at_ms)
             await pipe.delete(key, floor_key)
             await pipe.incr(self._version_redis_key(redis))
             await pipe.execute()

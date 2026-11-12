@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from guard_core.handlers import _ipban_carve
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
@@ -235,3 +236,34 @@ async def test_the_real_initialization_gives_the_ban_manager_the_whitelist() -> 
     finally:
         await ip_ban_manager.reset()
         ip_ban_manager.config = saved_config
+
+
+async def test_the_redis_rewrite_does_not_extend_a_ban_by_time_lost_mid_move(
+    live_redis: RedisManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = _manager([])
+    manager.redis_handler = live_redis
+    prefix = live_redis.config.redis_prefix
+    carve, base = "2002:c000:204:100::/56", "2002:c000:204::/48"
+    async with live_redis.get_connection() as conn:
+        await conn.set(f"{prefix}banned_identities:{carve}", "9999999999.5", ex=600)
+        await conn.set(
+            f"{prefix}ban_floors:banned_identities:{carve}", "9999999999.5", px=300_000
+        )
+    real_plan = _ipban_carve._plan_floor_move
+
+    async def plan_then_stall(*args: object, **kw: object) -> object:
+        plan = await real_plan(*args, **kw)
+        time.sleep(1.5)
+        return plan
+
+    monkeypatch.setattr(_ipban_carve, "_plan_floor_move", plan_then_stall)
+    assert await manager.rewrite_carved_bans_without_whitelist() == 1
+    monkeypatch.undo()
+
+    async with live_redis.get_connection() as conn:
+        ban_pttl = await conn.pttl(f"{prefix}banned_identities:{base}")
+        floor_pttl = await conn.pttl(f"{prefix}ban_floors:banned_identities:{base}")
+    assert ban_pttl <= 600_000 - 1_400
+    assert floor_pttl <= 300_000 - 1_400
