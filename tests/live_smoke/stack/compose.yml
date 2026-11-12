@@ -12,8 +12,6 @@ services:
   fastapi-guard-example:
     build:
       context: .
-      args:
-        GUARD_CORE_SPEC: ${GUARD_CORE_SPEC:-guard-core==3.17.0}
     expose:
       - "8000"
     environment:

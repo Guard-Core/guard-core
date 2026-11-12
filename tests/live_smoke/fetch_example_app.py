@@ -43,6 +43,10 @@ def build_wheel(source_repo: Path) -> None:
 
 
 def _use_checkout(source_repo: Path) -> None:
+    if os.environ.get("LIVE_SMOKE_BASELINE"):
+        # a baseline runs the tag's own guard-core, resolved from PyPI
+        for stale in (STACK_DIR / "wheels").glob("guard_core-*.whl"):
+            stale.unlink()
     copy_example_app(source_repo)
     build_wheel(source_repo)
 
@@ -75,7 +79,12 @@ def fetch(ref: str | None = None, local_repo: str | None = None) -> str:
             check=True,
         ).stdout.strip()
 
-    ref = ref or os.environ.get("LIVE_SMOKE_FASTAPI_GUARD_REF") or EXAMPLE_REF
+    ref = (
+        ref
+        or os.environ.get("LIVE_SMOKE_BASELINE")
+        or os.environ.get("LIVE_SMOKE_FASTAPI_GUARD_REF")
+        or EXAMPLE_REF
+    )
     with tempfile.TemporaryDirectory() as tmp:
         clone_dir = Path(tmp) / "fastapi-guard"
         _clone(ref, clone_dir)

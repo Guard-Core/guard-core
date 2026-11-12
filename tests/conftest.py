@@ -908,12 +908,13 @@ def _zero_straddle_overlap_by_default(
 
 def _check_live_smoke_preconditions(stack_dir: Path) -> None:
     baseline = os.environ.get("LIVE_SMOKE_BASELINE")
-    wheels = list((stack_dir / "wheels").glob("*.whl"))
+    wheels = list((stack_dir / "wheels").glob("guard_core-*.whl"))
     if not baseline and not wheels:
         pytest.fail(
             "no guard-core wheel in tests/live_smoke/stack/wheels/; run "
             "`uv build --wheel --out-dir tests/live_smoke/stack/wheels` first, "
-            "or set LIVE_SMOKE_BASELINE=guard-core==X.Y.Z to test a released "
+            "or set LIVE_SMOKE_BASELINE=<fastapi-guard tag> and run "
+            "`python tests/live_smoke/fetch_example_app.py` to test a released "
             "version instead. See `make live-smoke`.",
             pytrace=False,
         )
