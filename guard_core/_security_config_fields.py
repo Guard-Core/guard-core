@@ -1237,7 +1237,20 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
 
     endpoint_rate_limits: dict[str, tuple[int, int]] = Field(
         default_factory=dict,
-        description="Per-endpoint rate limits set by dynamic rules",
+        description=(
+            "Per-endpoint rate limits {path: (requests, window)}, also set by "
+            "dynamic rules. A limit follows the handler, not the path: each "
+            "adapter resolves every key through its own router and a request "
+            "matches a key when it reaches the same handler with the same path "
+            "parameters, so a concrete-id key stays per resource. Two paths on "
+            "one handler share one budget (@app.route('/login') and "
+            "@app.route('/signin') on one view count against one limit, which "
+            "stops a stacked path from getting a fresh budget), and a generic "
+            "view stacked on many paths shares one budget too, so give each "
+            "limited path its own handler. A key that resolves to no route "
+            "falls back to the normalized path. See the 5.0.0 release note "
+            "'An endpoint limit follows the handler, not the path'."
+        ),
     )
 
     detection_compiler_timeout: float = Field(
