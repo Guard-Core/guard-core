@@ -1,8 +1,9 @@
+import logging
 import sys
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from guard_core.models import SecurityConfig
 
@@ -70,3 +71,29 @@ def test_turning_strict_on_later_refuses_an_unusable_agent(
 
     with pytest.raises(ValueError, match="guard-agent is not installed"):
         config.agent_strict = True
+
+
+SECRET = "sk-SECRET"
+
+
+def test_a_rejected_agent_key_never_reaches_the_construction_error(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import guard_agent
+
+    class Strict(BaseModel):
+        api_key: str = Field(min_length=10)
+
+    monkeypatch.setattr(guard_agent, "AgentConfig", lambda **kw: Strict(**kw))
+
+    with caplog.at_level(logging.DEBUG), pytest.raises(ValueError) as error:
+        SecurityConfig(
+            enable_redis=False,
+            enable_agent=True,
+            agent_api_key=SECRET,
+            agent_strict=True,
+        )
+
+    assert "api_key" in str(error.value)
+    assert SECRET not in str(error.value)
+    assert SECRET not in caplog.text

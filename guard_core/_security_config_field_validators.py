@@ -15,7 +15,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import AfterValidator, BaseModel, Field, TypeAdapter
+from pydantic import AfterValidator, BaseModel, Field, TypeAdapter, ValidationError
 
 from guard_core import _security_config_exempt_purge_validators as _exempt_purge
 from guard_core._config_field_revalidators import (
@@ -719,13 +719,23 @@ def require_agent_config(config: "SecurityConfig[RequestT]") -> None:
         _require_usable_agent_config(config)
 
 
+def _without_inputs(error: Exception) -> str:
+    # str() of a ValidationError quotes each rejected input, and one can be the API key
+    if isinstance(error, ValidationError):
+        return "; ".join(
+            f"{'.'.join(map(str, found['loc']))}: {found['msg']}"
+            for found in error.errors(include_input=False, include_url=False)
+        )
+    return str(error)
+
+
 def _require_usable_agent_config(config: "SecurityConfig[RequestT]") -> None:
     try:
         agent_config = config.to_agent_config()
     except (AgentPackageNotInstalledError, ValueError) as error:
         raise ValueError(
-            f"agent_strict is True but the agent is unusable: {error}"
-        ) from error
+            f"agent_strict is True but the agent is unusable: {_without_inputs(error)}"
+        ) from None
     if agent_config is None:
         raise ValueError(
             "agent_strict is True but the settings give no agent configuration"
