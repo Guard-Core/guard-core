@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync.handlers import _ipban_carve
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import suite_redis_prefix
@@ -235,3 +236,53 @@ def test_the_real_initialization_gives_the_ban_manager_the_whitelist() -> None:
     finally:
         ip_ban_manager.reset()
         ip_ban_manager.config = saved_config
+
+
+def test_the_redis_rewrite_does_not_extend_a_ban_by_time_lost_mid_move(
+    live_redis: RedisManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = _manager([])
+    manager.redis_handler = live_redis
+    prefix = live_redis.config.redis_prefix
+    carve, base = "2002:c000:204:100::/56", "2002:c000:204::/48"
+    with live_redis.get_connection() as conn:
+        conn.set(f"{prefix}banned_identities:{carve}", "9999999999.5", ex=600)
+        conn.set(
+            f"{prefix}ban_floors:banned_identities:{carve}", "9999999999.5", px=300_000
+        )
+    real_plan = _ipban_carve._plan_floor_move
+
+    def plan_then_stall(*args: object, **kw: object) -> object:
+        plan = real_plan(*args, **kw)
+        time.sleep(1.5)
+        return plan
+
+    monkeypatch.setattr(_ipban_carve, "_plan_floor_move", plan_then_stall)
+    assert manager.rewrite_carved_bans_without_whitelist() == 1
+    monkeypatch.undo()
+
+    with live_redis.get_connection() as conn:
+        ban_pttl = conn.pttl(f"{prefix}banned_identities:{base}")
+        floor_pttl = conn.pttl(f"{prefix}ban_floors:banned_identities:{base}")
+    assert ban_pttl <= 600_000 - 1_400
+    assert floor_pttl <= 300_000 - 1_400
+
+
+def test_the_redis_rewrite_keeps_a_persistent_base_identity_key(
+    live_redis: RedisManager,
+) -> None:
+    manager = _manager([])
+    manager.redis_handler = live_redis
+    prefix = live_redis.config.redis_prefix
+    carve, base = "2002:c000:204:100::/56", "2002:c000:204::/48"
+    base_key = f"{prefix}banned_identities:{base}"
+    with live_redis.get_connection() as conn:
+        conn.set(f"{prefix}banned_identities:{carve}", "9999999999.5", ex=600)
+        conn.set(base_key, "9999999999.7")
+
+    assert manager.rewrite_carved_bans_without_whitelist() == 1
+
+    with live_redis.get_connection() as conn:
+        assert conn.pttl(base_key) == -1
+        assert conn.get(base_key) == "9999999999.7"

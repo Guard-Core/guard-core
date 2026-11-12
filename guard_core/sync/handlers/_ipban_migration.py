@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
 
 _BANNED_IPS_NAMESPACE = "banned_ips"
+_MISSING_KEY = -2
 
 
 def _close_if_unusable(obj: object, required_attr: str) -> bool:
@@ -25,6 +26,11 @@ def _close_if_unusable(obj: object, required_attr: str) -> bool:
         with contextlib.suppress(AttributeError):
             close()
     return False
+
+
+def _expiry_ms(redis_time: tuple[int, int], pttl_ms: int) -> int:
+    seconds, microseconds = redis_time
+    return seconds * 1_000 + microseconds // 1_000 + pttl_ms
 
 
 class IpBanMigrationMixin:
@@ -69,14 +75,25 @@ class IpBanMigrationMixin:
         with conn.pipeline() as pipe:
             pipe.get(key)
             pipe.pttl(key)
-            value, old_pttl = pipe.execute()
+            pipe.time()
+            value, old_pttl, old_time = pipe.execute()
 
         if old_pttl <= 0:
             conn.delete(key)
             return
 
+        expires_at_ms = _expiry_ms(old_time, old_pttl)
         canonical_key = f"{prefix}{canonical_ip}"
-        new_pttl = conn.pttl(canonical_key)
-        if new_pttl < old_pttl:
-            conn.set(canonical_key, value, px=old_pttl)
+        with conn.pipeline() as pipe:
+            pipe.pttl(canonical_key)
+            pipe.time()
+            new_pttl, new_time = pipe.execute()
+
+        if new_pttl == _MISSING_KEY or (
+            new_pttl >= 0 and _expiry_ms(new_time, new_pttl) < expires_at_ms
+        ):
+            with conn.pipeline(transaction=True) as pipe:
+                pipe.set(canonical_key, value)
+                pipe.pexpireat(canonical_key, expires_at_ms)
+                pipe.execute()
         conn.delete(key)

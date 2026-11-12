@@ -152,6 +152,18 @@ def _carve_manager(connection: object) -> IPBanManager:
     return manager
 
 
+def _scripted_pipelines(*executions: list[object]) -> tuple[MagicMock, list[MagicMock]]:
+    pipes = []
+    for result in executions:
+        pipe = MagicMock()
+        for command in ("get", "pttl", "time", "set", "pexpireat", "delete", "incr"):
+            setattr(pipe, command, AsyncMock())
+        pipe.execute = AsyncMock(return_value=result)
+        pipes.append(pipe)
+    contexts = [pipeline_of(pipe).return_value for pipe in pipes]
+    return MagicMock(side_effect=contexts), pipes
+
+
 def test_a_key_that_is_not_a_network_is_never_a_carve() -> None:
     manager = IPBanManager()
     manager.config = SecurityConfig(enable_redis=False)
@@ -162,8 +174,7 @@ def test_a_key_that_is_not_a_network_is_never_a_carve() -> None:
 async def test_a_carve_that_expired_between_scan_and_read_is_not_moved() -> None:
     connection = MagicMock()
     connection.scan_iter = scanning(f"guard:banned_identities:{CARVED}")
-    connection.get = AsyncMock(return_value=None)
-    connection.pttl = AsyncMock(return_value=5000)
+    connection.pipeline, _ = _scripted_pipelines([None, 5000, (1_000, 0)])
     manager = _carve_manager(connection)
 
     assert manager.redis_handler is not None
@@ -173,8 +184,7 @@ async def test_a_carve_that_expired_between_scan_and_read_is_not_moved() -> None
 async def test_a_carve_without_a_ttl_is_not_moved() -> None:
     connection = MagicMock()
     connection.scan_iter = scanning(f"guard:banned_identities:{CARVED}")
-    connection.get = AsyncMock(return_value="123.0")
-    connection.pttl = AsyncMock(return_value=-1)
+    connection.pipeline, _ = _scripted_pipelines(["123.0", -1, (1_000, 0)])
     manager = _carve_manager(connection)
 
     assert manager.redis_handler is not None
@@ -184,26 +194,26 @@ async def test_a_carve_without_a_ttl_is_not_moved() -> None:
 async def test_a_carve_keeps_a_longer_ban_of_its_base_identity() -> None:
     connection = MagicMock()
     connection.scan_iter = scanning(f"guard:banned_identities:{CARVED}")
-    connection.get = AsyncMock(return_value="123.0")
-    connection.pttl = AsyncMock(side_effect=[5000, 90000, -2, -2])
-    pipe = MagicMock()
-    pipe.set = AsyncMock()
-    pipe.delete = AsyncMock()
-    pipe.incr = AsyncMock()
-    pipe.execute = AsyncMock()
-    connection.pipeline = pipeline_of(pipe)
+    connection.pipeline, pipes = _scripted_pipelines(
+        ["123.0", 5000, (1_000, 0)],
+        [90000, (1_000, 0)],
+        [None, -2, -2, (1_000, 0)],
+        [],
+    )
     manager = _carve_manager(connection)
 
     assert manager.redis_handler is not None
     assert await manager._rewrite_redis_carves(manager.redis_handler) == 1
 
-    pipe.set.assert_not_awaited()
-    pipe.delete.assert_awaited_once_with(
+    write = pipes[3]
+    write.set.assert_not_awaited()
+    write.pexpireat.assert_not_awaited()
+    write.delete.assert_awaited_once_with(
         f"guard:banned_identities:{CARVED}",
         f"guard:ban_floors:banned_identities:{CARVED}",
     )
-    pipe.incr.assert_awaited_once_with("guard:ban_version:counter")
-    pipe.execute.assert_awaited_once()
+    write.incr.assert_awaited_once_with("guard:ban_version:counter")
+    write.execute.assert_awaited_once()
 
 
 async def test_a_carve_the_whitelist_still_produces_is_left_in_redis() -> None:

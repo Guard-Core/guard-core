@@ -1,4 +1,5 @@
 import logging
+import time
 import warnings
 from unittest.mock import MagicMock
 
@@ -58,6 +59,10 @@ def _bad_connection_redis_handler() -> MagicMock:
     return handler
 
 
+def _elapsed_ms(since: float) -> float:
+    return (time.monotonic() - since) * 1_000
+
+
 def _seed_legacy_ban(handler: SyncRedisHandlerProtocol, duration: int = 60) -> None:
     ip_ban_manager.initialize_redis(handler)
     ip_ban_manager._ban_exact_ip(LEGACY_MAPPED_FORM, duration, "test_legacy_ban")
@@ -88,6 +93,7 @@ def test_migration_preserves_remaining_ttl_within_one_second(
     handler = redis_handler_factory(security_config_redis)
     handler.initialize()
     try:
+        seeded_at = time.monotonic()
         _seed_legacy_ban(handler, duration=60)
 
         ip_ban_manager.initialize_redis(handler)
@@ -95,10 +101,149 @@ def test_migration_preserves_remaining_ttl_within_one_second(
         prefix = security_config_redis.redis_prefix
         with handler.get_connection() as conn:
             pttl_ms = conn.pttl(f"{prefix}banned_ips:{CANONICAL_FORM}")
+        elapsed_ms = _elapsed_ms(seeded_at)
 
-        assert pttl_ms == pytest.approx(60_000, abs=1_000)
+        assert 60_000 - elapsed_ms - 1_000 <= pttl_ms <= 60_000 + 1_000
     finally:
         ip_ban_manager.unban_ip(CANONICAL_FORM)
+        ip_ban_manager.redis_handler = None
+        handler.close()
+
+
+def test_migration_does_not_extend_the_ban_by_time_lost_mid_migration(
+    security_config_redis: SyncSecurityConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = redis_handler_factory(security_config_redis)
+    handler.initialize()
+    try:
+        _seed_legacy_ban(handler, duration=60)
+        with handler.get_connection() as conn:
+            with conn.pipeline() as pipe:
+                pipeline_type = type(pipe)
+        real_execute = pipeline_type.execute
+
+        def execute_then_stall_after_canonical_read(
+            self: object, *args: object, **kw: object
+        ) -> object:
+            names = [str(c[0][0]).upper() for c in vars(self)["command_stack"]]
+            result = real_execute(self, *args, **kw)
+            if names == ["PTTL", "TIME"]:
+                time.sleep(1.5)
+            return result
+
+        monkeypatch.setattr(
+            pipeline_type, "execute", execute_then_stall_after_canonical_read
+        )
+        ip_ban_manager.initialize_redis(handler)
+        monkeypatch.undo()
+
+        prefix = security_config_redis.redis_prefix
+        with handler.get_connection() as conn:
+            pttl_ms = conn.pttl(f"{prefix}banned_ips:{CANONICAL_FORM}")
+
+        assert pttl_ms <= 60_000 - 1_400
+    finally:
+        monkeypatch.undo()
+        ip_ban_manager.unban_ip(CANONICAL_FORM)
+        ip_ban_manager.redis_handler = None
+        handler.close()
+
+
+def test_migration_writes_the_canonical_key_and_its_expiry_in_one_transaction(
+    security_config_redis: SyncSecurityConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = redis_handler_factory(security_config_redis)
+    handler.initialize()
+    try:
+        _seed_legacy_ban(handler, duration=60)
+        with handler.get_connection() as conn:
+            with conn.pipeline() as pipe:
+                pipeline_type = type(pipe)
+        real_execute = pipeline_type.execute
+        executed: list[tuple[bool, list[str]]] = []
+
+        def recording_execute(self: object, *args: object, **kw: object) -> object:
+            state = vars(self)
+            names = [str(c[0][0]).upper() for c in state["command_stack"]]
+            executed.append(
+                (bool(state.get("is_transaction", state.get("transaction"))), names)
+            )
+            return real_execute(self, *args, **kw)
+
+        monkeypatch.setattr(pipeline_type, "execute", recording_execute)
+        ip_ban_manager.initialize_redis(handler)
+        monkeypatch.undo()
+
+        assert (True, ["SET", "PEXPIREAT"]) in executed
+        prefix = security_config_redis.redis_prefix
+        with handler.get_connection() as conn:
+            assert conn.pttl(f"{prefix}banned_ips:{CANONICAL_FORM}") > 0
+    finally:
+        monkeypatch.undo()
+        ip_ban_manager.unban_ip(CANONICAL_FORM)
+        ip_ban_manager.redis_handler = None
+        handler.close()
+
+
+def test_migration_keeps_a_persistent_canonical_key_unshortened(
+    security_config_redis: SyncSecurityConfig,
+) -> None:
+    handler = redis_handler_factory(security_config_redis)
+    handler.initialize()
+    try:
+        _seed_legacy_ban(handler)
+        prefix = security_config_redis.redis_prefix
+        canonical_key = f"{prefix}banned_ips:{CANONICAL_FORM}"
+        with handler.get_connection() as conn:
+            conn.set(canonical_key, "9999999999.5")
+
+        ip_ban_manager.initialize_redis(handler)
+
+        with handler.get_connection() as conn:
+            assert conn.pttl(canonical_key) == -1
+            assert conn.get(canonical_key) == "9999999999.5"
+            assert conn.exists(f"{prefix}banned_ips:{LEGACY_MAPPED_FORM}") == 0
+    finally:
+        ip_ban_manager.unban_ip(CANONICAL_FORM)
+        ip_ban_manager.redis_handler = None
+        handler.close()
+
+
+def test_migration_leaves_no_canonical_key_for_a_ban_that_expired_mid_migration(
+    security_config_redis: SyncSecurityConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = redis_handler_factory(security_config_redis)
+    handler.initialize()
+    try:
+        prefix = security_config_redis.redis_prefix
+        legacy_key = f"{prefix}banned_ips:{LEGACY_MAPPED_FORM}"
+        with handler.get_connection() as conn:
+            conn.set(legacy_key, "123456789.0", px=400)
+            with conn.pipeline() as pipe:
+                pipeline_type = type(pipe)
+        real_execute = pipeline_type.execute
+
+        def execute_then_outlive_the_ban(
+            self: object, *args: object, **kw: object
+        ) -> object:
+            names = [str(c[0][0]).upper() for c in vars(self)["command_stack"]]
+            result = real_execute(self, *args, **kw)
+            if names == ["GET", "PTTL", "TIME"]:
+                time.sleep(0.8)
+            return result
+
+        monkeypatch.setattr(pipeline_type, "execute", execute_then_outlive_the_ban)
+        ip_ban_manager.initialize_redis(handler)
+        monkeypatch.undo()
+
+        with handler.get_connection() as conn:
+            assert conn.exists(f"{prefix}banned_ips:{CANONICAL_FORM}") == 0
+            assert conn.exists(legacy_key) == 0
+    finally:
+        monkeypatch.undo()
         ip_ban_manager.redis_handler = None
         handler.close()
 
@@ -136,15 +281,17 @@ def test_migration_second_start_is_idempotent(
         with handler.get_connection() as conn:
             value_before = conn.get(canonical_key)
             pttl_before = conn.pttl(canonical_key)
+        read_before_at = time.monotonic()
 
         ip_ban_manager.initialize_redis(handler)
 
         with handler.get_connection() as conn:
             value_after = conn.get(canonical_key)
             pttl_after = conn.pttl(canonical_key)
+        elapsed_ms = _elapsed_ms(read_before_at)
 
         assert value_after == value_before
-        assert pttl_after == pytest.approx(pttl_before, abs=1_000)
+        assert pttl_before - elapsed_ms - 1_000 <= pttl_after <= pttl_before
         assert ip_ban_manager.is_ip_banned(CANONICAL_FORM) is True
     finally:
         ip_ban_manager.unban_ip(CANONICAL_FORM)
@@ -230,14 +377,16 @@ def test_migration_keeps_the_longer_expiry_when_canonical_key_already_exists(
         legacy_key = f"{prefix}banned_ips:{LEGACY_MAPPED_FORM}"
         with handler.get_connection() as conn:
             pttl_before = conn.pttl(canonical_key)
+        read_before_at = time.monotonic()
 
         ip_ban_manager.initialize_redis(handler)
 
         with handler.get_connection() as conn:
             pttl_after = conn.pttl(canonical_key)
             legacy_exists = conn.exists(legacy_key)
+        elapsed_ms = _elapsed_ms(read_before_at)
 
-        assert pttl_after == pytest.approx(pttl_before, abs=1_000)
+        assert pttl_before - elapsed_ms - 1_000 <= pttl_after <= pttl_before
         assert pttl_after > 100_000
         assert legacy_exists == 0
     finally:

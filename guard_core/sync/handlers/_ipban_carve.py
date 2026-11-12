@@ -6,6 +6,7 @@ from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.sync.handlers._dynamic_rule_persistence import BAN_FLOORS_NAMESPACE
 from guard_core.sync.handlers._ipban_lookup import IpBanLookupMixin
+from guard_core.sync.handlers._ipban_migration import _MISSING_KEY, _expiry_ms
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 if TYPE_CHECKING:
@@ -20,15 +21,25 @@ def _plan_floor_move(
     conn: "Redis", stem: str, key: str, target: str
 ) -> tuple[str, str, str | None, int]:
     """The floor keys of a carved ban and of its base identity, and the floor to
-    write at the base (None when the carve has none or the base keeps a later)."""
+    write at the base (None when the carve has none or the base keeps a later),
+    with the floor's absolute expiry in milliseconds."""
     floor_stem = (
         f"{stem.removesuffix('banned_identities:')}{BAN_FLOORS_NAMESPACE}:"
         "banned_identities:"
     )
     floor_key, floor_target = f"{floor_stem}{key[len(stem) :]}", f"{floor_stem}{target}"
-    floor, floor_pttl = conn.get(floor_key), conn.pttl(floor_key)
-    moves = floor is not None and floor_pttl > conn.pttl(floor_target)
-    return floor_key, floor_target, floor if moves else None, floor_pttl
+    with conn.pipeline() as pipe:
+        pipe.get(floor_key)
+        pipe.pttl(floor_key)
+        pipe.pttl(floor_target)
+        pipe.time()
+        floor, floor_pttl, target_pttl, now = pipe.execute()
+    floor_expiry_ms = _expiry_ms(now, floor_pttl)
+    moves = floor is not None and (
+        target_pttl == _MISSING_KEY
+        or (target_pttl >= 0 and floor_expiry_ms > _expiry_ms(now, target_pttl))
+    )
+    return floor_key, floor_target, floor if moves else None, floor_expiry_ms
 
 
 class IpBanCarveMixin(IpBanLookupMixin):
@@ -96,10 +107,16 @@ class IpBanCarveMixin(IpBanLookupMixin):
                 target = self._base_identity_if_carve_is_gone(key[len(stem) :])
                 if target is None:
                     continue
-                value, pttl = conn.get(key), conn.pttl(key)
+                with conn.pipeline() as pipe:
+                    pipe.get(key)
+                    pipe.pttl(key)
+                    pipe.time()
+                    value, pttl, now = pipe.execute()
                 if value is None or pttl <= 0:
                     continue
-                self._move_identity_key(redis, conn, stem, key, target, value, pttl)
+                self._move_identity_key(
+                    redis, conn, stem, key, target, value, _expiry_ms(now, pttl)
+                )
                 moved += 1
         return moved
 
@@ -111,18 +128,25 @@ class IpBanCarveMixin(IpBanLookupMixin):
         key: str,
         target: str,
         value: str,
-        pttl: int,
+        expires_at_ms: int,
     ) -> None:
         target_key = f"{stem}{target}"
-        existing = conn.pttl(target_key)
-        floor_key, floor_target, floor, floor_pttl = _plan_floor_move(
+        with conn.pipeline() as pipe:
+            pipe.pttl(target_key)
+            pipe.time()
+            existing, now = pipe.execute()
+        floor_key, floor_target, floor, floor_expires_at_ms = _plan_floor_move(
             conn, stem, key, target
         )
         with conn.pipeline(transaction=True) as pipe:
-            if existing < pttl:
-                pipe.set(target_key, value, px=pttl)
+            if existing == _MISSING_KEY or (
+                existing >= 0 and _expiry_ms(now, existing) < expires_at_ms
+            ):
+                pipe.set(target_key, value)
+                pipe.pexpireat(target_key, expires_at_ms)
             if floor is not None:
-                pipe.set(floor_target, floor, px=floor_pttl)
+                pipe.set(floor_target, floor)
+                pipe.pexpireat(floor_target, floor_expires_at_ms)
             pipe.delete(key, floor_key)
             pipe.incr(self._version_redis_key(redis))
             pipe.execute()
