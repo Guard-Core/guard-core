@@ -1,8 +1,8 @@
 {
  "spec_version": "4.1.0",
  "engine_version": "5.0.0",
- "engine_commit": "1045f25f104918c931823c47ebe96671eb8ce9df",
- "generated_at": "2026-11-03T11:52:32.089444+00:00",
+ "engine_commit": "842a6a9126250176f049b6cf4672ebb8d340954b",
+ "generated_at": "2026-11-12T18:15:36.639959+00:00",
  "fixed_ip": "203.0.113.7",
  "config_knobs": {
   "detection_compiler_timeout": 2.0,
@@ -241,6 +241,17 @@
     "rust"
    ]
   },
+  "pipeline_endpoint_limit_routing": {
+   "case_count": 7,
+   "kind": "pipeline",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
   "event_stream": {
    "case_count": 45,
    "kind": "events",
@@ -357,42 +368,42 @@
   "k": 5,
   "floor_ms": 250,
   "timing_runs": 5,
-  "generated_at": "2026-11-03T11:52:58+00:00",
+  "generated_at": "2026-11-12T18:16:01+00:00",
   "budgets": {
    "cost_prose_8kib": {
-    "reference_ms": 10.2,
+    "reference_ms": 9.1,
     "expected_is_threat": false
    },
    "cost_prose_64kib": {
-    "reference_ms": 54.3,
+    "reference_ms": 49.3,
     "expected_is_threat": false
    },
    "cost_prose_256kib": {
-    "reference_ms": 202.0,
+    "reference_ms": 184.6,
     "expected_is_threat": false
    },
    "cost_prose_1mib": {
-    "reference_ms": 743.7,
+    "reference_ms": 676.7,
     "expected_is_threat": false
    },
    "cost_encoded_64kib": {
-    "reference_ms": 58.3,
+    "reference_ms": 48.3,
     "expected_is_threat": false
    },
    "cost_binnoise_64kib": {
-    "reference_ms": 52.2,
+    "reference_ms": 44.9,
     "expected_is_threat": false
    },
    "cost_threat_8kib": {
-    "reference_ms": 8.0,
+    "reference_ms": 7.5,
     "expected_is_threat": true
    },
    "cost_threat_tail_256kib": {
-    "reference_ms": 240.3,
+    "reference_ms": 217.5,
     "expected_is_threat": true
    },
    "cost_threat_mid_1mib": {
-    "reference_ms": 836.0,
+    "reference_ms": 765.6,
     "expected_is_threat": true
    }
   }
