@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 
+from guard_core._misconfiguration import wildcard_cors_credentials_problems
 from guard_core._security_headers_defaults import _DEFAULT_SECURITY_HEADERS_CONFIG
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
@@ -78,7 +79,9 @@ def apply_security_headers_settings(
         permissions_policy=_text_setting(settings, "permissions_policy", "UNSET"),
         custom_headers=_custom_setting(settings.get("custom")),
         cors_origins=config.cors_allow_origins if config.enable_cors else None,
-        cors_allow_credentials=config.cors_allow_credentials,
+        # the config already reported the wildcard pair, so the manager gets it dropped
+        cors_allow_credentials=config.cors_allow_credentials
+        and not wildcard_cors_credentials_problems(config),
         cors_allow_methods=config.cors_allow_methods,
         cors_allow_headers=config.cors_allow_headers,
     )
