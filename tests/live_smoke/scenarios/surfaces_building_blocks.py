@@ -8,6 +8,10 @@ _BLOCKS_BASE = {
     "enable_redis": False,
 }
 
+# The example restricts /blocks/behavior, /blocks/rate-limit and /blocks/patterns to
+# localhost, so they are reached as that client (nginx steers X-Smoke-Client).
+_LOCALHOST = {"X-Smoke-Client": "127.0.0.1"}
+
 
 @scenario(
     covers={"surface:building_block_ip_access", "surface:cidr_rules"},
@@ -95,14 +99,15 @@ def admin_routes_serve_localhost_only_and_unban_lifts_a_ban(
     config=_BLOCKS_BASE,
 )
 def public_building_blocks_do_their_documented_work(ctx: ScenarioContext) -> None:
-    behavior = ctx.client.get("/blocks/behavior").json()
+    behavior = ctx.client.get("/blocks/behavior", headers=_LOCALHOST).json()
     assert behavior["rule_id_is_stable"] is True, behavior
     assert behavior["threshold_crossed_on"] == [False, False, True], behavior
     assert behavior["request_is_bounded_body_reader"] is True, behavior
     assert behavior["response_is_bounded_response_reader"] is True, behavior
 
     verdicts = [
-        ctx.client.get("/blocks/rate-limit").json()["blocked"] for _ in range(3)
+        ctx.client.get("/blocks/rate-limit", headers=_LOCALHOST).json()["blocked"]
+        for _ in range(3)
     ]
     assert verdicts == [False, False, True], (
         f"RateLimitManager.check_rate_limit at 2 per window: {verdicts}"
@@ -129,7 +134,9 @@ def custom_patterns_can_be_added_and_removed_at_runtime(ctx: ScenarioContext) ->
     assert ctx.client.get("/basic/ip", params=probe).status_code == 200
 
     added = ctx.client.post(
-        "/blocks/patterns", json={"action": "add", "pattern_reversed": "zzmotsuczz"}
+        "/blocks/patterns",
+        json={"action": "add", "pattern_reversed": "zzmotsuczz"},
+        headers=_LOCALHOST,
     )
     assert added.json() == {"changed": True}, added.text
     assert ctx.client.get("/basic/ip", params=probe).status_code == 400, (
@@ -137,7 +144,9 @@ def custom_patterns_can_be_added_and_removed_at_runtime(ctx: ScenarioContext) ->
     )
 
     removed = ctx.client.post(
-        "/blocks/patterns", json={"action": "remove", "pattern_reversed": "zzmotsuczz"}
+        "/blocks/patterns",
+        json={"action": "remove", "pattern_reversed": "zzmotsuczz"},
+        headers=_LOCALHOST,
     )
     assert removed.json() == {"changed": True}, removed.text
     assert ctx.client.get("/basic/ip", params=probe).status_code == 200, (
