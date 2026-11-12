@@ -1,6 +1,11 @@
 import logging
 from typing import TYPE_CHECKING
 
+from guard_core._misconfiguration_kinds import (
+    K_EXCLUDE_PATHS_UNEXEMPTED_PROBE,
+    kinds_log_extra,
+)
+
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
@@ -62,4 +67,5 @@ def warn_unexempted_probe_paths(
             " With emergency_whitelist_only off, whitelist and exempt_ips"
             " clients also get through.",
             ", ".join(repr(path) for path in paths),
+            extra=kinds_log_extra(K_EXCLUDE_PATHS_UNEXEMPTED_PROBE, *paths),
         )

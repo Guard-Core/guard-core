@@ -2,6 +2,11 @@ import logging
 from collections.abc import Callable, MutableMapping
 from urllib.parse import urlsplit
 
+from guard_core._misconfiguration_kinds import (
+    K_TIME_WINDOW_INVALID_TIME,
+    K_TIME_WINDOW_UNKNOWN_TIMEZONE,
+    Problem,
+)
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.body_reader import _parse_content_length
@@ -84,17 +89,26 @@ class AdvancedMixin(BaseSecurityMixin):
                 unknown_time_zone,
             )
 
-            for name, value in (("start_time", start_time), ("end_time", end_time)):
-                if invalid_time_of_day(value):
-                    self._report_misconfiguration(
-                        f"@time_window {name} {value!r} is not a valid HH:MM "
-                        "time, so the window is evaluated on a broken value."
-                    )
-            if unknown_time_zone(timezone):
-                self._report_misconfiguration(
-                    f"@time_window timezone {timezone!r} is not a known IANA "
-                    "time zone, so the window silently falls back to UTC."
+            problems = [
+                Problem(
+                    f"@time_window {name} {value!r} is not a valid HH:MM "
+                    "time, so the window is evaluated on a broken value.",
+                    kind=K_TIME_WINDOW_INVALID_TIME,
+                    subject=name,
                 )
+                for name, value in (("start_time", start_time), ("end_time", end_time))
+                if invalid_time_of_day(value)
+            ]
+            if unknown_time_zone(timezone):
+                problems.append(
+                    Problem(
+                        f"@time_window timezone {timezone!r} is not a known IANA "
+                        "time zone, so the window silently falls back to UTC.",
+                        kind=K_TIME_WINDOW_UNKNOWN_TIMEZONE,
+                        subject=str(timezone),
+                    )
+                )
+            self._report_misconfigurations(problems)
             route_config = self._ensure_route_config(func)
             route_config.store_attribute(
                 "time_restrictions",

@@ -1,6 +1,11 @@
 from collections.abc import Callable
 from typing import Literal
 
+from guard_core._misconfiguration_kinds import (
+    K_BEHAVIOR_RULE_NON_POSITIVE,
+    K_SUSPICIOUS_FREQUENCY_PRODUCT_BELOW_ONE,
+    Problem,
+)
 from guard_core.decorators.base import (
     BaseSecurityMixin,
     GuardedParams,
@@ -18,8 +23,12 @@ class BehavioralMixin(BaseSecurityMixin):
     ) -> None:
         if threshold < 1 or window < 1:
             self._report_misconfiguration(
-                f"@{name}(threshold={threshold}, window={window}): the threshold "
-                "and the window must both be at least 1."
+                Problem(
+                    f"@{name}(threshold={threshold}, window={window}): the "
+                    "threshold and the window must both be at least 1.",
+                    kind=K_BEHAVIOR_RULE_NON_POSITIVE,
+                    subject=name,
+                )
             )
 
     def usage_monitor(
@@ -110,10 +119,13 @@ class BehavioralMixin(BaseSecurityMixin):
         ) -> Callable[GuardedParams, GuardedReturn]:
             if max_frequency * window < 1:
                 self._report_misconfiguration(
-                    f"@suspicious_frequency(max_frequency={max_frequency}, "
-                    f"window={window}): max_frequency times window is below 1, "
-                    "so the threshold becomes 0 and every request would trip the "
-                    "rule."
+                    Problem(
+                        f"@suspicious_frequency(max_frequency={max_frequency}, "
+                        f"window={window}): max_frequency times window is below "
+                        "1, so the threshold becomes 0 and every request would "
+                        "trip the rule.",
+                        kind=K_SUSPICIOUS_FREQUENCY_PRODUCT_BELOW_ONE,
+                    )
                 )
             route_config = self._ensure_route_config(func)
             max_calls = int(max_frequency * window)

@@ -1,6 +1,15 @@
 import logging
 from collections.abc import Callable
 
+from guard_core._misconfiguration_kinds import (
+    K_ALLOW_COUNTRIES_EMPTY_LIST,
+    K_BLOCK_CLOUDS_EMPTY_LIST,
+    K_BLOCK_CLOUDS_UNKNOWN_PROVIDER,
+    K_BLOCK_COUNTRIES_EMPTY_LIST,
+    K_REQUIRE_IP_EMPTY_WHITELIST,
+    K_REQUIRE_IP_INVALID_ENTRY,
+    Problem,
+)
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
@@ -25,18 +34,28 @@ class AccessControlMixin(BaseSecurityMixin):
         ) -> Callable[GuardedParams, GuardedReturn]:
             from guard_core.decorators._route_arguments import invalid_ip_entries
 
+            problems: list[Problem] = []
             if whitelist is not None and not whitelist:
-                self._report_misconfiguration(
-                    "@require_ip received an empty whitelist: an empty list "
-                    "restricts nothing, so every address is allowed on this route."
+                problems.append(
+                    Problem(
+                        "@require_ip received an empty whitelist: an empty list "
+                        "restricts nothing, so every address is allowed on this "
+                        "route.",
+                        kind=K_REQUIRE_IP_EMPTY_WHITELIST,
+                    )
                 )
             for name, entries in (("whitelist", whitelist), ("blacklist", blacklist)):
-                for entry in invalid_ip_entries(entries):
-                    self._report_misconfiguration(
+                problems.extend(
+                    Problem(
                         f"@require_ip {name} entry {entry!r} is not a valid IP "
                         "address or CIDR network, so requests to this route can "
-                        "be denied by mistake."
+                        "be denied by mistake.",
+                        kind=K_REQUIRE_IP_INVALID_ENTRY,
+                        subject=str(entry),
                     )
+                    for entry in invalid_ip_entries(entries)
+                )
+            self._report_misconfigurations(problems)
             route_config = self._ensure_route_config(func)
             if whitelist:
                 route_config.ip_whitelist = whitelist
@@ -56,8 +75,11 @@ class AccessControlMixin(BaseSecurityMixin):
         ) -> Callable[GuardedParams, GuardedReturn]:
             if not countries:
                 self._report_misconfiguration(
-                    "@block_countries received an empty country list: an empty "
-                    "list blocks nothing on this route."
+                    Problem(
+                        "@block_countries received an empty country list: an empty "
+                        "list blocks nothing on this route.",
+                        kind=K_BLOCK_COUNTRIES_EMPTY_LIST,
+                    )
                 )
             if countries:
                 self._require_geo_source("@block_countries")
@@ -77,9 +99,12 @@ class AccessControlMixin(BaseSecurityMixin):
         ) -> Callable[GuardedParams, GuardedReturn]:
             if not countries:
                 self._report_misconfiguration(
-                    "@allow_countries received an empty country list: an empty "
-                    "list restricts nothing, so every country is allowed on this "
-                    "route."
+                    Problem(
+                        "@allow_countries received an empty country list: an empty "
+                        "list restricts nothing, so every country is allowed on "
+                        "this route.",
+                        kind=K_ALLOW_COUNTRIES_EMPTY_LIST,
+                    )
                 )
             if countries:
                 self._require_geo_source("@allow_countries")
@@ -106,15 +131,22 @@ class AccessControlMixin(BaseSecurityMixin):
         )
         if providers is not None and not providers:
             self._report_misconfiguration(
-                "@block_clouds received an empty provider list: an empty "
-                "list blocks nothing on this route (call @block_clouds() to "
-                "block every provider)."
+                Problem(
+                    "@block_clouds received an empty provider list: an empty "
+                    "list blocks nothing on this route (call @block_clouds() to "
+                    "block every provider).",
+                    kind=K_BLOCK_CLOUDS_EMPTY_LIST,
+                )
             )
         if unknown:
             self._report_misconfiguration(
-                f"@block_clouds: ignored unknown cloud providers {unknown}. "
-                f"Valid providers: {sorted(VALID_CLOUD_PROVIDERS)} (matched "
-                "case-insensitively)."
+                Problem(
+                    f"@block_clouds: ignored unknown cloud providers {unknown}. "
+                    f"Valid providers: {sorted(VALID_CLOUD_PROVIDERS)} (matched "
+                    "case-insensitively).",
+                    kind=K_BLOCK_CLOUDS_UNKNOWN_PROVIDER,
+                    subject=", ".join(str(provider) for provider in unknown),
+                )
             )
         return canonical
 

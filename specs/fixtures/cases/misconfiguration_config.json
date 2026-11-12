@@ -1,0 +1,2465 @@
+{
+  "suite": "misconfiguration_config",
+  "kind": "misconfiguration",
+  "spec_version": "4.1.0",
+  "engine_version": "5.0.0",
+  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Input: config, the stated SecurityConfig fields (snake_case, JSON safe, a tuple is a [limit, window] array); the runner adds fail_on_misconfiguration itself unless flag_stated is false, which leaves it unset. A config states exactly what it lists, because the changed_default.* kinds report a field the config leaves unset.",
+  "kinds": {
+    "changed_default.ban_on_hostile_signals": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "ban_on_hostile_signals is left unset and its default changed in 5.0.0"
+    },
+    "changed_default.enable_redis": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "enable_redis is left unset and its default changed in 5.0.0"
+    },
+    "changed_default.fail_on_misconfiguration": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "fail_on_misconfiguration is left unset and its default changed in 5.0.0"
+    },
+    "changed_default.rate_limit": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "rate_limit is left unset and its default changed in 5.0.0"
+    },
+    "changed_default.slash_exclusion": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "exclude_paths holds / and exclude_all_paths is left unset"
+    },
+    "changed_default.whitelist_access_only": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "whitelist_access_only is left unset beside a whitelist and its default changed in 5.0.0"
+    },
+    "cors.wildcard_origin_with_credentials": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "null",
+      "description": "enable_cors with cors_allow_credentials and a wildcard origin"
+    },
+    "detection_semantic_threshold.non_positive": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "null",
+      "description": "detection_semantic_threshold is 0 or below"
+    },
+    "detection_threat_score_threshold.non_positive": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "null",
+      "description": "detection_threat_score_threshold is 0 or below"
+    },
+    "endpoint_rate_limits.below_one": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "the endpoint_rate_limits key",
+      "description": "enable_rate_limiting is on and an entry has a limit or a window below 1"
+    },
+    "endpoint_rate_limits.router_template": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "the endpoint_rate_limits key",
+      "description": "a key is a router template, a regex route or a glob, which matches only that literal text"
+    },
+    "endpoint_rate_limits.routing_anomaly": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "the endpoint_rate_limits key",
+      "description": "a key has a dot segment, an empty segment, a backslash or an encoded dot or separator in any decoding round"
+    },
+    "exclude_all_paths.enabled": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "exclude_all_paths is True, which excludes the whole application"
+    },
+    "exclude_paths.glob_wildcard": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "the exclude_paths entry",
+      "description": "an entry holds *, ? or #, which are literal characters, not a glob"
+    },
+    "exclude_paths.routing_anomaly": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "the exclude_paths entry",
+      "description": "an entry has a dot segment, an empty segment, a backslash or an encoded dot or separator in any decoding round"
+    },
+    "exclude_paths.unexempted_probe": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "emergency_mode blocks a health probe path held in exclude_paths and not listed in emergency_exempt_paths"
+    },
+    "exempt_ips.prefix_zero": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "exempt_ips holds a /0 network"
+    },
+    "rate_limit.below_one": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "null",
+      "description": "enable_rate_limiting is on and rate_limit is below 1"
+    },
+    "rate_limit_window.below_one": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "null",
+      "description": "enable_rate_limiting is on and rate_limit_window is below 1"
+    },
+    "redis_prefix.left_default": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "Redis is enabled with the default redis_prefix"
+    },
+    "security_headers.unknown_key": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "the security_headers key",
+      "description": "a key (or hsts key) is not a known key, so it has no effect"
+    },
+    "trusted_proxies.prefix_zero": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "trusted_proxies holds a /0 network"
+    },
+    "whitelist.prefix_zero": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "whitelist holds a /0 network"
+    }
+  },
+  "cases": [
+    {
+      "id": "defaults_quiet",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "rate_limit_boundary_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 1,
+          "ban_on_hostile_signals": false
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "rate_limiting_off_ignores_zero_limits",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 1,
+          "ban_on_hostile_signals": false,
+          "enable_rate_limiting": false,
+          "rate_limit_window": 0
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "rate_limit_below_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 0,
+          "ban_on_hostile_signals": false,
+          "enable_rate_limiting": true
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "rate_limit.below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "rate_limit.below_one",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "rate_limit_window_below_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "rate_limit_window": 0
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "rate_limit_window.below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "rate_limit_window.below_one",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_limit_below_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/login": [
+              0,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.below_one",
+            "/login"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.below_one",
+            "/login"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_window_below_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/login": [
+              5,
+              0
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.below_one",
+            "/login"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.below_one",
+            "/login"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_limit_boundary_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/login": [
+              1,
+              1
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "threat_score_threshold_zero",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "detection_threat_score_threshold": 0.0
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "detection_threat_score_threshold.non_positive",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "detection_threat_score_threshold.non_positive",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "semantic_threshold_zero",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "detection_semantic_threshold": 0.0
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "detection_semantic_threshold.non_positive",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "detection_semantic_threshold.non_positive",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "thresholds_positive",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "detection_threat_score_threshold": 0.5
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "exclude_path_glob_star",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/static/*"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "exclude_paths.glob_wildcard",
+            "/static/*"
+          ]
+        ],
+        "fatal": [
+          [
+            "exclude_paths.glob_wildcard",
+            "/static/*"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "exclude_path_glob_question",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/a?b"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "exclude_paths.glob_wildcard",
+            "/a?b"
+          ]
+        ],
+        "fatal": [
+          [
+            "exclude_paths.glob_wildcard",
+            "/a?b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "exclude_path_glob_hash",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/a#b"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "exclude_paths.glob_wildcard",
+            "/a#b"
+          ]
+        ],
+        "fatal": [
+          [
+            "exclude_paths.glob_wildcard",
+            "/a#b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "exclude_path_plain",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/health",
+            "/static/app.js"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "exclude_path_default_entries_skip_the_anomaly_check",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/favicon.ico",
+            "/robots.txt"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_wildcard_origin_with_credentials",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "enable_cors": true,
+          "cors_allow_credentials": true,
+          "cors_allow_origins": [
+            "*"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "cors.wildcard_origin_with_credentials",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "cors.wildcard_origin_with_credentials",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "cors_wildcard_origin_without_credentials",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "enable_cors": true,
+          "cors_allow_credentials": false,
+          "cors_allow_origins": [
+            "*"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_wildcard_credentials_with_cors_off",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "enable_cors": false,
+          "cors_allow_credentials": true,
+          "cors_allow_origins": [
+            "*"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "security_headers_unknown_key",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "security_headers": {
+            "x_made_up": "1"
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "security_headers.unknown_key",
+            "x_made_up"
+          ]
+        ],
+        "fatal": [
+          [
+            "security_headers.unknown_key",
+            "x_made_up"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "security_headers_unknown_hsts_key",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "security_headers": {
+            "hsts": {
+              "max_age": 3600,
+              "bogus": true
+            }
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "security_headers.unknown_key",
+            "hsts.bogus"
+          ]
+        ],
+        "fatal": [
+          [
+            "security_headers.unknown_key",
+            "hsts.bogus"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "security_headers_known_keys",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "security_headers": {
+            "hsts": {
+              "max_age": 3600
+            }
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "security_headers_off_skips_the_key_check",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "security_headers": {
+            "enabled": false,
+            "x_made_up": "1"
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "emergency_mode_unexempted_probe",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "emergency_mode": true,
+          "exclude_paths": [
+            "/health"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "exclude_paths.unexempted_probe",
+            "/health"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "emergency_mode_exempted_probe",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "emergency_mode": true,
+          "exclude_paths": [
+            "/health"
+          ],
+          "emergency_exempt_paths": [
+            "/health"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "exclude_all_paths_enabled",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_all_paths": true
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "exclude_all_paths.enabled",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "trusted_proxies_prefix_zero",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "trusted_proxies": [
+            "0.0.0.0/0"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "trusted_proxies.prefix_zero",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "trusted_proxies_prefix_zero_v6",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "trusted_proxies": [
+            "::/0"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "trusted_proxies.prefix_zero",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "whitelist_prefix_zero",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "whitelist": [
+            "0.0.0.0/0"
+          ],
+          "whitelist_access_only": false
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "whitelist.prefix_zero",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "exempt_ips_prefix_zero",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exempt_ips": [
+            "0.0.0.0/0"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "exempt_ips.prefix_zero",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "narrow_networks_are_not_prefix_zero",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "trusted_proxies": [
+            "10.0.0.0/8"
+          ],
+          "whitelist": [
+            "10.1.0.0/16"
+          ],
+          "whitelist_access_only": false,
+          "exempt_ips": [
+            "192.168.0.0/16"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "changed_default_ban_on_hostile_signals",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "changed_default.ban_on_hostile_signals",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "changed_default_rate_limit",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "ban_on_hostile_signals": false
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "changed_default.rate_limit",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "changed_default_enable_redis",
+      "input": {
+        "config": {
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "changed_default.enable_redis",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "changed_default_whitelist_access_only",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "whitelist": [
+            "10.0.0.1"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "changed_default.whitelist_access_only",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "changed_default_slash_exclusion",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "changed_default.slash_exclusion",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "changed_default_fail_on_misconfiguration",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "flag_stated": false
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "changed_default.fail_on_misconfiguration",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "changed_defaults_every_flip_at_once",
+      "input": {
+        "config": {},
+        "flag_stated": false
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "changed_default.ban_on_hostile_signals",
+            null
+          ],
+          [
+            "changed_default.enable_redis",
+            null
+          ],
+          [
+            "changed_default.fail_on_misconfiguration",
+            null
+          ],
+          [
+            "changed_default.rate_limit",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "redis_prefix_left_default",
+      "input": {
+        "config": {
+          "enable_redis": true,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "redis_url": "redis://localhost:6379"
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "redis_prefix.left_default",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "redis_prefix_set",
+      "input": {
+        "config": {
+          "enable_redis": true,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "redis_url": "redis://localhost:6379",
+          "redis_prefix": "myapp:"
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "combined_two_rate_limit_problems",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 0,
+          "ban_on_hostile_signals": false,
+          "rate_limit_window": 0
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "rate_limit.below_one",
+            null
+          ],
+          [
+            "rate_limit_window.below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "rate_limit.below_one",
+            null
+          ],
+          [
+            "rate_limit_window.below_one",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "combined_the_same_kind_twice",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a": [
+              0,
+              60
+            ],
+            "/b": [
+              5,
+              0
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.below_one",
+            "/a"
+          ],
+          [
+            "endpoint_rate_limits.below_one",
+            "/b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.below_one",
+            "/a"
+          ],
+          [
+            "endpoint_rate_limits.below_one",
+            "/b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "combined_across_every_error_family",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 0,
+          "ban_on_hostile_signals": false,
+          "detection_semantic_threshold": 0.0,
+          "exclude_paths": [
+            "/x/*"
+          ],
+          "endpoint_rate_limits": {
+            "/users/{id}": [
+              5,
+              60
+            ]
+          },
+          "enable_cors": true,
+          "cors_allow_credentials": true,
+          "cors_allow_origins": [
+            "*"
+          ],
+          "security_headers": {
+            "x_made_up": "1"
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "cors.wildcard_origin_with_credentials",
+            null
+          ],
+          [
+            "detection_semantic_threshold.non_positive",
+            null
+          ],
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/{id}"
+          ],
+          [
+            "exclude_paths.glob_wildcard",
+            "/x/*"
+          ],
+          [
+            "rate_limit.below_one",
+            null
+          ],
+          [
+            "security_headers.unknown_key",
+            "x_made_up"
+          ]
+        ],
+        "fatal": [
+          [
+            "cors.wildcard_origin_with_credentials",
+            null
+          ],
+          [
+            "detection_semantic_threshold.non_positive",
+            null
+          ],
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/{id}"
+          ],
+          [
+            "exclude_paths.glob_wildcard",
+            "/x/*"
+          ],
+          [
+            "rate_limit.below_one",
+            null
+          ],
+          [
+            "security_headers.unknown_key",
+            "x_made_up"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "combined_errors_with_a_warning",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 0,
+          "ban_on_hostile_signals": false,
+          "exclude_all_paths": true
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "exclude_all_paths.enabled",
+            null
+          ],
+          [
+            "rate_limit.below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "rate_limit.below_one",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "combined_two_warnings_only",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "trusted_proxies": [
+            "0.0.0.0/0"
+          ],
+          "exempt_ips": [
+            "0.0.0.0/0"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "exempt_ips.prefix_zero",
+            null
+          ],
+          [
+            "trusted_proxies.prefix_zero",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "exclude_path_anomaly_dot_segment",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/a/../b"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a/../b"
+          ]
+        ],
+        "fatal": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a/../b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_dot_segment",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a/../b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/../b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/../b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "exclude_path_anomaly_single_dot_segment",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/a/./b"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a/./b"
+          ]
+        ],
+        "fatal": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a/./b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_single_dot_segment",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a/./b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/./b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/./b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "exclude_path_anomaly_empty_segment",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/a//b"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a//b"
+          ]
+        ],
+        "fatal": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a//b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_empty_segment",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a//b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a//b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a//b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "exclude_path_anomaly_backslash",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/a\\b"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a\\b"
+          ]
+        ],
+        "fatal": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a\\b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_backslash",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a\\b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a\\b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a\\b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "exclude_path_anomaly_encoded_dot_segment",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/a/%2e%2e/b"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a/%2e%2e/b"
+          ]
+        ],
+        "fatal": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a/%2e%2e/b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_encoded_dot_segment",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a/%2e%2e/b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%2e%2e/b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%2e%2e/b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "exclude_path_anomaly_double_encoded_dot",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/a/%252e%252e/b"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a/%252e%252e/b"
+          ]
+        ],
+        "fatal": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a/%252e%252e/b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_double_encoded_dot",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a/%252e%252e/b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%252e%252e/b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%252e%252e/b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "exclude_path_anomaly_encoded_slash",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/a/%2F/b"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a/%2F/b"
+          ]
+        ],
+        "fatal": [
+          [
+            "exclude_paths.routing_anomaly",
+            "/a/%2F/b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_encoded_slash",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a/%2F/b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%2F/b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%2F/b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_brace_name",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/users/{id}": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/{id}"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/{id}"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_angle_name",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/users/<id>": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/<id>"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/<id>"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_colon_name",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/users/:id": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/:id"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/:id"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_named_group",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/users/(?P<id>[0-9]+)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(?P<id>[0-9]+)"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(?P<id>[0-9]+)"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_group_class",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/users/([0-9]+)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/([0-9]+)"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/([0-9]+)"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_group_star",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/users/(.*)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(.*)"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(.*)"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_group_plus",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/users/(.+)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(.+)"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(.+)"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_anchored",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "^/users/([0-9]+)$": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "^/users/([0-9]+)$"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "^/users/([0-9]+)$"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_bare_class",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/files/[0-9]+": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/files/[0-9]+"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/files/[0-9]+"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_dot_star",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/users/.*": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/.*"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/.*"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_dot_plus",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/users/.+": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/.+"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/.+"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_glob_star",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/api/*": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/api/*"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/api/*"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_glob_star_root",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/static/*": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/static/*"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/static/*"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_glob_double_star",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/api/**": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/api/**"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/api/**"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_plain_path",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/users/1": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_dash_dot",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a-b_c.d": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_open_brace",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a{b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_close_open_brace",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a}b{": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_open_angle",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a<b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_parenthesis_word",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/wiki/Foo_(bar)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_plus_plus",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/c++": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_trailing_dollar",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/a$": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_price_dollar",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/price$": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_inner_parenthesis",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/x(y)z": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_colon_in_segment",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/v1/models/gpt:generate": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_dotted_file",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/files/a.b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_numeric_group",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/files/(1)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_query_mark",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/search?q=1": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_regex_backslash_group",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "endpoint_rate_limits": {
+            "/users/(\\d+)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(\\d+)"
+          ],
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/users/(\\d+)"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(\\d+)"
+          ],
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/users/(\\d+)"
+          ]
+        ]
+      }
+    }
+  ]
+}

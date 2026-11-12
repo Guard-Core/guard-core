@@ -2,6 +2,10 @@ import logging
 from typing import TYPE_CHECKING
 
 from guard_core._misconfiguration import report_misconfiguration
+from guard_core._misconfiguration_kinds import (
+    K_IPV6_PREFIX_LENGTH_REDIS_MISMATCH,
+    Problem,
+)
 
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
@@ -47,11 +51,14 @@ async def enforce_prefix_length_contract(
         return
     report_misconfiguration(
         config,
-        f"ipv6_prefix_length is {wanted} here but {recorded} on the workers "
-        f"that share this Redis (recorded in the key {key}); bans and "
-        "rate-limit windows would use different identities. A rolling change "
-        "is not supported: stop all workers, delete that key or use a new "
-        "redis_prefix, then start them with one value.",
+        Problem(
+            f"ipv6_prefix_length is {wanted} here but {recorded} on the workers "
+            f"that share this Redis (recorded in the key {key}); bans and "
+            "rate-limit windows would use different identities. A rolling change "
+            "is not supported: stop all workers, delete that key or use a new "
+            "redis_prefix, then start them with one value.",
+            kind=K_IPV6_PREFIX_LENGTH_REDIS_MISMATCH,
+        ),
         logger=logger,
         stacklevel=4,
     )

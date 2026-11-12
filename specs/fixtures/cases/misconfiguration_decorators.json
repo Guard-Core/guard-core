@@ -1,0 +1,1207 @@
+{
+  "suite": "misconfiguration_decorators",
+  "kind": "misconfiguration",
+  "spec_version": "4.1.0",
+  "engine_version": "5.0.0",
+  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Input: config as in misconfiguration_config, geo (null or \"stub\", a configured GeoIP handler) and decorators, a list of {name, args} applied one by one to a fresh function with the Python keyword names. reported is the union over the decorators and fatal the union of what each decorator's raise carries.",
+  "kinds": {
+    "decorator.allow_countries.empty_list": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "null",
+      "description": "the country list is empty"
+    },
+    "decorator.behavior_rule.non_positive": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the decorator name",
+      "description": "a behavior decorator has a threshold or a window below 1"
+    },
+    "decorator.block_clouds.empty_list": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "null",
+      "description": "a provider list is given and empty"
+    },
+    "decorator.block_clouds.unknown_provider": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the unknown selectors as given, sorted and joined by a comma and a space",
+      "description": "a provider selector is unknown"
+    },
+    "decorator.block_countries.empty_list": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "null",
+      "description": "the country list is empty"
+    },
+    "decorator.country_rule.geoip_download_extras_missing": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the decorator, for example @block_countries",
+      "description": "ipinfo_token is set and the GeoIP download extras are not installed; host dependent, never pinned in the corpus",
+      "fatal_only": true,
+      "host_dependent": true
+    },
+    "decorator.country_rule.no_geoip_source": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the decorator, for example @block_countries",
+      "description": "a country rule is declared and no GeoIP source is configured; checked only while fail_on_misconfiguration is True, so it is fatal and never merely reported",
+      "fatal_only": true
+    },
+    "decorator.geo_rate_limit.below_one": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the country key as given",
+      "description": "an entry has a limit or a window below 1"
+    },
+    "decorator.rate_limit.below_one": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "null",
+      "description": "requests or window is below 1"
+    },
+    "decorator.require_ip.empty_whitelist": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "null",
+      "description": "a whitelist is given and empty"
+    },
+    "decorator.require_ip.invalid_entry": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the entry as given",
+      "description": "a whitelist or blacklist entry is not an IP address or CIDR network"
+    },
+    "decorator.suspicious_frequency.product_below_one": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "null",
+      "description": "max_frequency times window is below 1"
+    },
+    "decorator.time_window.invalid_time": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the argument name (start_time or end_time)",
+      "description": "start_time or end_time is not HH:MM"
+    },
+    "decorator.time_window.unknown_timezone": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the timezone as given",
+      "description": "the timezone is not an IANA zone"
+    }
+  },
+  "cases": [
+    {
+      "id": "time_window_invalid_start",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "time_window",
+            "args": {
+              "start_time": "25:00",
+              "end_time": "17:00"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.time_window.invalid_time",
+            "start_time"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.time_window.invalid_time",
+            "start_time"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "time_window_invalid_both_times",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "time_window",
+            "args": {
+              "start_time": "9am",
+              "end_time": "5pm"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.time_window.invalid_time",
+            "end_time"
+          ],
+          [
+            "decorator.time_window.invalid_time",
+            "start_time"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.time_window.invalid_time",
+            "end_time"
+          ],
+          [
+            "decorator.time_window.invalid_time",
+            "start_time"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "time_window_unknown_timezone",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "time_window",
+            "args": {
+              "start_time": "09:00",
+              "end_time": "17:00",
+              "timezone": "Mars/Base"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.time_window.unknown_timezone",
+            "Mars/Base"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.time_window.unknown_timezone",
+            "Mars/Base"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "time_window_valid",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "time_window",
+            "args": {
+              "start_time": "09:00",
+              "end_time": "17:00",
+              "timezone": "UTC"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "time_window_invalid_time_and_timezone",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "time_window",
+            "args": {
+              "start_time": "99:99",
+              "end_time": "17:00",
+              "timezone": "Nope/Zone"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.time_window.invalid_time",
+            "start_time"
+          ],
+          [
+            "decorator.time_window.unknown_timezone",
+            "Nope/Zone"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.time_window.invalid_time",
+            "start_time"
+          ],
+          [
+            "decorator.time_window.unknown_timezone",
+            "Nope/Zone"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "usage_monitor_threshold_below_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "usage_monitor",
+            "args": {
+              "max_calls": 0,
+              "window": 60
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.behavior_rule.non_positive",
+            "usage_monitor"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.behavior_rule.non_positive",
+            "usage_monitor"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "return_monitor_window_below_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "behavior_scan_response_body": true
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "return_monitor",
+            "args": {
+              "pattern": "secret",
+              "max_occurrences": 3,
+              "window": 0
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.behavior_rule.non_positive",
+            "return_monitor"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.behavior_rule.non_positive",
+            "return_monitor"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "usage_monitor_boundary_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "usage_monitor",
+            "args": {
+              "max_calls": 1,
+              "window": 1
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "suspicious_frequency_product_below_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "suspicious_frequency",
+            "args": {
+              "max_frequency": 0.001,
+              "window": 10
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.suspicious_frequency.product_below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.suspicious_frequency.product_below_one",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "suspicious_frequency_boundary_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "suspicious_frequency",
+            "args": {
+              "max_frequency": 0.1,
+              "window": 10
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "rate_limit_requests_below_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "rate_limit",
+            "args": {
+              "requests": 0,
+              "window": 60
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.rate_limit.below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.rate_limit.below_one",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "rate_limit_window_below_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "rate_limit",
+            "args": {
+              "requests": 5,
+              "window": 0
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.rate_limit.below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.rate_limit.below_one",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "rate_limit_boundary_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "rate_limit",
+            "args": {
+              "requests": 1,
+              "window": 1
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "geo_rate_limit_entry_below_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": "stub",
+        "decorators": [
+          {
+            "name": "geo_rate_limit",
+            "args": {
+              "limits": {
+                "US": [
+                  0,
+                  60
+                ],
+                "DE": [
+                  5,
+                  60
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.geo_rate_limit.below_one",
+            "US"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.geo_rate_limit.below_one",
+            "US"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "geo_rate_limit_two_entries_below_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": "stub",
+        "decorators": [
+          {
+            "name": "geo_rate_limit",
+            "args": {
+              "limits": {
+                "US": [
+                  0,
+                  60
+                ],
+                "DE": [
+                  5,
+                  0
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.geo_rate_limit.below_one",
+            "DE"
+          ],
+          [
+            "decorator.geo_rate_limit.below_one",
+            "US"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.geo_rate_limit.below_one",
+            "DE"
+          ],
+          [
+            "decorator.geo_rate_limit.below_one",
+            "US"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "geo_rate_limit_valid_with_a_geo_source",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": "stub",
+        "decorators": [
+          {
+            "name": "geo_rate_limit",
+            "args": {
+              "limits": {
+                "US": [
+                  5,
+                  60
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "require_ip_empty_whitelist",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "require_ip",
+            "args": {
+              "whitelist": []
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.require_ip.empty_whitelist",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.require_ip.empty_whitelist",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "require_ip_invalid_whitelist_entry",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "require_ip",
+            "args": {
+              "whitelist": [
+                "10.0.0.1",
+                "not-an-ip"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.require_ip.invalid_entry",
+            "not-an-ip"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.require_ip.invalid_entry",
+            "not-an-ip"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "require_ip_invalid_blacklist_entry",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "require_ip",
+            "args": {
+              "blacklist": [
+                "10.0.0.999"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.require_ip.invalid_entry",
+            "10.0.0.999"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.require_ip.invalid_entry",
+            "10.0.0.999"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "require_ip_empty_whitelist_and_invalid_blacklist",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "require_ip",
+            "args": {
+              "whitelist": [],
+              "blacklist": [
+                "bad"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.require_ip.empty_whitelist",
+            null
+          ],
+          [
+            "decorator.require_ip.invalid_entry",
+            "bad"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.require_ip.empty_whitelist",
+            null
+          ],
+          [
+            "decorator.require_ip.invalid_entry",
+            "bad"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "require_ip_valid",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "require_ip",
+            "args": {
+              "whitelist": [
+                "10.0.0.0/8"
+              ],
+              "blacklist": [
+                "::1"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "block_countries_empty_list",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "block_countries",
+            "args": {
+              "countries": []
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.block_countries.empty_list",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.block_countries.empty_list",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "allow_countries_empty_list",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "allow_countries",
+            "args": {
+              "countries": []
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.allow_countries.empty_list",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.allow_countries.empty_list",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "block_countries_with_a_geo_source",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": "stub",
+        "decorators": [
+          {
+            "name": "block_countries",
+            "args": {
+              "countries": [
+                "US"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "block_clouds_empty_list",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "block_clouds",
+            "args": {
+              "providers": []
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.block_clouds.empty_list",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.block_clouds.empty_list",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "block_clouds_unknown_provider",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "block_clouds",
+            "args": {
+              "providers": [
+                "aws",
+                "notacloud"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.block_clouds.unknown_provider",
+            "notacloud"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.block_clouds.unknown_provider",
+            "notacloud"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "block_clouds_unknown_providers_are_one_report",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "block_clouds",
+            "args": {
+              "providers": [
+                "zzz",
+                "nope"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.block_clouds.unknown_provider",
+            "nope, zzz"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.block_clouds.unknown_provider",
+            "nope, zzz"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "block_clouds_every_provider",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "block_clouds",
+            "args": {}
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "block_countries_without_a_geo_source",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "block_countries",
+            "args": {
+              "countries": [
+                "US"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [],
+        "fatal": [
+          [
+            "decorator.country_rule.no_geoip_source",
+            "@block_countries"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "allow_countries_without_a_geo_source",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "allow_countries",
+            "args": {
+              "countries": [
+                "US"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [],
+        "fatal": [
+          [
+            "decorator.country_rule.no_geoip_source",
+            "@allow_countries"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "geo_rate_limit_without_a_geo_source",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "geo_rate_limit",
+            "args": {
+              "limits": {
+                "US": [
+                  5,
+                  60
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [],
+        "fatal": [
+          [
+            "decorator.country_rule.no_geoip_source",
+            "@geo_rate_limit"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "combined_two_decorators_with_problems",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "rate_limit",
+            "args": {
+              "requests": 0,
+              "window": 60
+            }
+          },
+          {
+            "name": "block_countries",
+            "args": {
+              "countries": []
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.block_countries.empty_list",
+            null
+          ],
+          [
+            "decorator.rate_limit.below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.block_countries.empty_list",
+            null
+          ],
+          [
+            "decorator.rate_limit.below_one",
+            null
+          ]
+        ]
+      }
+    }
+  ]
+}

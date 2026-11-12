@@ -1,0 +1,1484 @@
+{
+  "suite": "misconfiguration_dynamic_rules",
+  "kind": "misconfiguration",
+  "spec_version": "4.1.0",
+  "engine_version": "5.0.0",
+  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Input: dynamic_rules, the DynamicRulesProtocol fields the validator reads; a field the case leaves out is empty or null. Every problem rejects the whole rule set, so fatal repeats reported and the flag changes nothing.",
+  "kinds": {
+    "dynamic_rules.auto_ban_duration.below_one": {
+      "severity": "error",
+      "scope": "dynamic_rules",
+      "subject": "null",
+      "description": "auto_ban_duration is below 1"
+    },
+    "dynamic_rules.blocked_cloud_providers.unknown_provider": {
+      "severity": "error",
+      "scope": "dynamic_rules",
+      "subject": "the provider as given",
+      "description": "a provider selector is unknown"
+    },
+    "dynamic_rules.blocked_countries.invalid_code": {
+      "severity": "error",
+      "scope": "dynamic_rules",
+      "subject": "the code as given",
+      "description": "an entry is not a two-letter country code"
+    },
+    "dynamic_rules.emergency_whitelist.invalid_entry": {
+      "severity": "error",
+      "scope": "dynamic_rules",
+      "subject": "the entry as given",
+      "description": "an entry is not an IP address or CIDR range"
+    },
+    "dynamic_rules.global_rate_limit.below_one": {
+      "severity": "error",
+      "scope": "dynamic_rules",
+      "subject": "null",
+      "description": "global_rate_limit is below 1"
+    },
+    "dynamic_rules.global_rate_window.below_one": {
+      "severity": "error",
+      "scope": "dynamic_rules",
+      "subject": "null",
+      "description": "global_rate_window is below 1"
+    },
+    "dynamic_rules.ip_ban_duration.below_one": {
+      "severity": "error",
+      "scope": "dynamic_rules",
+      "subject": "null",
+      "description": "ip_ban_duration is below 1"
+    },
+    "dynamic_rules.ip_blacklist.invalid_entry": {
+      "severity": "error",
+      "scope": "dynamic_rules",
+      "subject": "the entry as given",
+      "description": "an entry is not an IP address or CIDR range"
+    },
+    "dynamic_rules.ip_whitelist.invalid_entry": {
+      "severity": "error",
+      "scope": "dynamic_rules",
+      "subject": "the entry as given",
+      "description": "an entry is not an IP address or CIDR range"
+    },
+    "dynamic_rules.whitelist_countries.invalid_code": {
+      "severity": "error",
+      "scope": "dynamic_rules",
+      "subject": "the code as given",
+      "description": "an entry is not a two-letter country code"
+    },
+    "endpoint_rate_limits.below_one": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "the endpoint_rate_limits key",
+      "description": "enable_rate_limiting is on and an entry has a limit or a window below 1"
+    },
+    "endpoint_rate_limits.router_template": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "the endpoint_rate_limits key",
+      "description": "a key is a router template, a regex route or a glob, which matches only that literal text"
+    },
+    "endpoint_rate_limits.routing_anomaly": {
+      "severity": "error",
+      "scope": "config",
+      "subject": "the endpoint_rate_limits key",
+      "description": "a key has a dot segment, an empty segment, a backslash or an encoded dot or separator in any decoding round"
+    }
+  },
+  "cases": [
+    {
+      "id": "empty_rules",
+      "input": {
+        "dynamic_rules": {}
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "valid_rules",
+      "input": {
+        "dynamic_rules": {
+          "ip_blacklist": [
+            "203.0.113.0/24",
+            "2001:db8::1"
+          ],
+          "ip_whitelist": [
+            "198.51.100.7"
+          ],
+          "emergency_whitelist": [
+            "192.0.2.1"
+          ],
+          "global_rate_limit": 1,
+          "global_rate_window": 1,
+          "ip_ban_duration": 1,
+          "auto_ban_duration": 1,
+          "blocked_countries": [
+            "US",
+            "de"
+          ],
+          "whitelist_countries": [
+            "FR"
+          ],
+          "blocked_cloud_providers": [
+            "AWS",
+            "gcp"
+          ],
+          "endpoint_rate_limits": {
+            "/login": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "ip_blacklist_invalid",
+      "input": {
+        "dynamic_rules": {
+          "ip_blacklist": [
+            "not-an-ip",
+            "10.0.0.1"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.ip_blacklist.invalid_entry",
+            "not-an-ip"
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.ip_blacklist.invalid_entry",
+            "not-an-ip"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "ip_whitelist_invalid",
+      "input": {
+        "dynamic_rules": {
+          "ip_whitelist": [
+            "10.0.0.256"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.ip_whitelist.invalid_entry",
+            "10.0.0.256"
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.ip_whitelist.invalid_entry",
+            "10.0.0.256"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "emergency_whitelist_invalid",
+      "input": {
+        "dynamic_rules": {
+          "emergency_whitelist": [
+            "10.0.0.0/33"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.emergency_whitelist.invalid_entry",
+            "10.0.0.0/33"
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.emergency_whitelist.invalid_entry",
+            "10.0.0.0/33"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "global_rate_limit_below_one",
+      "input": {
+        "dynamic_rules": {
+          "global_rate_limit": 0
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.global_rate_limit.below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.global_rate_limit.below_one",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "global_rate_window_below_one",
+      "input": {
+        "dynamic_rules": {
+          "global_rate_window": 0
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.global_rate_window.below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.global_rate_window.below_one",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "ip_ban_duration_below_one",
+      "input": {
+        "dynamic_rules": {
+          "ip_ban_duration": 0
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.ip_ban_duration.below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.ip_ban_duration.below_one",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "auto_ban_duration_below_one",
+      "input": {
+        "dynamic_rules": {
+          "auto_ban_duration": -5
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.auto_ban_duration.below_one",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.auto_ban_duration.below_one",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "blocked_countries_invalid_code",
+      "input": {
+        "dynamic_rules": {
+          "blocked_countries": [
+            "USA",
+            "US"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.blocked_countries.invalid_code",
+            "USA"
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.blocked_countries.invalid_code",
+            "USA"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "whitelist_countries_invalid_code",
+      "input": {
+        "dynamic_rules": {
+          "whitelist_countries": [
+            "1X"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.whitelist_countries.invalid_code",
+            "1X"
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.whitelist_countries.invalid_code",
+            "1X"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "blocked_cloud_providers_unknown",
+      "input": {
+        "dynamic_rules": {
+          "blocked_cloud_providers": [
+            "notacloud",
+            "aws"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.blocked_cloud_providers.unknown_provider",
+            "notacloud"
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.blocked_cloud_providers.unknown_provider",
+            "notacloud"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_limit_below_one",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/login": [
+              0,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.below_one",
+            "/login"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.below_one",
+            "/login"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_window_below_one",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/login": [
+              5,
+              0
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.below_one",
+            "/login"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.below_one",
+            "/login"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "combined_every_dynamic_kind",
+      "input": {
+        "dynamic_rules": {
+          "ip_blacklist": [
+            "x"
+          ],
+          "ip_whitelist": [
+            "y"
+          ],
+          "emergency_whitelist": [
+            "z"
+          ],
+          "global_rate_limit": 0,
+          "global_rate_window": 0,
+          "ip_ban_duration": 0,
+          "auto_ban_duration": 0,
+          "blocked_countries": [
+            "USA"
+          ],
+          "whitelist_countries": [
+            "FRA"
+          ],
+          "blocked_cloud_providers": [
+            "nope"
+          ],
+          "endpoint_rate_limits": {
+            "/a": [
+              0,
+              0
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.auto_ban_duration.below_one",
+            null
+          ],
+          [
+            "dynamic_rules.blocked_cloud_providers.unknown_provider",
+            "nope"
+          ],
+          [
+            "dynamic_rules.blocked_countries.invalid_code",
+            "USA"
+          ],
+          [
+            "dynamic_rules.emergency_whitelist.invalid_entry",
+            "z"
+          ],
+          [
+            "dynamic_rules.global_rate_limit.below_one",
+            null
+          ],
+          [
+            "dynamic_rules.global_rate_window.below_one",
+            null
+          ],
+          [
+            "dynamic_rules.ip_ban_duration.below_one",
+            null
+          ],
+          [
+            "dynamic_rules.ip_blacklist.invalid_entry",
+            "x"
+          ],
+          [
+            "dynamic_rules.ip_whitelist.invalid_entry",
+            "y"
+          ],
+          [
+            "dynamic_rules.whitelist_countries.invalid_code",
+            "FRA"
+          ],
+          [
+            "endpoint_rate_limits.below_one",
+            "/a"
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.auto_ban_duration.below_one",
+            null
+          ],
+          [
+            "dynamic_rules.blocked_cloud_providers.unknown_provider",
+            "nope"
+          ],
+          [
+            "dynamic_rules.blocked_countries.invalid_code",
+            "USA"
+          ],
+          [
+            "dynamic_rules.emergency_whitelist.invalid_entry",
+            "z"
+          ],
+          [
+            "dynamic_rules.global_rate_limit.below_one",
+            null
+          ],
+          [
+            "dynamic_rules.global_rate_window.below_one",
+            null
+          ],
+          [
+            "dynamic_rules.ip_ban_duration.below_one",
+            null
+          ],
+          [
+            "dynamic_rules.ip_blacklist.invalid_entry",
+            "x"
+          ],
+          [
+            "dynamic_rules.ip_whitelist.invalid_entry",
+            "y"
+          ],
+          [
+            "dynamic_rules.whitelist_countries.invalid_code",
+            "FRA"
+          ],
+          [
+            "endpoint_rate_limits.below_one",
+            "/a"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "combined_the_same_kind_twice",
+      "input": {
+        "dynamic_rules": {
+          "ip_blacklist": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "dynamic_rules.ip_blacklist.invalid_entry",
+            "a"
+          ],
+          [
+            "dynamic_rules.ip_blacklist.invalid_entry",
+            "b"
+          ]
+        ],
+        "fatal": [
+          [
+            "dynamic_rules.ip_blacklist.invalid_entry",
+            "a"
+          ],
+          [
+            "dynamic_rules.ip_blacklist.invalid_entry",
+            "b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_dot_segment",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a/../b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/../b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/../b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_single_dot_segment",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a/./b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/./b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/./b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_empty_segment",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a//b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a//b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a//b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_backslash",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a\\b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a\\b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a\\b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_encoded_dot_segment",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a/%2e%2e/b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%2e%2e/b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%2e%2e/b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_double_encoded_dot",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a/%252e%252e/b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%252e%252e/b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%252e%252e/b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_anomaly_encoded_slash",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a/%2F/b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%2F/b"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/a/%2F/b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_brace_name",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/users/{id}": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/{id}"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/{id}"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_angle_name",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/users/<id>": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/<id>"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/<id>"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_colon_name",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/users/:id": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/:id"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/:id"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_named_group",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/users/(?P<id>[0-9]+)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(?P<id>[0-9]+)"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(?P<id>[0-9]+)"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_group_class",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/users/([0-9]+)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/([0-9]+)"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/([0-9]+)"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_group_star",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/users/(.*)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(.*)"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(.*)"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_group_plus",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/users/(.+)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(.+)"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(.+)"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_anchored",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "^/users/([0-9]+)$": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "^/users/([0-9]+)$"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "^/users/([0-9]+)$"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_bare_class",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/files/[0-9]+": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/files/[0-9]+"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/files/[0-9]+"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_dot_star",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/users/.*": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/.*"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/.*"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_regex_dot_plus",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/users/.+": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/.+"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/.+"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_glob_star",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/api/*": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/api/*"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/api/*"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_glob_star_root",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/static/*": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/static/*"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/static/*"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_template_glob_double_star",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/api/**": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/api/**"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/api/**"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_plain_path",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/users/1": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_dash_dot",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a-b_c.d": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_open_brace",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a{b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_close_open_brace",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a}b{": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_open_angle",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a<b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_parenthesis_word",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/wiki/Foo_(bar)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_plus_plus",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/c++": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_trailing_dollar",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/a$": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_price_dollar",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/price$": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_inner_parenthesis",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/x(y)z": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_colon_in_segment",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/v1/models/gpt:generate": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_dotted_file",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/files/a.b": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_numeric_group",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/files/(1)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_plain_query_mark",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/search?q=1": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "endpoint_key_regex_backslash_group",
+      "input": {
+        "dynamic_rules": {
+          "endpoint_rate_limits": {
+            "/users/(\\d+)": [
+              5,
+              60
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(\\d+)"
+          ],
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/users/(\\d+)"
+          ]
+        ],
+        "fatal": [
+          [
+            "endpoint_rate_limits.router_template",
+            "/users/(\\d+)"
+          ],
+          [
+            "endpoint_rate_limits.routing_anomaly",
+            "/users/(\\d+)"
+          ]
+        ]
+      }
+    }
+  ]
+}

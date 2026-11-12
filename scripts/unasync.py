@@ -18,6 +18,7 @@ SKIP_SRC = {
     "_redis_client_loop.py",
     "models.py",
     "_misconfiguration.py",
+    "_misconfiguration_kinds.py",
     "exceptions.py",
     "_pydantic_plugin_mute.py",
     "_security_config_validators.py",
@@ -56,6 +57,9 @@ SKIP_SRC = {
 }
 
 SKIP_TESTS = {
+    "test_misconfiguration_kind_registry.py",
+    "test_misconfiguration_problem_kinds.py",
+    "test_misconfiguration_raises_all.py",
     "test_redis_close_stops_background_tasks.py",
     "test_redis_close_stops_geo_load.py",
     "test_redis_abandoned_client.py",
@@ -135,6 +139,7 @@ SKIP_TESTS = {
     "test_sync_fixture_guard.py",
     "test_safety_gates_corpus_consistency.py",
     "test_conformance_corpus_replay.py",
+    "test_conformance_misconfiguration_corpus.py",
     "test_conformance_safety_replay.py",
     "test_conformance_safety_before_timing_replay.py",
     "test_fixture_generator_determinism.py",

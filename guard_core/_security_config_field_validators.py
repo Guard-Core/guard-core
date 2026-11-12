@@ -27,6 +27,14 @@ from guard_core._config_field_revalidators import (
     _validate_str_list_field_value,
 )
 from guard_core._detection_constants import ALL_DETECTION_CATEGORIES
+from guard_core._misconfiguration_kinds import (
+    K_EXCLUDE_ALL_PATHS_ENABLED,
+    K_EXEMPT_IPS_PREFIX_ZERO,
+    K_TRUSTED_PROXIES_PREFIX_ZERO,
+    K_WHITELIST_PREFIX_ZERO,
+    Problem,
+    problem_log_extra,
+)
 from guard_core._security_config_blocked_user_agents import (
     _validate_blocked_user_agents_value,
 )
@@ -317,41 +325,50 @@ def _is_prefix_zero_network_entry(entry: str) -> bool:
 
 def _warn_exclude_all_paths(*, stacklevel: int) -> None:
     warnings.warn(
-        "exclude_all_paths=True excludes the entire application from all "
-        "security checks (IP banning, rate limiting, penetration detection, "
-        "everything). Confirm this is intentional.",
+        Problem(
+            "exclude_all_paths=True excludes the entire application from all "
+            "security checks (IP banning, rate limiting, penetration detection, "
+            "everything). Confirm this is intentional.",
+            kind=K_EXCLUDE_ALL_PATHS_ENABLED,
+        ),
         UserWarning,
         stacklevel=stacklevel,
     )
 
 
 def _warn_trusted_proxies_prefix_zero() -> None:
-    logger.warning(
+    problem = Problem(
         "trusted_proxies contains a /0 network (0.0.0.0/0 or ::/0): every "
         "peer is trusted to set X-Forwarded-For, which lets any client "
         "spoof its IP for rate limiting, IP banning and detection "
         "attribution. Restrict trusted_proxies to your actual reverse "
-        "proxy addresses."
+        "proxy addresses.",
+        kind=K_TRUSTED_PROXIES_PREFIX_ZERO,
     )
+    logger.warning(problem, extra=problem_log_extra(problem))
 
 
 def _warn_whitelist_prefix_zero() -> None:
-    logger.warning(
+    problem = Problem(
         "whitelist contains a /0 network (0.0.0.0/0 or ::/0): every "
         "address is whitelisted, so blacklist, blocked_countries and IP "
         "bans cannot block anyone. Remove the /0 entry or list the "
-        "specific networks you trust."
+        "specific networks you trust.",
+        kind=K_WHITELIST_PREFIX_ZERO,
     )
+    logger.warning(problem, extra=problem_log_extra(problem))
 
 
 def _warn_exempt_ips_prefix_zero(entries: tuple[str, ...]) -> None:
     if not any(_is_prefix_zero_network_entry(entry) for entry in entries):
         return
-    logger.warning(
+    problem = Problem(
         "exempt_ips contains a /0 network (0.0.0.0/0 or ::/0): every "
         "address skips rate limiting and the user-agent and cloud-provider "
-        "checks. Remove the /0 entry or list the specific networks you trust."
+        "checks. Remove the /0 entry or list the specific networks you trust.",
+        kind=K_EXEMPT_IPS_PREFIX_ZERO,
     )
+    logger.warning(problem, extra=problem_log_extra(problem))
 
 
 def _warn_empty_enabled_detection_categories() -> None:

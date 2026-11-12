@@ -1,6 +1,16 @@
 import logging
 from typing import Protocol
 
+from guard_core._misconfiguration_kinds import (
+    K_CHANGED_DEFAULT_BAN_ON_HOSTILE_SIGNALS,
+    K_CHANGED_DEFAULT_ENABLE_REDIS,
+    K_CHANGED_DEFAULT_FAIL_ON_MISCONFIGURATION,
+    K_CHANGED_DEFAULT_RATE_LIMIT,
+    K_CHANGED_DEFAULT_SLASH_EXCLUSION,
+    K_CHANGED_DEFAULT_WHITELIST_ACCESS_ONLY,
+    K_REDIS_PREFIX_LEFT_DEFAULT,
+    kinds_log_extra,
+)
 from guard_core._redis_enablement import (
     REDIS_CONNECTION_FIELDS,
     RedisFieldsConfig,
@@ -82,6 +92,15 @@ SIGNAL_TRIGGER_FIELDS = frozenset(
 )
 
 _changed_defaults_logged = PerApp("changed_defaults", WarnedKeys)
+
+_CHANGED_DEFAULT_KINDS = {
+    "ban_on_hostile_signals": K_CHANGED_DEFAULT_BAN_ON_HOSTILE_SIGNALS,
+    "fail_on_misconfiguration": K_CHANGED_DEFAULT_FAIL_ON_MISCONFIGURATION,
+    "rate_limit": K_CHANGED_DEFAULT_RATE_LIMIT,
+    "whitelist_access_only": K_CHANGED_DEFAULT_WHITELIST_ACCESS_ONLY,
+    "slash_exclusion": K_CHANGED_DEFAULT_SLASH_EXCLUSION,
+    "enable_redis": K_CHANGED_DEFAULT_ENABLE_REDIS,
+}
 
 
 def _redis_kept_on_entry(field: str) -> str:
@@ -181,14 +200,19 @@ def signal_changed_defaults(config: StagedDefaultsConfig) -> None:
     if entries is _DEFAULT_ENTRIES:
         logged.update(_DEFAULT_ENTRY_IDS)
         text = _DEFAULT_ENTRY_TEXT
+        flips = _DEFAULT_ENTRY_IDS
     else:
         texts = dict(entries)
         logged.update(texts)
         text = "; ".join(texts.values())
+        flips = tuple(texts)
     logger.warning(
         "guard-core 5.0.0 changed defaults that this configuration leaves unset: "
         "%s. Each default is logged once per configuration.",
         text,
+        extra={
+            "problems": tuple((_CHANGED_DEFAULT_KINDS[flip], None) for flip in flips)
+        },
     )
 
 
@@ -202,6 +226,7 @@ def _warn_default_redis_prefix() -> None:
         "same Redis that keeps the default shares its bans and rate-limit counters. "
         "Set a unique redis_prefix per app. This warning is logged once.",
         DEFAULT_REDIS_PREFIX,
+        extra=kinds_log_extra(K_REDIS_PREFIX_LEFT_DEFAULT, None),
     )
 
 

@@ -1,0 +1,793 @@
+{
+  "suite": "misconfiguration_runtime",
+  "kind": "misconfiguration",
+  "spec_version": "4.1.0",
+  "engine_version": "5.0.0",
+  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Tier 2: each case names a seam (ban_thresholds, nat64, redis_handler, country_decorators, ipv6_prefix_length, endpoint_key_routes, exclude_paths_routes) and gives that seam's stubs; a port wires the same stubs around its own reporter. The reference reports a default redis_prefix once per process; a runner resets that memory per case.",
+  "kinds": {
+    "auto_ban_threshold.unreachable": {
+      "severity": "error",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "auto_ban_threshold is above the strikes one client can produce in the window"
+    },
+    "endpoint_rate_limits.matches_no_route": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the endpoint_rate_limits key",
+      "description": "a key matches no registered route"
+    },
+    "endpoint_rate_limits.resolve_route_raised": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the endpoint_rate_limits key",
+      "description": "resolve_route raised for a key"
+    },
+    "exclude_paths.matches_no_route": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the exclude_paths entry",
+      "description": "an entry matches no registered route"
+    },
+    "exclude_paths.static_route_prefixes_raised": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "static_route_prefixes raised during the exclude_paths route check"
+    },
+    "ipv6_prefix_length.redis_mismatch": {
+      "severity": "error",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "ipv6_prefix_length differs from the value recorded in Redis"
+    },
+    "nat64_prefixes.invalid_entry": {
+      "severity": "error",
+      "scope": "runtime",
+      "subject": "the nat64_prefixes entry",
+      "description": "an entry is not an IPv6 prefix of an RFC 6052 length"
+    },
+    "redis_handler.is_connected_async": {
+      "severity": "error",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "redis_fail_open is on and the handler defines is_connected as async"
+    },
+    "redis_handler.missing_members": {
+      "severity": "error",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "the Redis handler lacks members of the handler protocol"
+    },
+    "route.country_rule_without_geoip": {
+      "severity": "error",
+      "scope": "runtime",
+      "subject": "the route id",
+      "description": "a route uses a country rule and no GeoIP source is configured"
+    },
+    "threat_ban_config.unreachable": {
+      "severity": "error",
+      "scope": "runtime",
+      "subject": "the threat_ban_config category",
+      "description": "a category threshold is above the strikes one client can produce in the window"
+    }
+  },
+  "cases": [
+    {
+      "id": "ban_threshold_reachable",
+      "input": {
+        "seam": "ban_thresholds",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "rate_limit_window": 60,
+          "auto_ban_threshold": 100
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "auto_ban_threshold_unreachable",
+      "input": {
+        "seam": "ban_thresholds",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "rate_limit_window": 60,
+          "auto_ban_threshold": 100000
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "auto_ban_threshold.unreachable",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "auto_ban_threshold.unreachable",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "threat_ban_threshold_unreachable",
+      "input": {
+        "seam": "ban_thresholds",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "rate_limit_window": 60,
+          "auto_ban_threshold": 100,
+          "threat_ban_config": {
+            "sqli": {
+              "threshold": 100000,
+              "duration": 3600
+            }
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "threat_ban_config.unreachable",
+            "sqli"
+          ]
+        ],
+        "fatal": [
+          [
+            "threat_ban_config.unreachable",
+            "sqli"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "ban_threshold_bound_unknown_with_rate_limiting_off",
+      "input": {
+        "seam": "ban_thresholds",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "rate_limit_window": 60,
+          "auto_ban_threshold": 100000,
+          "enable_rate_limiting": false
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "ban_thresholds_unreachable_together",
+      "input": {
+        "seam": "ban_thresholds",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "rate_limit_window": 60,
+          "auto_ban_threshold": 100000,
+          "threat_ban_config": {
+            "xss": {
+              "threshold": 100000,
+              "duration": 3600
+            }
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "auto_ban_threshold.unreachable",
+            null
+          ],
+          [
+            "threat_ban_config.unreachable",
+            "xss"
+          ]
+        ],
+        "fatal": [
+          [
+            "auto_ban_threshold.unreachable",
+            null
+          ],
+          [
+            "threat_ban_config.unreachable",
+            "xss"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "nat64_invalid_entry",
+      "input": {
+        "seam": "nat64",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "nat64_prefixes": [
+            "10.0.0.0/8",
+            "64:ff9b::/96"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "nat64_prefixes.invalid_entry",
+            "10.0.0.0/8"
+          ]
+        ],
+        "fatal": [
+          [
+            "nat64_prefixes.invalid_entry",
+            "10.0.0.0/8"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "nat64_wrong_length",
+      "input": {
+        "seam": "nat64",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "nat64_prefixes": [
+            "64:ff9b::/95"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "nat64_prefixes.invalid_entry",
+            "64:ff9b::/95"
+          ]
+        ],
+        "fatal": [
+          [
+            "nat64_prefixes.invalid_entry",
+            "64:ff9b::/95"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "nat64_two_invalid_entries",
+      "input": {
+        "seam": "nat64",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "nat64_prefixes": [
+            "bad",
+            "64:ff9b::/95"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "nat64_prefixes.invalid_entry",
+            "64:ff9b::/95"
+          ],
+          [
+            "nat64_prefixes.invalid_entry",
+            "bad"
+          ]
+        ],
+        "fatal": [
+          [
+            "nat64_prefixes.invalid_entry",
+            "64:ff9b::/95"
+          ],
+          [
+            "nat64_prefixes.invalid_entry",
+            "bad"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "nat64_valid_entry",
+      "input": {
+        "seam": "nat64",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "nat64_prefixes": [
+            "64:ff9b::/96"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "redis_handler_complete",
+      "input": {
+        "seam": "redis_handler",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "redis_fail_open": true
+        },
+        "redis_handler": {
+          "is_connected": "sync"
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "redis_handler_is_connected_async",
+      "input": {
+        "seam": "redis_handler",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "redis_fail_open": true
+        },
+        "redis_handler": {
+          "is_connected": "async"
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "redis_handler.is_connected_async",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "redis_handler.is_connected_async",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "redis_handler_async_is_connected_with_fail_open_off",
+      "input": {
+        "seam": "redis_handler",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "redis_fail_open": false
+        },
+        "redis_handler": {
+          "is_connected": "async"
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "redis_handler_missing_members",
+      "input": {
+        "seam": "redis_handler",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "redis_fail_open": true
+        },
+        "redis_handler": {
+          "is_connected": "sync",
+          "lacks": [
+            "get_key"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "redis_handler.missing_members",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "redis_handler.missing_members",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "redis_handler_async_is_connected_and_missing_members",
+      "input": {
+        "seam": "redis_handler",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "redis_fail_open": true
+        },
+        "redis_handler": {
+          "is_connected": "async",
+          "lacks": [
+            "get_key"
+          ]
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "redis_handler.is_connected_async",
+            null
+          ],
+          [
+            "redis_handler.missing_members",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "redis_handler.is_connected_async",
+            null
+          ],
+          [
+            "redis_handler.missing_members",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "country_rule_without_geoip",
+      "input": {
+        "seam": "country_decorators",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "routes": {
+          "api.blocked": {
+            "blocked_countries": [
+              "US"
+            ]
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "route.country_rule_without_geoip",
+            "api.blocked"
+          ]
+        ],
+        "fatal": [
+          [
+            "route.country_rule_without_geoip",
+            "api.blocked"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "country_rules_without_geoip_on_two_routes",
+      "input": {
+        "seam": "country_decorators",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "routes": {
+          "api.a": {
+            "whitelist_countries": [
+              "US"
+            ]
+          },
+          "api.b": {
+            "blocked_countries": [
+              "DE"
+            ],
+            "geo_rate_limits": {
+              "FR": [
+                5,
+                60
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "route.country_rule_without_geoip",
+            "api.a"
+          ],
+          [
+            "route.country_rule_without_geoip",
+            "api.b"
+          ],
+          [
+            "route.country_rule_without_geoip",
+            "api.b"
+          ]
+        ],
+        "fatal": [
+          [
+            "route.country_rule_without_geoip",
+            "api.a"
+          ],
+          [
+            "route.country_rule_without_geoip",
+            "api.b"
+          ],
+          [
+            "route.country_rule_without_geoip",
+            "api.b"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "route_without_a_country_rule",
+      "input": {
+        "seam": "country_decorators",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "routes": {
+          "api.plain": {}
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "ipv6_prefix_length_matches_redis",
+      "input": {
+        "seam": "ipv6_prefix_length",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "ipv6_prefix_length": 64
+        },
+        "redis_recorded_ipv6_prefix_length": 64
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "ipv6_prefix_length_first_worker_records",
+      "input": {
+        "seam": "ipv6_prefix_length",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "ipv6_prefix_length": 64
+        },
+        "redis_recorded_ipv6_prefix_length": null
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "ipv6_prefix_length_differs_from_redis",
+      "input": {
+        "seam": "ipv6_prefix_length",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "ipv6_prefix_length": 64
+        },
+        "redis_recorded_ipv6_prefix_length": 56
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "ipv6_prefix_length.redis_mismatch",
+            null
+          ]
+        ],
+        "fatal": [
+          [
+            "ipv6_prefix_length.redis_mismatch",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "endpoint_key_matches_no_route",
+      "input": {
+        "seam": "endpoint_key_routes",
+        "endpoint_rate_limit_keys": [
+          "/typo"
+        ],
+        "resolve_route": "no_match"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "endpoint_rate_limits.matches_no_route",
+            "/typo"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "two_endpoint_keys_match_no_route",
+      "input": {
+        "seam": "endpoint_key_routes",
+        "endpoint_rate_limit_keys": [
+          "/typo",
+          "/other"
+        ],
+        "resolve_route": "no_match"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "endpoint_rate_limits.matches_no_route",
+            "/other"
+          ],
+          [
+            "endpoint_rate_limits.matches_no_route",
+            "/typo"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "resolve_route_raises",
+      "input": {
+        "seam": "endpoint_key_routes",
+        "endpoint_rate_limit_keys": [
+          "/login"
+        ],
+        "resolve_route": "raises"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "endpoint_rate_limits.resolve_route_raised",
+            "/login"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "exclude_path_matches_no_route",
+      "input": {
+        "seam": "exclude_paths_routes",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/typo"
+          ]
+        },
+        "static_route_prefixes": [
+          "/api/"
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "exclude_paths.matches_no_route",
+            "/typo"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "exclude_path_matches_a_route",
+      "input": {
+        "seam": "exclude_paths_routes",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/api"
+          ]
+        },
+        "static_route_prefixes": [
+          "/api/"
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "static_route_prefixes_raises",
+      "input": {
+        "seam": "exclude_paths_routes",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "exclude_paths": [
+            "/typo"
+          ]
+        },
+        "static_route_prefixes": "raises"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "exclude_paths.static_route_prefixes_raised",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    }
+  ]
+}

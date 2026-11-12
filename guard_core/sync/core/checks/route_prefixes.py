@@ -4,6 +4,13 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from guard_core._misconfiguration import config_logger
+from guard_core._misconfiguration_kinds import (
+    K_ENDPOINT_KEY_MATCHES_NO_ROUTE,
+    K_EXCLUDE_PATHS_MATCHES_NO_ROUTE,
+    K_STATIC_ROUTE_PREFIXES_RAISED,
+    Problem,
+    problem_log_extra,
+)
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core.sync.core.validation.path_matching import (
     _has_routing_anomaly_in_any_decoding,
@@ -74,21 +81,25 @@ def _reported(middleware: object) -> set[str]:
         return _reported_by_id.setdefault(id(middleware), (middleware, set()))[1]
 
 
-def _warn_once(middleware: object, message: str) -> None:
+def _warn_once(middleware: object, problem: Problem) -> None:
     reported = _reported(middleware)
-    if message in reported:
+    if problem in reported:
         return
-    reported.add(message)
-    config_logger.warning(message)
+    reported.add(problem)
+    config_logger.warning(problem, extra=problem_log_extra(problem))
 
 
 def warn_unmatched_endpoint_keys(middleware: object, keys: Iterable[str]) -> None:
     for key in sorted(keys):
         _warn_once(
             middleware,
-            f"endpoint_rate_limits key {key!r} matches no registered route; "
-            "check it for a typo. It still applies to requests whose path "
-            "matches it after normalization.",
+            Problem(
+                f"endpoint_rate_limits key {key!r} matches no registered route; "
+                "check it for a typo. It still applies to requests whose path "
+                "matches it after normalization.",
+                kind=K_ENDPOINT_KEY_MATCHES_NO_ROUTE,
+                subject=key,
+            ),
         )
 
 
@@ -98,10 +109,12 @@ def warn_unmatched_exclude_paths(
     try:
         _warn_unmatched_exclude_paths(middleware, config)
     except Exception as error:
-        config_logger.warning(
+        problem = Problem(
             f"static_route_prefixes() raised {error!r}; the exclude_paths route "
-            "check was skipped and the request continues."
+            "check was skipped and the request continues.",
+            kind=K_STATIC_ROUTE_PREFIXES_RAISED,
         )
+        config_logger.warning(problem, extra=problem_log_extra(problem))
 
 
 def _warn_unmatched_exclude_paths(
@@ -128,6 +141,10 @@ def _warn_unmatched_exclude_paths(
         if not entry_matches_route_prefixes(entry, prefixes):
             _warn_once(
                 middleware,
-                f"exclude_paths entry {entry!r} matches no registered route; "
-                "check it for a typo.",
+                Problem(
+                    f"exclude_paths entry {entry!r} matches no registered route; "
+                    "check it for a typo.",
+                    kind=K_EXCLUDE_PATHS_MATCHES_NO_ROUTE,
+                    subject=entry,
+                ),
             )

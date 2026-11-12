@@ -1,0 +1,508 @@
+"""Reference harness for the misconfiguration suites of the conformance corpus.
+
+Drives the REAL reporting code of guard_core (the SecurityConfig construction
+validator, the dynamic-rule validator, the decorators and the startup and request
+time reporters) and records the stable problem kinds it reports. The message text
+is never recorded: a port words its own English, the kind and the subject are the
+contract.
+
+Every case runs twice. The first run keeps the engine starting
+(``fail_on_misconfiguration=False``) and records every problem the engine reports
+(``reported``). The second run asks the engine to refuse
+(``fail_on_misconfiguration=True``) and records what the one raise carries
+(``fatal``). A case never encodes which problem came first.
+
+Case input, by suite file (a ``[kind, subject]`` pair is ``["<kind>", "<subject>"]``,
+the subject is ``null`` when the kind has none):
+
+misconfiguration_config
+    ``config``: the stated SecurityConfig fields, snake_case, JSON safe. The runner
+    states ``fail_on_misconfiguration`` itself, unless ``flag_stated`` is false,
+    which leaves the field unset (the case then holds no error problem).
+
+misconfiguration_dynamic_rules
+    ``dynamic_rules``: the DynamicRulesProtocol fields the validator reads. A field
+    the case leaves out is empty or null. Every problem rejects the whole rule set
+    (``fatal`` is then every problem), whatever the flag says.
+
+misconfiguration_decorators
+    ``config`` as above, ``geo``: null or ``"stub"`` (a configured GeoIP handler),
+    ``decorators``: a list of ``{"name": ..., "args": {...}}`` applied one by one to
+    a fresh function with the Python keyword names. ``reported`` is the union over
+    the decorators, ``fatal`` the union of what each decorator's raise carries.
+
+misconfiguration_runtime
+    ``seam``: which reporter the case drives, plus that seam's fields (see
+    ``SEAMS``). Tier 2: a port wires the same stubs around its own reporter.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import logging
+import warnings
+from collections.abc import Awaitable, Callable, Iterator
+from functools import partial
+from types import SimpleNamespace
+from typing import cast
+
+from fixture_types import JsonObject, JsonValue
+from pydantic import ValidationError
+from typing_extensions import get_protocol_members
+
+from guard_core import _staged_defaults
+from guard_core._misconfiguration_kinds import (
+    KINDS,
+    MisconfigurationError,
+    Problem,
+)
+from guard_core.core.checks.endpoint_limit_keys import (
+    EndpointLimitKeyMap,
+    RouteResolver,
+)
+from guard_core.core.checks.route_prefixes import (
+    warn_unmatched_endpoint_keys,
+    warn_unmatched_exclude_paths,
+)
+from guard_core.core.initialization._ban_threshold_report import (
+    _BanThresholdContext,
+    report_unreachable_ban_thresholds,
+)
+from guard_core.core.initialization._country_decorator_report import (
+    report_country_decorators_without_geoip,
+)
+from guard_core.core.initialization._nat64 import apply_nat64_prefixes
+from guard_core.core.initialization._redis_handler_members import (
+    report_incomplete_redis_handler,
+)
+from guard_core.decorators import SecurityDecorator
+from guard_core.decorators.base import BaseSecurityDecorator
+from guard_core.handlers._dynamic_rule_validation import (
+    MalformedDynamicRules,
+    find_malformed_values,
+)
+from guard_core.handlers._ipban_prefix_contract import enforce_prefix_length_contract
+from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import DynamicRulesProtocol
+from guard_core.protocols.geo_ip_protocol import GeoIPHandler
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from guard_core.protocols.route_identity import RouteIdentity
+
+Pair = tuple[str, str | None]
+FatalSink = list[Pair]
+# A driver returns the pairs it saw without a log record or a warning (none, for
+# every driver but the dynamic-rule one) and fills the fatal sink when it raises.
+Driver = Callable[[bool, FatalSink], Awaitable[list[Pair]]]
+
+SUITE_FILES = {
+    "misconfiguration_config": "config",
+    "misconfiguration_dynamic_rules": "dynamic_rules",
+    "misconfiguration_decorators": "decorators",
+    "misconfiguration_runtime": "runtime",
+}
+SEAMS = (
+    "ban_thresholds",
+    "nat64",
+    "redis_handler",
+    "country_decorators",
+    "ipv6_prefix_length",
+    "endpoint_key_routes",
+    "exclude_paths_routes",
+)
+_LOGGER = logging.getLogger("guard_core")
+_DYNAMIC_FIELDS = {
+    "ip_blacklist": list,
+    "ip_whitelist": list,
+    "emergency_whitelist": list,
+    "blocked_countries": list,
+    "whitelist_countries": list,
+    "endpoint_rate_limits": dict,
+}
+_DYNAMIC_NULLS = (
+    "global_rate_limit",
+    "global_rate_window",
+    "ip_ban_duration",
+    "auto_ban_duration",
+)
+
+
+class _Sink(logging.Handler):
+    def __init__(self, pairs: list[Pair]) -> None:
+        super().__init__(logging.WARNING)
+        self.pairs = pairs
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.pairs.extend(getattr(record, "problems", ()))
+
+
+@contextlib.contextmanager
+def _capture() -> Iterator[list[Pair]]:
+    pairs: list[Pair] = []
+    sink = _Sink(pairs)
+    previous = _LOGGER.level
+    _LOGGER.setLevel(logging.WARNING)
+    _LOGGER.addHandler(sink)
+    # The reference warns once per process about a default redis_prefix.
+    _staged_defaults._default_prefix_warned = False
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            yield pairs
+    finally:
+        _LOGGER.removeHandler(sink)
+        _LOGGER.setLevel(previous)
+    for warning in caught:
+        carried = warning.message
+        problem = carried.args[0] if isinstance(carried, Warning) else None
+        if isinstance(problem, Problem):
+            pairs.append((problem.kind, problem.subject))
+
+
+def _raised_pairs(error: BaseException) -> FatalSink:
+    if isinstance(error, MisconfigurationError):
+        return [(problem.kind, problem.subject) for problem in error.problems]
+    if isinstance(error, ValidationError):
+        carried = [
+            detail["ctx"]["error"]
+            for detail in error.errors()
+            if isinstance(detail.get("ctx", {}).get("error"), MisconfigurationError)
+        ]
+        if carried:
+            return [pair for one in carried for pair in _raised_pairs(one)]
+    raise error
+
+
+def _try_fatal(sink: FatalSink, action: Callable[[], object]) -> None:
+    try:
+        action()
+    except MalformedDynamicRules as error:
+        sink.extend(_pairs_of(error.problems))
+    except (MisconfigurationError, ValidationError) as error:
+        sink.extend(_raised_pairs(error))
+
+
+def _sorted(pairs: list[Pair]) -> list[list[str | None]]:
+    ordered = sorted(pairs, key=lambda pair: (pair[0], pair[1] or ""))
+    return [[kind, subject] for kind, subject in ordered]
+
+
+async def _observe(driver: Driver) -> JsonObject:
+    with _capture() as reported:
+        reported.extend(await driver(False, []))
+    fatal: FatalSink = []
+    with _capture():
+        await driver(True, fatal)
+    return {
+        "raises": bool(fatal),
+        "reported": cast("JsonValue", _sorted(reported)),
+        "fatal": cast("JsonValue", _sorted(fatal)),
+    }
+
+
+def _config(
+    stated: JsonObject,
+    flag: bool,
+    *,
+    flag_stated: bool = True,
+    geo_ip_handler: GeoIPHandler | None = None,
+) -> SecurityConfig:
+    fields = dict(stated)
+    if flag_stated:
+        fields["fail_on_misconfiguration"] = flag
+    if geo_ip_handler is not None:
+        fields["geo_ip_handler"] = cast("JsonValue", geo_ip_handler)
+    return SecurityConfig(**fields)
+
+
+def _config_driver(case_input: JsonObject) -> Driver:
+    stated = cast("JsonObject", case_input["config"])
+    flag_stated = case_input.get("flag_stated", True) is not False
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        _try_fatal(fatal, lambda: _config(stated, flag, flag_stated=flag_stated))
+        return []
+
+    return drive
+
+
+def _dynamic_rules(case_input: JsonObject) -> DynamicRulesProtocol:
+    given = cast("JsonObject", case_input["dynamic_rules"])
+    fields: dict[str, object] = {name: kind() for name, kind in _DYNAMIC_FIELDS.items()}
+    fields.update({name: None for name in _DYNAMIC_NULLS})
+    fields["blocked_cloud_providers"] = set()
+    fields.update(given)
+    providers = fields["blocked_cloud_providers"]
+    fields["blocked_cloud_providers"] = set(cast("list[str]", providers))
+    return cast("DynamicRulesProtocol", SimpleNamespace(**fields))
+
+
+def _dynamic_driver(case_input: JsonObject) -> Driver:
+    rules = _dynamic_rules(case_input)
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        problems = find_malformed_values(rules)
+        if not flag:
+            return _pairs_of(problems)
+        _try_fatal(fatal, lambda: _reject(problems))
+        return []
+
+    return drive
+
+
+def _reject(problems: list[str]) -> None:
+    if problems:
+        raise MalformedDynamicRules(problems)
+
+
+def _pairs_of(problems: list[str]) -> list[Pair]:
+    return [
+        (problem.kind, problem.subject)
+        for problem in problems
+        if isinstance(problem, Problem)
+    ]
+
+
+class _StubGeo:
+    is_initialized = True
+
+    async def initialize(self) -> None:
+        return None
+
+    async def refresh(self) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
+        return None
+
+    async def initialize_agent(self, agent_handler: object) -> None:
+        return None
+
+    def get_country(self, ip: str) -> str | None:
+        return None
+
+
+def _route() -> None:
+    return None
+
+
+def _apply_decorator(decorator: SecurityDecorator, step: JsonObject) -> None:
+    args = cast("dict[str, object]", step.get("args", {}))
+    getattr(decorator, cast("str", step["name"]))(**args)(_route)
+
+
+def _decorator_driver(case_input: JsonObject) -> Driver:
+    stated = cast("JsonObject", case_input.get("config", {}))
+    steps = cast("list[JsonObject]", case_input["decorators"])
+    geo = case_input.get("geo")
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        handler = _StubGeo() if geo == "stub" else None
+        decorator = SecurityDecorator(_config(stated, flag, geo_ip_handler=handler))
+        for step in steps:
+            _try_fatal(fatal, partial(_apply_decorator, decorator, step))
+        return []
+
+    return drive
+
+
+def _ban_threshold_driver(case_input: JsonObject) -> Driver:
+    stated = cast("JsonObject", case_input["config"])
+    redis_shared = case_input.get("redis_shared", False) is True
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        config = _config(stated, flag)
+        context = _BanThresholdContext(lambda: (), lambda: redis_shared)
+        _try_fatal(
+            fatal,
+            lambda: report_unreachable_ban_thresholds(
+                config, context, _LOGGER, stacklevel=2
+            ),
+        )
+        return []
+
+    return drive
+
+
+def _nat64_driver(case_input: JsonObject) -> Driver:
+    stated = cast("JsonObject", case_input["config"])
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        config = _config(stated, flag)
+        _try_fatal(fatal, lambda: apply_nat64_prefixes(config, _LOGGER))
+        return []
+
+    return drive
+
+
+def _redis_handler_stub(spec: JsonObject) -> object:
+    lacks = set(cast("list[str]", spec.get("lacks", [])))
+    members: dict[str, object] = {
+        name: (lambda self, *args, **kwargs: None)
+        for name in get_protocol_members(RedisHandlerProtocol)
+        if name not in lacks
+    }
+    mode = spec.get("is_connected", "sync")
+    if mode == "missing":
+        members.pop("is_connected", None)
+    elif mode == "async":
+
+        async def is_connected(self: object) -> bool:
+            return True
+
+        members["is_connected"] = is_connected
+    else:
+        members["is_connected"] = lambda self: True
+    return type("StubRedisHandler", (), members)()
+
+
+def _redis_handler_driver(case_input: JsonObject) -> Driver:
+    stated = cast("JsonObject", case_input["config"])
+    handler = _redis_handler_stub(cast("JsonObject", case_input["redis_handler"]))
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        config = _config(stated, flag)
+        _try_fatal(
+            fatal, lambda: report_incomplete_redis_handler(config, handler, _LOGGER)
+        )
+        return []
+
+    return drive
+
+
+def _country_decorator_driver(case_input: JsonObject) -> Driver:
+    stated = cast("JsonObject", case_input["config"])
+    routes = cast("dict[str, JsonObject]", case_input["routes"])
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        config = _config(stated, flag)
+        configs = {
+            route_id: SimpleNamespace(
+                blocked_countries=spec.get("blocked_countries", []),
+                whitelist_countries=spec.get("whitelist_countries", []),
+                geo_rate_limits=spec.get("geo_rate_limits", {}),
+            )
+            for route_id, spec in routes.items()
+        }
+        owner = cast(
+            "BaseSecurityDecorator",
+            SimpleNamespace(config=config, _route_configs=configs),
+        )
+        _try_fatal(
+            fatal,
+            lambda: report_country_decorators_without_geoip(
+                config, owner, None, _LOGGER
+            ),
+        )
+        return []
+
+    return drive
+
+
+class _RecordedRedis:
+    def __init__(self, recorded: int | None) -> None:
+        self.config = SimpleNamespace(redis_prefix="guard_core:")
+        self.recorded = recorded
+
+    async def set_key_if_absent(self, namespace: str, key: str, value: str) -> bool:
+        return self.recorded is None
+
+    async def get_key(self, namespace: str, key: str) -> str | None:
+        return None if self.recorded is None else str(self.recorded)
+
+
+def _ipv6_prefix_driver(case_input: JsonObject) -> Driver:
+    stated = cast("JsonObject", case_input["config"])
+    recorded = cast("int | None", case_input.get("redis_recorded_ipv6_prefix_length"))
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        config = _config(stated, flag)
+        try:
+            await enforce_prefix_length_contract(
+                cast("RedisHandlerProtocol", _RecordedRedis(recorded)),
+                config,
+                _LOGGER,
+            )
+        except MisconfigurationError as error:
+            fatal.extend(_raised_pairs(error))
+        return []
+
+    return drive
+
+
+def _resolver(mode: object) -> RouteResolver:
+    def raises(key: str) -> tuple[RouteIdentity, ...]:
+        raise RuntimeError("resolve_route failed")
+
+    def no_match(key: str) -> tuple[RouteIdentity, ...]:
+        return ()
+
+    return raises if mode == "raises" else no_match
+
+
+def _endpoint_key_routes_driver(case_input: JsonObject) -> Driver:
+    keys = cast("list[str]", case_input["endpoint_rate_limit_keys"])
+    resolver = _resolver(case_input["resolve_route"])
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        middleware = SimpleNamespace()
+        mapping = EndpointLimitKeyMap(keys, resolver)
+        warn_unmatched_endpoint_keys(middleware, mapping.unresolved)
+        return []
+
+    return drive
+
+
+def _exclude_paths_routes_driver(case_input: JsonObject) -> Driver:
+    stated = cast("JsonObject", case_input["config"])
+    prefixes = case_input["static_route_prefixes"]
+
+    def provider() -> list[str]:
+        if prefixes == "raises":
+            raise RuntimeError("static_route_prefixes failed")
+        return cast("list[str]", prefixes)
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        config = _config(stated, flag)
+        middleware = SimpleNamespace(static_route_prefixes=provider)
+        warn_unmatched_exclude_paths(middleware, config)
+        return []
+
+    return drive
+
+
+_RUNTIME_DRIVERS: dict[str, Callable[[JsonObject], Driver]] = {
+    "ban_thresholds": _ban_threshold_driver,
+    "nat64": _nat64_driver,
+    "redis_handler": _redis_handler_driver,
+    "country_decorators": _country_decorator_driver,
+    "ipv6_prefix_length": _ipv6_prefix_driver,
+    "endpoint_key_routes": _endpoint_key_routes_driver,
+    "exclude_paths_routes": _exclude_paths_routes_driver,
+}
+
+
+def _driver_for(suite: str, case_input: JsonObject) -> Driver:
+    scope = SUITE_FILES[suite]
+    if scope == "config":
+        return _config_driver(case_input)
+    if scope == "dynamic_rules":
+        return _dynamic_driver(case_input)
+    if scope == "decorators":
+        return _decorator_driver(case_input)
+    return _RUNTIME_DRIVERS[cast("str", case_input["seam"])](case_input)
+
+
+async def run_misconfiguration_case(suite: str, case_input: JsonObject) -> JsonObject:
+    return await _observe(_driver_for(suite, case_input))
+
+
+def intended_kinds(expected: JsonObject) -> list[str]:
+    reported = cast("list[list[str]]", expected["reported"])
+    fatal = cast("list[list[str]]", expected["fatal"])
+    return sorted(
+        [kind for kind, _ in reported]
+        + [kind for kind, _ in fatal if KINDS[kind].fatal_only]
+    )

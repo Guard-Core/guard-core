@@ -2,7 +2,11 @@ import logging
 from typing import TYPE_CHECKING
 
 from guard_core._geo_source import lacks_geo_source
-from guard_core._misconfiguration import report_misconfiguration
+from guard_core._misconfiguration import report_misconfigurations
+from guard_core._misconfiguration_kinds import (
+    K_ROUTE_COUNTRY_RULE_WITHOUT_GEOIP,
+    Problem,
+)
 
 if TYPE_CHECKING:
     from guard_core.decorators.base import BaseSecurityDecorator
@@ -33,13 +37,15 @@ def report_country_decorators_without_geoip(
         return
     route_configs = getattr(guard_decorator, "_route_configs", {})
     rule_owner = guard_decorator.config
-    for route_id, route_config in route_configs.items():
-        for decorator in _country_decorators_without_geoip(route_config):
-            report_misconfiguration(
-                rule_owner,
-                f"Route {route_id!r} uses {decorator} but no GeoIP database "
-                "is configured (geo_ip_handler is None; set ipinfo_token or "
-                "geo_ip_handler), so the country rule is ignored.",
-                logger=logger,
-                stacklevel=4,
-            )
+    problems = [
+        Problem(
+            f"Route {route_id!r} uses {decorator} but no GeoIP database "
+            "is configured (geo_ip_handler is None; set ipinfo_token or "
+            "geo_ip_handler), so the country rule is ignored.",
+            kind=K_ROUTE_COUNTRY_RULE_WITHOUT_GEOIP,
+            subject=route_id,
+        )
+        for route_id, route_config in route_configs.items()
+        for decorator in _country_decorators_without_geoip(route_config)
+    ]
+    report_misconfigurations(rule_owner, problems, logger=logger, stacklevel=4)

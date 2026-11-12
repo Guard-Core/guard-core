@@ -4,7 +4,12 @@ from typing import TYPE_CHECKING
 
 from typing_extensions import get_protocol_members
 
-from guard_core._misconfiguration import report_misconfiguration
+from guard_core._misconfiguration import report_misconfigurations
+from guard_core._misconfiguration_kinds import (
+    K_REDIS_HANDLER_IS_CONNECTED_ASYNC,
+    K_REDIS_HANDLER_MISSING_MEMBERS,
+    Problem,
+)
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 if TYPE_CHECKING:
@@ -33,23 +38,25 @@ def report_incomplete_redis_handler(
     missing = missing_redis_handler_members(
         handler, recovery_armable=config.redis_fail_open
     )
+    problems: list[Problem] = []
     if config.redis_fail_open and inspect.iscoroutinefunction(
         getattr(handler, "is_connected", None)
     ):
-        report_misconfiguration(
-            config,
-            f"The Redis handler {type(handler).__name__} defines is_connected as "
-            "async, but the engine calls it without awaiting, so it never reads as "
-            "connected; make it a plain method.",
-            logger=logger,
-            stacklevel=5,
+        problems.append(
+            Problem(
+                f"The Redis handler {type(handler).__name__} defines is_connected "
+                "as async, but the engine calls it without awaiting, so it never "
+                "reads as connected; make it a plain method.",
+                kind=K_REDIS_HANDLER_IS_CONNECTED_ASYNC,
+            )
         )
     if missing:
-        report_misconfiguration(
-            config,
-            f"The Redis handler {type(handler).__name__} lacks "
-            f"{', '.join(missing)}, which the engine calls; subclass "
-            "RedisHandlerBase for the defaults.",
-            logger=logger,
-            stacklevel=5,
+        problems.append(
+            Problem(
+                f"The Redis handler {type(handler).__name__} lacks "
+                f"{', '.join(missing)}, which the engine calls; subclass "
+                "RedisHandlerBase for the defaults.",
+                kind=K_REDIS_HANDLER_MISSING_MEMBERS,
+            )
         )
+    report_misconfigurations(config, problems, logger=logger, stacklevel=5)

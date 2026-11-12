@@ -3,7 +3,12 @@ import math
 from collections.abc import Callable, Collection
 from typing import TYPE_CHECKING
 
-from guard_core._misconfiguration import report_misconfiguration
+from guard_core._misconfiguration import report_misconfigurations
+from guard_core._misconfiguration_kinds import (
+    K_AUTO_BAN_THRESHOLD_UNREACHABLE,
+    K_THREAT_BAN_THRESHOLD_UNREACHABLE,
+    Problem,
+)
 from guard_core._parked_records import BAN_THRESHOLD_CONTEXT_RECORD
 from guard_core.sync.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 
@@ -110,28 +115,46 @@ def _excluded_paths_reach_detection(config: "SyncSecurityConfig") -> bool:
 
 def unreachable_ban_threshold_problems(
     config: "SyncSecurityConfig", context: _BanThresholdContext
-) -> list[str]:
+) -> list[Problem]:
     if _bound_is_unknown(config, context) or _excluded_paths_reach_detection(config):
         return []
     bound = _strike_bound(config)
     fed_early = _fed_before_rate_limiting(config, context)
-    thresholds = {} if fed_early else {"auto_ban_threshold": config.auto_ban_threshold}
+    thresholds: dict[str, tuple[int, str, str | None]] = (
+        {}
+        if fed_early
+        else {
+            "auto_ban_threshold": (
+                config.auto_ban_threshold,
+                K_AUTO_BAN_THRESHOLD_UNREACHABLE,
+                None,
+            )
+        }
+    )
     thresholds.update(
         {
-            f"threat_ban_config['{category}']": entry.threshold
+            f"threat_ban_config['{category}']": (
+                entry.threshold,
+                K_THREAT_BAN_THRESHOLD_UNREACHABLE,
+                category,
+            )
             for category, entry in config.threat_ban_config.items()
             if category != _RATE_LIMIT_FEED
             and not (fed_early and category in _CATEGORIES_FED_BEFORE_RATE_LIMITING)
         }
     )
     return [
-        f"{field} is {value}, above the {bound:,} strikes one client can produce "
-        f"in {SUSPICIOUS_COUNT_WINDOW_SECONDS} s with rate_limit="
-        f"{config.rate_limit} per {config.rate_limit_window} s (rate_limit x "
-        f"({SUSPICIOUS_COUNT_WINDOW_SECONDS} / rate_limit_window + 1)), so this "
-        f"ban threshold can never fire. Lower it to at most {bound:,} or raise "
-        f"rate_limit."
-        for field, value in thresholds.items()
+        Problem(
+            f"{field} is {value}, above the {bound:,} strikes one client can "
+            f"produce in {SUSPICIOUS_COUNT_WINDOW_SECONDS} s with rate_limit="
+            f"{config.rate_limit} per {config.rate_limit_window} s (rate_limit x "
+            f"({SUSPICIOUS_COUNT_WINDOW_SECONDS} / rate_limit_window + 1)), so "
+            f"this ban threshold can never fire. Lower it to at most {bound:,} or "
+            f"raise rate_limit.",
+            kind=kind,
+            subject=subject,
+        )
+        for field, (value, kind, subject) in thresholds.items()
         if value > bound
     ]
 
@@ -142,8 +165,12 @@ def report_unreachable_ban_thresholds(
     logger: logging.Logger,
     stacklevel: int,
 ) -> None:
-    for problem in unreachable_ban_threshold_problems(config, context):
-        report_misconfiguration(config, problem, logger=logger, stacklevel=stacklevel)
+    report_misconfigurations(
+        config,
+        unreachable_ban_threshold_problems(config, context),
+        logger=logger,
+        stacklevel=stacklevel,
+    )
 
 
 def log_unreachable_ban_thresholds_after_rule_change(

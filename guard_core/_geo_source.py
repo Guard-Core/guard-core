@@ -1,4 +1,9 @@
 from guard_core._config_capabilities import _extra_installed, install_hint
+from guard_core._misconfiguration_kinds import (
+    K_COUNTRY_RULE_GEOIP_DOWNLOAD_EXTRAS_MISSING,
+    K_COUNTRY_RULE_NO_GEOIP_SOURCE,
+    Problem,
+)
 
 
 def lacks_geo_source(geo_ip_handler: object, ipinfo_token: str | None) -> bool:
@@ -15,19 +20,23 @@ def geo_source_problem(
     ipinfo_token: str | None,
     downloader: str,
     adapter: str | None = None,
-) -> str | None:
+) -> Problem | None:
     if lacks_geo_source(geo_ip_handler, ipinfo_token):
-        return (
+        return Problem(
             f"{rule} declares a country rule but no GeoIP database is configured "
             "(geo_ip_handler is None and ipinfo_token is not set; set "
             "ipinfo_token or geo_ip_handler), so the country rule would be "
-            "ignored."
+            "ignored.",
+            kind=K_COUNTRY_RULE_NO_GEOIP_SOURCE,
+            subject=rule,
         )
     missing = missing_geo_download_extras(downloader)
     if geo_ip_handler is None and missing:
-        return (
+        return Problem(
             f"{rule} declares a country rule and ipinfo_token is set, but the "
             f"GeoIP database download needs {' and '.join(repr(m) for m in missing)} "
-            f"which is not installed. Install it with: {install_hint('geo', adapter)}"
+            f"which is not installed. Install it with: {install_hint('geo', adapter)}",
+            kind=K_COUNTRY_RULE_GEOIP_DOWNLOAD_EXTRAS_MISSING,
+            subject=rule,
         )
     return None

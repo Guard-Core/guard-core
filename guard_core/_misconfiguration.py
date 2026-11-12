@@ -1,6 +1,23 @@
 import logging
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+from guard_core._misconfiguration_kinds import (
+    K_CORS_WILDCARD_WITH_CREDENTIALS,
+    K_ENDPOINT_KEY_ROUTER_TEMPLATE,
+    K_ENDPOINT_KEY_ROUTING_ANOMALY,
+    K_ENDPOINT_LIMIT_BELOW_ONE,
+    K_EXCLUDE_PATHS_GLOB,
+    K_EXCLUDE_PATHS_ROUTING_ANOMALY,
+    K_RATE_LIMIT_BELOW_ONE,
+    K_RATE_LIMIT_WINDOW_BELOW_ONE,
+    K_SECURITY_HEADERS_UNKNOWN_KEY,
+    K_SEMANTIC_THRESHOLD_NON_POSITIVE,
+    K_THREAT_SCORE_THRESHOLD_NON_POSITIVE,
+    MisconfigurationError,
+    Problem,
+    problem_log_extra,
+)
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core._security_headers_defaults import unknown_security_headers_keys
 
@@ -18,58 +35,114 @@ _TRUE_NOTE = f"Set {FLAG_NAME}=False to start with it anyway."
 
 def report_misconfiguration(
     config: "SecurityConfig[RequestT]",
-    problem: str,
+    problem: Problem,
     *,
     logger: logging.Logger,
     stacklevel: int,
 ) -> None:
     if config.fail_on_misconfiguration:
-        raise ValueError(f"{problem} {_TRUE_NOTE}")
-    logger.warning(f"{problem} {_FALSE_NOTE}", stacklevel=stacklevel)
+        raise MisconfigurationError(f"{problem} {_TRUE_NOTE}", [problem])
+    logger.warning(
+        f"{problem} {_FALSE_NOTE}",
+        extra=problem_log_extra(problem),
+        stacklevel=stacklevel,
+    )
 
 
-def _non_positive_rate_limit_problems(config: "SecurityConfig[RequestT]") -> list[str]:
+def _raised_message(problems: Sequence[Problem]) -> str:
+    if len(problems) == 1:
+        return f"{problems[0]} {_TRUE_NOTE}"
+    listed = "\n".join(f"- {problem}" for problem in problems)
+    return f"{len(problems)} misconfigurations:\n{listed}\n{_TRUE_NOTE}"
+
+
+def report_misconfigurations(
+    config: "SecurityConfig[RequestT]",
+    problems: Sequence[Problem],
+    *,
+    logger: logging.Logger,
+    stacklevel: int,
+) -> None:
+    if config.fail_on_misconfiguration and problems:
+        raise MisconfigurationError(_raised_message(problems), list(problems))
+    for problem in problems:
+        logger.warning(
+            f"{problem} {_FALSE_NOTE}",
+            extra=problem_log_extra(problem),
+            stacklevel=stacklevel,
+        )
+
+
+def _non_positive_rate_limit_problems(
+    config: "SecurityConfig[RequestT]",
+) -> list[Problem]:
     if not config.enable_rate_limiting:
         return []
-    problems = []
+    problems: list[Problem] = []
     if config.rate_limit < 1:
         problems.append(
-            f"rate_limit is {config.rate_limit}: a limit below 1 blocks every request."
+            Problem(
+                f"rate_limit is {config.rate_limit}: a limit below 1 blocks every "
+                "request.",
+                kind=K_RATE_LIMIT_BELOW_ONE,
+            )
         )
     if config.rate_limit_window < 1:
         problems.append(
-            f"rate_limit_window is {config.rate_limit_window}: a window below 1 "
-            "second disables the rate limiter."
+            Problem(
+                f"rate_limit_window is {config.rate_limit_window}: a window below 1 "
+                "second disables the rate limiter.",
+                kind=K_RATE_LIMIT_WINDOW_BELOW_ONE,
+            )
         )
     for path, (limit, window) in config.endpoint_rate_limits.items():
         if limit < 1 or window < 1:
             problems.append(
-                f"endpoint_rate_limits[{path!r}] is ({limit}, {window}): the "
-                "limit and the window must both be at least 1."
+                Problem(
+                    f"endpoint_rate_limits[{path!r}] is ({limit}, {window}): the "
+                    "limit and the window must both be at least 1.",
+                    kind=K_ENDPOINT_LIMIT_BELOW_ONE,
+                    subject=path,
+                )
             )
     return problems
 
 
-def _zero_detection_threshold_problems(config: "SecurityConfig[RequestT]") -> list[str]:
+def _zero_detection_threshold_problems(
+    config: "SecurityConfig[RequestT]",
+) -> list[Problem]:
     return [
-        f"{name} is 0.0: every request would be flagged as a threat."
-        for name in ("detection_threat_score_threshold", "detection_semantic_threshold")
+        Problem(
+            f"{name} is 0.0: every request would be flagged as a threat.", kind=kind
+        )
+        for name, kind in (
+            ("detection_threat_score_threshold", K_THREAT_SCORE_THRESHOLD_NON_POSITIVE),
+            ("detection_semantic_threshold", K_SEMANTIC_THRESHOLD_NON_POSITIVE),
+        )
         if getattr(config, name) <= 0
     ]
 
 
-def _glob_exclude_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
+def _glob_exclude_path_problems(
+    config: "SecurityConfig[RequestT]",
+) -> list[Problem]:
     from guard_core.core.validation.path_matching import has_glob_character
 
     return [
-        f"exclude_paths entry {entry!r} is not a glob: wildcards are literal "
-        "characters, so it excludes nothing."
+        Problem(
+            f"exclude_paths entry {entry!r} is not a glob: wildcards are literal "
+            "characters, so it excludes nothing.",
+            kind=K_EXCLUDE_PATHS_GLOB,
+            subject=entry,
+        )
         for entry in config.exclude_paths
         if has_glob_character(entry)
     ]
 
 
-def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
+def _anomalous_path_problems(
+    config: "SecurityConfig[RequestT]",
+) -> list[Problem]:
     from guard_core.core.validation.path_matching import (
         _has_routing_anomaly_in_any_decoding,
         is_router_template,
@@ -82,37 +155,50 @@ def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
     )
     return [
         *(
-            f"exclude_paths entry {entry!r} {spelling}"
+            Problem(
+                f"exclude_paths entry {entry!r} {spelling}",
+                kind=K_EXCLUDE_PATHS_ROUTING_ANOMALY,
+                subject=entry,
+            )
             for entry in config.exclude_paths
             if entry not in DEFAULT_EXCLUDE_PATHS
             and _has_routing_anomaly_in_any_decoding(entry)
         ),
         *(
-            f"endpoint_rate_limits key {key!r} {spelling}"
+            Problem(
+                f"endpoint_rate_limits key {key!r} {spelling}",
+                kind=K_ENDPOINT_KEY_ROUTING_ANOMALY,
+                subject=key,
+            )
             for key in config.endpoint_rate_limits
             if _has_routing_anomaly_in_any_decoding(key)
         ),
         *(
-            f"endpoint_rate_limits key {key!r} is a router template, a regex "
-            "route or a glob ({name}, <name>, :name, (?P<name>...), ([0-9]+), "
-            "[0-9]+, .* or *): it matches only that literal text, so it limits "
-            "nothing. Write a concrete path, or put the limit on the route with the "
-            "rate_limit decorator."
+            Problem(
+                f"endpoint_rate_limits key {key!r} is a router template, a regex "
+                "route or a glob ({name}, <name>, :name, (?P<name>...), ([0-9]+), "
+                "[0-9]+, .* or *): it matches only that literal text, so it limits "
+                "nothing. Write a concrete path, or put the limit on the route with "
+                "the rate_limit decorator.",
+                kind=K_ENDPOINT_KEY_ROUTER_TEMPLATE,
+                subject=key,
+            )
             for key in config.endpoint_rate_limits
             if is_router_template(key)
         ),
     ]
 
 
-WILDCARD_CORS_CREDENTIALS_PROBLEM = (
+WILDCARD_CORS_CREDENTIALS_PROBLEM = Problem(
     "CORS misconfiguration: wildcard origin '*' is incompatible "
-    "with cors_allow_credentials=True."
+    "with cors_allow_credentials=True.",
+    kind=K_CORS_WILDCARD_WITH_CREDENTIALS,
 )
 
 
 def wildcard_cors_credentials_problems(
     config: "SecurityConfig[RequestT]",
-) -> list[str]:
+) -> list[Problem]:
     if (
         config.enable_cors
         and config.cors_allow_credentials
@@ -124,10 +210,14 @@ def wildcard_cors_credentials_problems(
 
 def _unknown_security_headers_key_problems(
     config: "SecurityConfig[RequestT]",
-) -> list[str]:
+) -> list[Problem]:
     return [
-        f"security_headers key {key!r} is not a known key, so it is ignored "
-        "and has no effect."
+        Problem(
+            f"security_headers key {key!r} is not a known key, so it is ignored "
+            "and has no effect.",
+            kind=K_SECURITY_HEADERS_UNKNOWN_KEY,
+            subject=key,
+        )
         for key in unknown_security_headers_keys(config.security_headers)
     ]
 
@@ -169,9 +259,9 @@ _CORS_FIELDS = frozenset(
 )
 
 
-def config_misconfigurations(config: "SecurityConfig[RequestT]") -> list[str]:
+def config_misconfigurations(config: "SecurityConfig[RequestT]") -> list[Problem]:
     stated = config.__pydantic_fields_set__
-    problems: list[str] = []
+    problems: list[Problem] = []
     if not stated.isdisjoint(_HEADER_FIELDS):
         problems += _unknown_security_headers_key_problems(config)
     if "exclude_paths" in stated:
@@ -190,10 +280,12 @@ def config_misconfigurations(config: "SecurityConfig[RequestT]") -> list[str]:
 def report_config_misconfigurations(
     config: "SecurityConfig[RequestT]", *, stacklevel: int
 ) -> None:
-    for problem in config_misconfigurations(config):
-        report_misconfiguration(
-            config, problem, logger=config_logger, stacklevel=stacklevel + 1
-        )
+    report_misconfigurations(
+        config,
+        config_misconfigurations(config),
+        logger=config_logger,
+        stacklevel=stacklevel + 1,
+    )
     if config.emergency_mode:
         from guard_core._emergency_exemptions import warn_unexempted_probe_paths
 

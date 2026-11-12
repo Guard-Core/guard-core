@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, create_model
 from guard_core._misconfiguration import (
     config_logger,
     config_misconfigurations,
-    report_misconfiguration,
+    report_misconfigurations,
 )
 from guard_core._security_config_field_validators import require_agent_config
 
@@ -82,14 +82,16 @@ def require_cross_field_rules(
         )
 
         _require_recidive_cap_covers_auto_ban(config)
-    for problem in config_misconfigurations(config):
-        if problem not in problems_before:
-            report_misconfiguration(
-                config,
-                problem,
-                logger=config_logger,
-                stacklevel=stacklevel,
-            )
+    report_misconfigurations(
+        config,
+        [
+            problem
+            for problem in config_misconfigurations(config)
+            if problem not in problems_before
+        ],
+        logger=config_logger,
+        stacklevel=stacklevel,
+    )
 
 
 def changed_copy_fields(
