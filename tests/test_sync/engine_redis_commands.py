@@ -317,18 +317,25 @@ def engine_commands_sent(engine_url: str | None, command: str | None = None) -> 
     return sent[command] if command else sum(sent.values())
 
 
+def _scan_match_pattern(arguments: list[str]) -> str:
+    """The MATCH pattern of a SCAN command line; a SCAN without one walks the
+    whole keyspace, which is the pattern `*`."""
+    lowered = [argument.lower() for argument in arguments]
+    return arguments[lowered.index("match") + 1] if "match" in lowered else "*"
+
+
 def engine_scan_passes(engine_url: str | None) -> list[str]:
     """The MATCH pattern of every SCAN pass the engine started (a SCAN with
-    cursor 0), in order. A pass takes as many SCAN commands as the database
-    has keys for, so the pass is the unit a test can pin, not the command. The
-    completeness proof of `engine_commands_sent` runs first."""
+    cursor 0, `*` when it has no MATCH), in order. A pass takes as many SCAN
+    commands as the database has keys for, so the pass is the unit a test can
+    pin, not the command. The completeness proof of `engine_commands_sent`
+    runs first."""
     engine_commands_sent(engine_url, "scan")
     monitor = _MONITORS[_required(engine_url)]
     return [
-        arguments[arguments.index("MATCH") + 1]
+        _scan_match_pattern(arguments)
         for owner, _address, arguments in monitor.snapshot()
         if owner in monitor.engine_addresses
         and arguments[0].lower() == "scan"
         and arguments[1] == "0"
-        and "MATCH" in arguments
     ]
