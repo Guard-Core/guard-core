@@ -78,15 +78,38 @@ for _template_key in (
     "/users/<id>",
     "/users/<int:id>",
     "/users/(?P<id>[0-9]+)",
+    "/users/([0-9]+)",
+    "/users/(.*)",
+    "/users/(.+)",
+    "^/users/([0-9]+)$",
+    "/files/[0-9]+",
 ):
     CONFIG_PROBLEMS.append(
         (
             {"endpoint_rate_limits": {_template_key: (5, 60)}},
-            f"endpoint_rate_limits key {_template_key!r} is a router template "
-            "({name}, <name> or (?P<name>...)): it matches only that literal "
-            "text, so it limits nothing. Write a concrete path, or put the "
-            "limit on the route with the rate_limit decorator.",
+            f"endpoint_rate_limits key {_template_key!r} is a router template or "
+            "a regex route ({name}, <name>, (?P<name>...), ([0-9]+) or "
+            "[0-9]+): it matches only that literal text, so it limits nothing. "
+            "Write a concrete path, or put the limit on the route with the "
+            "rate_limit decorator.",
         )
+    )
+
+
+def test_a_backslash_group_key_reports_the_regex_route_line_too(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    key = "/users/(\\d+)"
+    with caplog.at_level("WARNING"):
+        SecurityConfig(
+            enable_redis=False,
+            fail_on_misconfiguration=False,
+            endpoint_rate_limits={key: (5, 60)},
+        )
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("is a router template or a regex route" in m for m in messages)
+    assert any(
+        "has a dot segment, an empty segment, a backslash" in m for m in messages
     )
 
 
@@ -128,7 +151,19 @@ def test_endpoint_rate_limits_at_one_never_warn() -> None:
         )
 
 
-@pytest.mark.parametrize("key", ["/users/1", "/a-b_c.d", "/a{b", "/a}b{", "/a<b"])
+@pytest.mark.parametrize(
+    "key",
+    [
+        "/users/1",
+        "/a-b_c.d",
+        "/a{b",
+        "/a}b{",
+        "/a<b",
+        "/wiki/Foo_(bar)",
+        "/c++",
+        "/a$",
+    ],
+)
 def test_a_concrete_endpoint_key_never_warns(key: str) -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")

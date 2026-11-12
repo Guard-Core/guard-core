@@ -128,18 +128,48 @@ TEMPLATE_KEYS = [
     "/users/<id>",
     "/users/<int:id>",
     "/users/(?P<id>[0-9]+)",
+    "/users/([0-9]+)",
+    "/users/(.*)",
+    "/users/(.+)",
+    "^/users/([0-9]+)$",
+    "/files/[0-9]+",
 ]
 
 
 @pytest.mark.parametrize("key", TEMPLATE_KEYS)
 def test_the_public_predicate_refuses_a_router_template_key(key: str) -> None:
     assert endpoint_rate_limit_key_problems({key: (5, 60)}) == [
-        f"endpoint_rate_limits[{key}]: (5, 60) (a router template, which matches "
-        "only that literal text and so limits nothing; write a concrete path)"
+        f"endpoint_rate_limits[{key}]: (5, 60) (a router template or a regex "
+        "route, which matches only that literal text and so limits nothing; "
+        "write a concrete path)"
     ]
 
 
-@pytest.mark.parametrize("key", ["/users/1", "/a-b_c.d", "/a{b", "/a}b{", "/a<b"])
+def test_a_backslash_group_key_carries_both_lines() -> None:
+    key = "/users/(\\d+)"
+
+    assert endpoint_rate_limit_key_problems({key: (5, 60)}) == [
+        f"endpoint_rate_limits[{key}]: (5, 60) (a dot segment, an empty segment, "
+        "a backslash or an encoded dot or separator, in any decoding round)",
+        f"endpoint_rate_limits[{key}]: (5, 60) (a router template or a regex "
+        "route, which matches only that literal text and so limits nothing; "
+        "write a concrete path)",
+    ]
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "/users/1",
+        "/a-b_c.d",
+        "/a{b",
+        "/a}b{",
+        "/a<b",
+        "/wiki/Foo_(bar)",
+        "/c++",
+        "/a$",
+    ],
+)
 def test_the_public_predicate_accepts_a_concrete_key(key: str) -> None:
     assert endpoint_rate_limit_key_problems({key: (5, 60)}) == []
 
@@ -148,9 +178,9 @@ def test_a_template_key_is_rejected_as_a_dynamic_rule() -> None:
     rules = _rules(endpoint_rate_limits={"/users/{id}": (5, 60), "/ok": (5, 60)})
 
     assert find_malformed_values(rules) == [
-        "endpoint_rate_limits[/users/{id}]: (5, 60) (a router template, which "
-        "matches only that literal text and so limits nothing; write a concrete "
-        "path)"
+        "endpoint_rate_limits[/users/{id}]: (5, 60) (a router template or a "
+        "regex route, which matches only that literal text and so limits "
+        "nothing; write a concrete path)"
     ]
 
 

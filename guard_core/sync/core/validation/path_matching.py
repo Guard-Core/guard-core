@@ -7,7 +7,12 @@ _PERCENT_RUN = re.compile(r"(?:%[0-9A-Fa-f]{2})+")
 _MAX_DECODE_ROUNDS = 4
 # {name} or {name:conv} (Starlette), <name> or <conv:name> (Flask, Django path()),
 # (?P<name>...) (Tornado, Django re_path): a router matches the key like a request.
-_ROUTER_TEMPLATE = re.compile(r"\{[^{}]+\}|<[^<>]+>")
+# A regex route counts too, as RFC 3986 pchar has no "[", "]", "^", "|", "?" or
+# backslash: a "[...]" class, a leading "^", or a "(...)" group holding backslash,
+# + * ? or |. A word in parentheses ("/Foo_(bar)") and a trailing "$" are pchars.
+_ROUTER_TEMPLATE = re.compile(
+    r"\{[^{}]+\}|<[^<>]+>|[\[\]]|^\^|\([^()]*[\\+*?|][^()]*\)"
+)
 
 
 def _decode_percent_run(match: re.Match[str]) -> str:

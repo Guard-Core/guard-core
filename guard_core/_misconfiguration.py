@@ -91,10 +91,11 @@ def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
             if _has_routing_anomaly_in_any_decoding(key)
         ),
         *(
-            f"endpoint_rate_limits key {key!r} is a router template "
-            "({name}, <name> or (?P<name>...)): it matches only that literal "
-            "text, so it limits nothing. Write a concrete path, or put the "
-            "limit on the route with the rate_limit decorator."
+            f"endpoint_rate_limits key {key!r} is a router template or a regex "
+            "route ({name}, <name>, (?P<name>...), ([0-9]+) or [0-9]+): it "
+            "matches only that literal text, so it limits nothing. Write a "
+            "concrete path, or put the limit on the route with the rate_limit "
+            "decorator."
             for key in config.endpoint_rate_limits
             if is_router_template(key)
         ),
