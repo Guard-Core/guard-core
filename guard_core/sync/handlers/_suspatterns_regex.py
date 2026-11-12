@@ -437,9 +437,16 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             match = _suspended(
                 _await_regex_future(future, started, timeout, wall_backstop(timeout))
             )
-            report_scan_success()
             _record_scan_time(sum(worker_cpu))
-            return match, match is None and sum(worker_cpu) >= 0.9 * timeout
+            if match is None and sum(worker_cpu) >= 0.9 * timeout:
+                logger.warning(
+                    "Pattern timeout: "
+                    f"{_redact_pattern_source(pattern.pattern, self)[:50]}..."
+                )
+                report_scan_timeout()
+                return None, True
+            report_scan_success()
+            return match, False
         except RegexQueueWaitExpired as exc:
             report_scan_timeout()
             raise no_regex_worker_time(timeout) from exc
