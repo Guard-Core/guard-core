@@ -44,23 +44,36 @@ def test_the_private_state_equals_what_pydantics_initializer_builds() -> None:
         for name, attribute in SecurityConfig.__private_attributes__.items()
     }
 
-    assert set(SecurityConfig.__private_attributes__) == {"_revision"}
-    assert SyncSecurityConfig().__pydantic_private__ == expected
+    assert set(SecurityConfig.__private_attributes__) == {
+        "_revision",
+        "_misconfigurations_checked",
+    }
+    assert SyncSecurityConfig.model_construct().__pydantic_private__ == expected
 
 
 def test_a_subclass_with_a_private_attribute_keeps_both_states() -> None:
     class Extended(SecurityConfig[Any]):
         _note: str = PrivateAttr(default="kept")
 
-    assert Extended().__pydantic_private__ == {"_revision": 0, "_note": "kept"}
+    assert Extended().__pydantic_private__ == {
+        "_revision": 0,
+        "_misconfigurations_checked": True,
+        "_note": "kept",
+    }
 
 
-def test_a_parametrized_config_starts_with_the_revision_state() -> None:
-    assert SecurityConfig[Any]().__pydantic_private__ == {"_revision": 0}
+def test_a_parametrized_config_starts_with_the_private_state() -> None:
+    assert SecurityConfig[Any]().__pydantic_private__ == {
+        "_revision": 0,
+        "_misconfigurations_checked": True,
+    }
 
 
-def test_a_model_construct_config_starts_with_the_revision_state() -> None:
-    assert SyncSecurityConfig.model_construct().__pydantic_private__ == {"_revision": 0}
+def test_a_model_construct_config_starts_with_the_private_state() -> None:
+    assert SyncSecurityConfig.model_construct().__pydantic_private__ == {
+        "_revision": 0,
+        "_misconfigurations_checked": False,
+    }
 
 
 def test_each_config_gets_its_own_private_state() -> None:

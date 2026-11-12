@@ -9,7 +9,6 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import (
-    BaseModel,
     ConfigDict,
     ModelWrapValidatorHandler,
     PrivateAttr,
@@ -490,7 +489,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def report_misconfigurations(self) -> Self:
-        BaseModel.__setattr__(self, "_misconfigurations_checked", True)
+        super().__setattr__("_misconfigurations_checked", True)
         stated = self.__pydantic_fields_set__
         values = self.__dict__
         if (
