@@ -300,6 +300,22 @@ def path_params_without_a_literal_segment_before(
     return rootless
 
 
+def declared_path_param_problems(
+    template: str, declared: Collection[str]
+) -> dict[str, str]:
+    return {
+        name: (
+            f"has no literal segment before it in the route template "
+            f"{template!r}: it would exempt the whole path from the probe "
+            "rows, so the whole path is scanned."
+        )
+        for name in path_params_without_a_literal_segment_before(template, declared)
+    } | {
+        name: f"is not in the route template {template!r}, so it exempts nothing."
+        for name in path_params_missing_from_template(template, declared)
+    }
+
+
 def route_template_event_fields(state: object) -> dict[str, str]:
     """``{"route_template": ...}`` for a request-bound event when the request has
     one the consumer can use (see ``normalized_route_template``), else ``{}``."""

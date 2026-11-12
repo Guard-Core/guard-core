@@ -6,10 +6,9 @@ from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.route_gate import (
     ROUTE_TEMPLATE_STATE_ATTR,
     STATIC_FILE_STATE_ATTR,
+    declared_path_param_problems,
     might_be_a_gated_probe,
     might_be_a_static_file,
-    path_params_missing_from_template,
-    path_params_without_a_literal_segment_before,
     record_route_template,
 )
 from guard_core._utils.rule_attribution import pattern_attribution
@@ -315,17 +314,7 @@ class SuspiciousActivityCheck(SecurityCheck):
         if not isinstance(template, str):
             return
         route = str(getattr(request.state, "guard_route_id", template))
-        problems = {
-            name: (
-                f"has no literal segment before it in the route template "
-                f"{template!r}: it would exempt the whole path from the probe "
-                "rows, so the whole path is scanned."
-            )
-            for name in path_params_without_a_literal_segment_before(template, declared)
-        } | {
-            name: f"is not in the route template {template!r}, so it exempts nothing."
-            for name in path_params_missing_from_template(template, declared)
-        }
+        problems = declared_path_param_problems(template, declared)
         for name, problem in problems.items():
             if (template, name) in self._reported_path_param_problems:
                 continue
