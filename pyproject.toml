@@ -303,7 +303,7 @@ guard-agent = "0 days"
 virtualenv = "2026-10-23T00:00:00Z"
 
 [tool.deptry]
-extend_exclude = ['vulture_whitelist\.py', 'docs', 'conftest\.py', '\.claude', 'interop']
+extend_exclude = ['vulture_whitelist\.py', 'docs', 'conftest\.py', '\.claude', 'interop', 'tools/semgrep/\.venv']
 known_first_party = ["guard_core", "run_fixtures"]
 per_rule_ignores = { "DEP002" = [
     "tzdata",
