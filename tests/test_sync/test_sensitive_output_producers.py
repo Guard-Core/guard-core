@@ -473,20 +473,13 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "startup advisory naming a config field or decorator "
         "argument and its configured value; startup only, no request in scope"
     ),
-    "core/checks/route_prefixes.py:warn_unmatched_exclude_paths": (
-        "first-request advisory that the adapter's static_route_prefixes() "
-        "raised; names the exception repr of the adapter's own routing call, no "
-        "request value is interpolated"
+    "_misconfiguration_kinds.py:log_problem": (
+        "startup or first-request advisory carrying the kind of a configured "
+        "problem; operator configuration only, no request value is interpolated"
     ),
-    "core/checks/endpoint_limit_keys.py:_identities_of": (
-        "advisory that the adapter's resolve_route() raised for a configured "
-        "endpoint_rate_limits key; names the key and the exception repr of the "
-        "adapter's own routing call, no request value is interpolated"
-    ),
-    "core/checks/route_prefixes.py:_warn_once": (
-        "first-request advisory naming a configured exclude_paths entry or "
-        "endpoint_rate_limits key that matches no route; operator configuration "
-        "only, no request value is interpolated"
+    "_misconfiguration.py:report_misconfigurations": (
+        "startup advisory naming each config field or decorator argument and "
+        "its configured value; startup only, no request in scope"
     ),
     "_pydantic_plugin_mute.py:_mute_pydantic_plugin_instrumentation": (
         "line 46: warns once about pydantic-plugin instrumentation at import "
@@ -504,18 +497,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "_security_config_field_validators.py:_warn_empty_enabled_detection_categories": (
         "line 211: SyncSecurityConfig field-validator warning about the config "
         "value itself, evaluated at config construction, before any request"
-    ),
-    "_security_config_field_validators.py:_warn_trusted_proxies_prefix_zero": (
-        "line 192: SyncSecurityConfig field-validator warning about a configured "
-        "CIDR prefix, not request data"
-    ),
-    "_security_config_field_validators.py:_warn_whitelist_prefix_zero": (
-        "line 202: SyncSecurityConfig field-validator warning about a configured "
-        "CIDR prefix, not request data"
-    ),
-    "_security_config_field_validators.py:_warn_exempt_ips_prefix_zero": (
-        "line 216: SyncSecurityConfig field-validator warning about a configured "
-        "CIDR prefix, not request data"
     ),
     "_utils/access_control.py:_log_country_check_result": (
         "lines 40,45,53,63,70: interpolates only the resolved client_ip and a "

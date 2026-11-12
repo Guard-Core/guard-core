@@ -33,7 +33,7 @@ from guard_core._misconfiguration_kinds import (
     K_TRUSTED_PROXIES_PREFIX_ZERO,
     K_WHITELIST_PREFIX_ZERO,
     Problem,
-    problem_log_extra,
+    log_problem,
 )
 from guard_core._security_config_blocked_user_agents import (
     _validate_blocked_user_agents_value,
@@ -345,7 +345,7 @@ def _warn_trusted_proxies_prefix_zero() -> None:
         "proxy addresses.",
         kind=K_TRUSTED_PROXIES_PREFIX_ZERO,
     )
-    logger.warning(problem, extra=problem_log_extra(problem))
+    log_problem(logger, problem)
 
 
 def _warn_whitelist_prefix_zero() -> None:
@@ -356,7 +356,7 @@ def _warn_whitelist_prefix_zero() -> None:
         "specific networks you trust.",
         kind=K_WHITELIST_PREFIX_ZERO,
     )
-    logger.warning(problem, extra=problem_log_extra(problem))
+    log_problem(logger, problem)
 
 
 def _warn_exempt_ips_prefix_zero(entries: tuple[str, ...]) -> None:
@@ -368,7 +368,7 @@ def _warn_exempt_ips_prefix_zero(entries: tuple[str, ...]) -> None:
         "checks. Remove the /0 entry or list the specific networks you trust.",
         kind=K_EXEMPT_IPS_PREFIX_ZERO,
     )
-    logger.warning(problem, extra=problem_log_extra(problem))
+    log_problem(logger, problem)
 
 
 def _warn_empty_enabled_detection_categories() -> None:

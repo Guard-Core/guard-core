@@ -9,7 +9,7 @@ from guard_core._misconfiguration_kinds import (
     K_EXCLUDE_PATHS_MATCHES_NO_ROUTE,
     K_STATIC_ROUTE_PREFIXES_RAISED,
     Problem,
-    problem_log_extra,
+    log_problem,
 )
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core.sync.core.validation.path_matching import (
@@ -86,7 +86,7 @@ def _warn_once(middleware: object, problem: Problem) -> None:
     if problem in reported:
         return
     reported.add(problem)
-    config_logger.warning(problem, extra=problem_log_extra(problem))
+    log_problem(config_logger, problem)
 
 
 def warn_unmatched_endpoint_keys(middleware: object, keys: Iterable[str]) -> None:
@@ -114,7 +114,7 @@ def warn_unmatched_exclude_paths(
             "check was skipped and the request continues.",
             kind=K_STATIC_ROUTE_PREFIXES_RAISED,
         )
-        config_logger.warning(problem, extra=problem_log_extra(problem))
+        log_problem(config_logger, problem)
 
 
 def _warn_unmatched_exclude_paths(

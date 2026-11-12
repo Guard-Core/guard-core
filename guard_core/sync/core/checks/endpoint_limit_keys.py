@@ -4,7 +4,7 @@ from guard_core._misconfiguration import config_logger
 from guard_core._misconfiguration_kinds import (
     K_RESOLVE_ROUTE_RAISED,
     Problem,
-    problem_log_extra,
+    log_problem,
 )
 from guard_core.protocols.route_identity import RouteIdentity
 from guard_core.sync._utils.request_path import resolve_dot_and_empty_segments
@@ -31,7 +31,7 @@ def _identities_of(
             kind=K_RESOLVE_ROUTE_RAISED,
             subject=key,
         )
-        config_logger.warning(problem, extra=problem_log_extra(problem))
+        log_problem(config_logger, problem)
         return None
 
 
