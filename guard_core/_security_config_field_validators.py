@@ -51,6 +51,7 @@ from guard_core._security_config_typed_validators import (
     _validate_typed_collection_field_value,
 )
 from guard_core._utils.whitelist_match import unwrap_ipv4_mapped_network
+from guard_core.exceptions import AgentPackageNotInstalledError
 
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
@@ -712,6 +713,22 @@ def require_agent_config(config: "SecurityConfig[RequestT]") -> None:
             "enable_enrichment requires enable_agent=True; enrichment is "
             "the guard-agent-gated tier. Either enable guard-agent or set "
             "enable_enrichment=False."
+        )
+
+    if enable_agent and values["agent_strict"]:
+        _require_usable_agent_config(config)
+
+
+def _require_usable_agent_config(config: "SecurityConfig[RequestT]") -> None:
+    try:
+        agent_config = config.to_agent_config()
+    except (AgentPackageNotInstalledError, ValueError) as error:
+        raise ValueError(
+            f"agent_strict is True but the agent is unusable: {error}"
+        ) from error
+    if agent_config is None:
+        raise ValueError(
+            "agent_strict is True but the settings give no agent configuration"
         )
 
 

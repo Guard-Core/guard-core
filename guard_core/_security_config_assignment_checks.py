@@ -20,7 +20,13 @@ if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
 _AGENT_RULE_FIELDS = frozenset(
-    {"enable_agent", "agent_api_key", "enable_dynamic_rules", "enable_enrichment"}
+    {
+        "enable_agent",
+        "agent_api_key",
+        "agent_strict",
+        "enable_dynamic_rules",
+        "enable_enrichment",
+    }
 )
 _RECIDIVE_CAP_FIELDS = frozenset(
     {"enable_recidive", "recidive_max_duration", "auto_ban_duration"}
