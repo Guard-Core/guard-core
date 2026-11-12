@@ -1,9 +1,16 @@
+import logging
 from dataclasses import dataclass, field
 
+from guard_core._misconfiguration import (
+    report_misconfiguration,
+    wildcard_cors_credentials_problems,
+)
 from guard_core._security_headers_override import CorsParams, cors_params_of
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.request_protocol import GuardRequestHeaders
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
+
+cors_logger = logging.getLogger("guard_core.sync.handlers.cors_handler")
 
 ALLOWED_PREFLIGHT_REQUEST_HEADER = "access-control-request-method"
 
@@ -41,8 +48,7 @@ class CorsHandler:
         self._applied_override: object | None = None
         self._enabled = False
         self._init_disabled()
-        if config.enable_cors:
-            self._check_wildcard_with_credentials(config)
+        self._check_wildcard_with_credentials(config)
         self._apply(cors_params_of(config))
 
     def _init_disabled(self) -> None:
@@ -56,11 +62,8 @@ class CorsHandler:
         self._expose_headers: list[str] = []
 
     def _check_wildcard_with_credentials(self, config: SyncSecurityConfig) -> None:
-        if "*" in (config.cors_allow_origins or []) and config.cors_allow_credentials:
-            raise ValueError(
-                "CORS misconfiguration: wildcard origin '*' is incompatible "
-                "with cors_allow_credentials=True"
-            )
+        for problem in wildcard_cors_credentials_problems(config):
+            report_misconfiguration(config, problem, logger=cors_logger, stacklevel=4)
 
     def _apply(self, params: CorsParams) -> None:
         self._enabled = params.enabled
@@ -73,7 +76,7 @@ class CorsHandler:
         self._allow_methods = [m.upper() for m in (params.methods or ["GET"])]
         self._allow_headers = [h.lower() for h in params.headers]
         self._allow_all_headers = "*" in self._allow_headers
-        self._allow_credentials = bool(params.credentials)
+        self._allow_credentials = bool(params.credentials) and not self._allow_all
         self._max_age = int(params.max_age)
         self._expose_headers = list(params.expose)
 

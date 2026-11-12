@@ -3,11 +3,13 @@ from typing import Any
 
 import pytest
 
-from guard_core._security_headers_override import CorsParams
+from guard_core._security_headers_override import CorsParams, merge_cors
+from guard_core.handlers._security_headers_apply import apply_security_headers_settings
 from guard_core.handlers.cors_handler import (
     CorsHandler,
     is_preflight,
 )
+from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.models import SecurityConfig
 
 
@@ -153,7 +155,7 @@ def test_response_headers_with_no_origin_return_only_vary(cfg: SecurityConfig) -
 
 
 def test_wildcard_origin_with_credentials_raises_at_init() -> None:
-    bad = SecurityConfig(
+    bad = SecurityConfig.model_construct(
         enable_cors=True,
         cors_allow_origins=["*"],
         cors_allow_credentials=True,
@@ -271,17 +273,112 @@ def test_a_handler_for_an_app_without_cors_holds_the_disabled_defaults() -> None
     assert handler._expose_headers == []
 
 
+WILDCARD_PROBLEM = (
+    "CORS misconfiguration: wildcard origin '*' is incompatible "
+    "with cors_allow_credentials=True"
+)
+TRUE_NOTE = "Set fail_on_misconfiguration=False to start with it anyway."
+FALSE_NOTE = "fail_on_misconfiguration=False keeps starting with it."
+
+
+def _wildcard_with_credentials_config(
+    fail_on_misconfiguration: bool | None = None,
+) -> SecurityConfig:
+    if fail_on_misconfiguration is None:
+        return SecurityConfig(
+            enable_redis=False,
+            enable_cors=True,
+            cors_allow_origins=["*"],
+            cors_allow_credentials=True,
+        )
+    return SecurityConfig(
+        enable_redis=False,
+        enable_cors=True,
+        cors_allow_origins=["*"],
+        cors_allow_credentials=True,
+        fail_on_misconfiguration=fail_on_misconfiguration,
+    )
+
+
+@pytest.mark.parametrize("flag", [None, True])
+def test_a_wildcard_with_credentials_config_is_refused_at_construction(
+    flag: bool | None,
+) -> None:
+    with pytest.raises(ValueError) as error:
+        _wildcard_with_credentials_config(flag)
+
+    assert f"{WILDCARD_PROBLEM} {TRUE_NOTE}" in str(error.value)
+
+
+def test_a_wildcard_with_credentials_is_no_problem_while_cors_is_off() -> None:
+    SecurityConfig(
+        enable_redis=False,
+        cors_allow_origins=["*"],
+        cors_allow_credentials=True,
+        fail_on_misconfiguration=True,
+    )
+
+
 def test_the_wildcard_with_credentials_error_names_both_settings() -> None:
-    bad = SecurityConfig(
+    bad = SecurityConfig.model_construct(
         enable_cors=True, cors_allow_origins=["*"], cors_allow_credentials=True
     )
 
     with pytest.raises(
         ValueError,
         match=r"^CORS misconfiguration: wildcard origin '\*' is incompatible "
-        r"with cors_allow_credentials=True$",
+        r"with cors_allow_credentials=True "
+        r"Set fail_on_misconfiguration=False to start with it anyway\.$",
     ):
         CorsHandler(bad)
+
+
+def test_a_wildcard_with_credentials_warns_once_and_drops_credentials(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level("WARNING", logger="guard_core.models"):
+        config = _wildcard_with_credentials_config(False)
+    assert [
+        r.getMessage() for r in caplog.records if WILDCARD_PROBLEM in r.getMessage()
+    ] == [f"{WILDCARD_PROBLEM} {FALSE_NOTE}"]
+
+    manager = SecurityHeadersManager.isolated()
+    apply_security_headers_settings(manager, config)
+    assert manager.cors_config is not None
+    assert manager.cors_config["allow_credentials"] is False
+
+
+def test_a_wildcard_with_credentials_handler_serves_without_credentials() -> None:
+    config = _wildcard_with_credentials_config(False)
+
+    handler = CorsHandler(config)
+    response = handler.build_preflight_response(
+        {"origin": "https://a.example", "access-control-request-method": "GET"}
+    )
+
+    assert handler._allow_credentials is False
+    assert response.status_code == 200
+    assert "Access-Control-Allow-Credentials" not in response.headers
+
+
+def test_a_runtime_override_of_wildcard_with_credentials_is_still_refused() -> None:
+    base = CorsParams(
+        enabled=True,
+        origins=("https://a.example",),
+        credentials=False,
+        methods=("GET",),
+        headers=(),
+        max_age=600,
+        expose=(),
+    )
+
+    merged, refused = merge_cors(
+        base, {"cors_origins": ["*"], "cors_allow_credentials": True}
+    )
+
+    assert merged == base
+    assert refused is not None
+    assert "wildcard origin cannot be combined with credentials" in refused
 
 
 def test_a_trailing_slash_is_stripped_from_an_origin_and_nothing_else() -> None:

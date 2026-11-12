@@ -56,6 +56,15 @@ CONFIG_PROBLEMS: list[tuple[dict[str, Any], str]] = [
         "spelling the router does not serve as written. Write the plain path.",
     ),
     (
+        {
+            "enable_cors": True,
+            "cors_allow_origins": ["*"],
+            "cors_allow_credentials": True,
+        },
+        "CORS misconfiguration: wildcard origin '*' is incompatible with "
+        "cors_allow_credentials=True",
+    ),
+    (
         {"endpoint_rate_limits": {"/a//b": (5, 60)}},
         "endpoint_rate_limits key '/a//b' has a dot segment, an empty segment, a "
         "backslash or an encoded dot or separator (in any decoding round), a "
@@ -293,6 +302,7 @@ def test_a_check_whose_fields_are_all_unset_does_not_run(
         "_glob_exclude_path_problems",
         "_anomalous_path_problems",
         "_zero_detection_threshold_problems",
+        "wildcard_cors_credentials_problems",
     ):
 
         def refuse(_config: object) -> list[str]:
@@ -332,6 +342,7 @@ def test_the_fields_of_each_check_make_up_the_checked_fields() -> None:
         | _misconfiguration._PATH_FIELDS
         | _misconfiguration._RATE_LIMIT_FIELDS
         | _misconfiguration._THRESHOLD_FIELDS
+        | _misconfiguration._CORS_FIELDS
     )
 
 
@@ -385,6 +396,9 @@ def test_a_valid_rate_limit_alone_does_not_start_the_report(
         {"rate_limit_window": 60},
         {"detection_threat_score_threshold": 0.5},
         {"detection_semantic_threshold": 0.5},
+        {"enable_cors": True},
+        {"cors_allow_origins": ["https://a.example"]},
+        {"cors_allow_credentials": True},
     ],
 )
 def test_every_other_stated_checked_field_still_starts_the_report(

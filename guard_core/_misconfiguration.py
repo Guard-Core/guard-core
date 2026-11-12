@@ -92,6 +92,24 @@ def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
     ]
 
 
+WILDCARD_CORS_CREDENTIALS_PROBLEM = (
+    "CORS misconfiguration: wildcard origin '*' is incompatible "
+    "with cors_allow_credentials=True"
+)
+
+
+def wildcard_cors_credentials_problems(
+    config: "SecurityConfig[RequestT]",
+) -> list[str]:
+    if (
+        config.enable_cors
+        and config.cors_allow_credentials
+        and "*" in (config.cors_allow_origins or [])
+    ):
+        return [WILDCARD_CORS_CREDENTIALS_PROBLEM]
+    return []
+
+
 def _unknown_security_headers_key_problems(
     config: "SecurityConfig[RequestT]",
 ) -> list[str]:
@@ -114,6 +132,9 @@ CHECKED_FIELDS = frozenset(
         "enable_rate_limiting",
         "detection_threat_score_threshold",
         "detection_semantic_threshold",
+        "enable_cors",
+        "cors_allow_origins",
+        "cors_allow_credentials",
     }
 )
 
@@ -131,6 +152,9 @@ _RATE_LIMIT_FIELDS = frozenset(
 _THRESHOLD_FIELDS = frozenset(
     {"detection_threat_score_threshold", "detection_semantic_threshold"}
 )
+_CORS_FIELDS = frozenset(
+    {"enable_cors", "cors_allow_origins", "cors_allow_credentials"}
+)
 
 
 def config_misconfigurations(config: "SecurityConfig[RequestT]") -> list[str]:
@@ -146,6 +170,8 @@ def config_misconfigurations(config: "SecurityConfig[RequestT]") -> list[str]:
         problems += _non_positive_rate_limit_problems(config)
     if not stated.isdisjoint(_THRESHOLD_FIELDS):
         problems += _zero_detection_threshold_problems(config)
+    if not stated.isdisjoint(_CORS_FIELDS):
+        problems += wildcard_cors_credentials_problems(config)
     return problems
 
 
