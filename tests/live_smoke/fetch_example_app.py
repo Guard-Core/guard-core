@@ -8,26 +8,9 @@ from pathlib import Path
 STACK_DIR = Path(__file__).resolve().parent / "stack"
 DEST = STACK_DIR / "app"
 REPO_URL = "https://github.com/Guard-Core/fastapi-guard.git"
-
-
-def _version_key(tag: str) -> tuple[int, ...] | tuple[int]:
-    parts = tag.split(".")
-    if not all(part.isdigit() for part in parts):
-        return (0,)
-    return tuple(int(part) for part in parts)
-
-
-def latest_tag() -> str:
-    result = subprocess.run(
-        ["git", "ls-remote", "--tags", "--refs", REPO_URL],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    tags = [line.rsplit("refs/tags/", 1)[-1] for line in result.stdout.splitlines()]
-    if not tags:
-        raise RuntimeError(f"No tags found on {REPO_URL}")
-    return max(tags, key=_version_key)
+# The 5.0.0 smoke runs fastapi-guard 9.0.0's example. Until that tag exists,
+# set LIVE_SMOKE_FASTAPI_GUARD_LOCAL to a checkout.
+EXAMPLE_REF = "v9.0.0"
 
 
 def copy_example_app(source_repo: Path) -> None:
@@ -63,7 +46,7 @@ def fetch(ref: str | None = None, local_repo: str | None = None) -> str:
             check=True,
         ).stdout.strip()
 
-    ref = ref or os.environ.get("LIVE_SMOKE_FASTAPI_GUARD_REF") or latest_tag()
+    ref = ref or os.environ.get("LIVE_SMOKE_FASTAPI_GUARD_REF") or EXAMPLE_REF
     with tempfile.TemporaryDirectory() as tmp:
         clone_dir = Path(tmp) / "fastapi-guard"
         subprocess.run(
