@@ -83,15 +83,21 @@ for _template_key in (
     "/users/(.+)",
     "^/users/([0-9]+)$",
     "/files/[0-9]+",
+    "/api/*",
+    "/static/*",
+    "/api/**",
+    "/users/.*",
+    "/users/.+",
+    "/users/:id",
 ):
     CONFIG_PROBLEMS.append(
         (
             {"endpoint_rate_limits": {_template_key: (5, 60)}},
-            f"endpoint_rate_limits key {_template_key!r} is a router template or "
-            "a regex route ({name}, <name>, (?P<name>...), ([0-9]+) or "
-            "[0-9]+): it matches only that literal text, so it limits nothing. "
-            "Write a concrete path, or put the limit on the route with the "
-            "rate_limit decorator.",
+            f"endpoint_rate_limits key {_template_key!r} is a router template, "
+            "a regex route or a glob ({name}, <name>, :name, (?P<name>...), "
+            "([0-9]+), [0-9]+, .* or *): it matches only that literal text, so it "
+            "limits nothing. Write a concrete path, or put the limit on the route "
+            "with the rate_limit decorator.",
         )
     )
 
@@ -107,7 +113,7 @@ def test_a_backslash_group_key_reports_the_regex_route_line_too(
             endpoint_rate_limits={key: (5, 60)},
         )
     messages = [r.getMessage() for r in caplog.records]
-    assert any("is a router template or a regex route" in m for m in messages)
+    assert any("is a router template, a regex route or a glob" in m for m in messages)
     assert any(
         "has a dot segment, an empty segment, a backslash" in m for m in messages
     )
@@ -164,6 +170,12 @@ def test_endpoint_rate_limits_at_one_never_warn() -> None:
         "/wiki/Foo_(bar)",
         "/c++",
         "/a$",
+        "/price$",
+        "/x(y)z",
+        "/v1/models/gpt:generate",
+        "/files/a.b",
+        "/files/(1)",
+        "/search?q=1",
     ],
 )
 def test_a_concrete_endpoint_key_never_warns(key: str) -> None:

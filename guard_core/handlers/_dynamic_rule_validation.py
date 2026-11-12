@@ -68,8 +68,8 @@ def endpoint_rate_limit_key_problems(
         if is_router_template(endpoint):
             problems.append(
                 f"endpoint_rate_limits[{endpoint}]: {tuple(limit)} "
-                "(a router template or a regex route, which matches only that literal "
-                "text and so limits nothing; write a concrete path)"
+                "(a router template, a regex route or a glob, which matches only that "
+                "literal text and so limits nothing; write a concrete path)"
             )
     return problems
 

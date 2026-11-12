@@ -133,15 +133,21 @@ TEMPLATE_KEYS = [
     "/users/(.+)",
     "^/users/([0-9]+)$",
     "/files/[0-9]+",
+    "/api/*",
+    "/static/*",
+    "/api/**",
+    "/users/.*",
+    "/users/.+",
+    "/users/:id",
 ]
 
 
 @pytest.mark.parametrize("key", TEMPLATE_KEYS)
 def test_the_public_predicate_refuses_a_router_template_key(key: str) -> None:
     assert endpoint_rate_limit_key_problems({key: (5, 60)}) == [
-        f"endpoint_rate_limits[{key}]: (5, 60) (a router template or a regex "
-        "route, which matches only that literal text and so limits nothing; "
-        "write a concrete path)"
+        f"endpoint_rate_limits[{key}]: (5, 60) (a router template, a regex "
+        "route or a glob, which matches only that literal text and so limits "
+        "nothing; write a concrete path)"
     ]
 
 
@@ -151,9 +157,9 @@ def test_a_backslash_group_key_carries_both_lines() -> None:
     assert endpoint_rate_limit_key_problems({key: (5, 60)}) == [
         f"endpoint_rate_limits[{key}]: (5, 60) (a dot segment, an empty segment, "
         "a backslash or an encoded dot or separator, in any decoding round)",
-        f"endpoint_rate_limits[{key}]: (5, 60) (a router template or a regex "
-        "route, which matches only that literal text and so limits nothing; "
-        "write a concrete path)",
+        f"endpoint_rate_limits[{key}]: (5, 60) (a router template, a regex "
+        "route or a glob, which matches only that literal text and so limits "
+        "nothing; write a concrete path)",
     ]
 
 
@@ -168,6 +174,12 @@ def test_a_backslash_group_key_carries_both_lines() -> None:
         "/wiki/Foo_(bar)",
         "/c++",
         "/a$",
+        "/price$",
+        "/x(y)z",
+        "/v1/models/gpt:generate",
+        "/files/a.b",
+        "/files/(1)",
+        "/search?q=1",
     ],
 )
 def test_the_public_predicate_accepts_a_concrete_key(key: str) -> None:
@@ -178,9 +190,9 @@ def test_a_template_key_is_rejected_as_a_dynamic_rule() -> None:
     rules = _rules(endpoint_rate_limits={"/users/{id}": (5, 60), "/ok": (5, 60)})
 
     assert find_malformed_values(rules) == [
-        "endpoint_rate_limits[/users/{id}]: (5, 60) (a router template or a "
-        "regex route, which matches only that literal text and so limits "
-        "nothing; write a concrete path)"
+        "endpoint_rate_limits[/users/{id}]: (5, 60) (a router template, a "
+        "regex route or a glob, which matches only that literal text and so "
+        "limits nothing; write a concrete path)"
     ]
 
 

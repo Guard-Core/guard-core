@@ -5,14 +5,21 @@ from guard_core._utils.request_path import has_routing_anomaly
 
 _PERCENT_RUN = re.compile(r"(?:%[0-9A-Fa-f]{2})+")
 _MAX_DECODE_ROUNDS = 4
-# {name} or {name:conv} (Starlette), <name> or <conv:name> (Flask, Django path()),
-# (?P<name>...) (Tornado, Django re_path): a router matches the key like a request.
-# A regex route counts too, as RFC 3986 pchar has no "[", "]", "^", "|", "?" or
-# backslash: a "[...]" class, a leading "^", or a "(...)" group holding backslash,
-# + * ? or |. A word in parentheses ("/Foo_(bar)") and a trailing "$" are pchars.
+# {name} or {name:conv} (Starlette, Go net/http, axum, actix), <name> or <conv:name>
+# (Flask, Django path(), Rocket), "/:name" (Express, Fastify, Hono, NestJS, Gin, Echo,
+# Fiber), (?P<name>...) (Tornado, Django re_path): a router matches the key like a
+# request. A regex route counts too, as RFC 3986 pchar has no "[", "]", "^", "|", "?"
+# or backslash: a "[...]" class, a leading "^", a "(...)" group holding backslash,
+# + * ? or |, or a bare ".+". A word in parentheses ("/Foo_(bar)"), a trailing "$" and
+# a colon inside a segment ("/gpt:generate") are pchars. A "*" is a glob.
 _ROUTER_TEMPLATE = re.compile(
-    r"\{[^{}]+\}|<[^<>]+>|[\[\]]|^\^|\([^()]*[\\+*?|][^()]*\)"
+    r"\{[^{}]+\}|<[^<>]+>|/:[^/]|[\[\]]|^\^|\.\+|\([^()]*[\\+*?|][^()]*\)"
 )
+GLOB_CHARACTERS = "*?#"
+
+
+def has_glob_character(entry: str, characters: str = GLOB_CHARACTERS) -> bool:
+    return any(char in entry for char in characters)
 
 
 def _decode_percent_run(match: re.Match[str]) -> str:
@@ -96,7 +103,7 @@ def _has_routing_anomaly_in_any_decoding(url_path: str) -> bool:
 
 
 def is_router_template(key: str) -> bool:
-    return _ROUTER_TEMPLATE.search(key) is not None
+    return _ROUTER_TEMPLATE.search(key) is not None or has_glob_character(key, "*")
 
 
 def router_path_for_exclusion(url_path: str) -> str | None:

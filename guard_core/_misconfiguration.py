@@ -59,11 +59,13 @@ def _zero_detection_threshold_problems(config: "SecurityConfig[RequestT]") -> li
 
 
 def _glob_exclude_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
+    from guard_core.core.validation.path_matching import has_glob_character
+
     return [
         f"exclude_paths entry {entry!r} is not a glob: wildcards are literal "
         "characters, so it excludes nothing."
         for entry in config.exclude_paths
-        if any(char in entry for char in "*?#")
+        if has_glob_character(entry)
     ]
 
 
@@ -91,11 +93,11 @@ def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
             if _has_routing_anomaly_in_any_decoding(key)
         ),
         *(
-            f"endpoint_rate_limits key {key!r} is a router template or a regex "
-            "route ({name}, <name>, (?P<name>...), ([0-9]+) or [0-9]+): it "
-            "matches only that literal text, so it limits nothing. Write a "
-            "concrete path, or put the limit on the route with the rate_limit "
-            "decorator."
+            f"endpoint_rate_limits key {key!r} is a router template, a regex "
+            "route or a glob ({name}, <name>, :name, (?P<name>...), ([0-9]+), "
+            "[0-9]+, .* or *): it matches only that literal text, so it limits "
+            "nothing. Write a concrete path, or put the limit on the route with the "
+            "rate_limit decorator."
             for key in config.endpoint_rate_limits
             if is_router_template(key)
         ),
