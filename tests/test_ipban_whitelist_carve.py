@@ -267,3 +267,22 @@ async def test_the_redis_rewrite_does_not_extend_a_ban_by_time_lost_mid_move(
         floor_pttl = await conn.pttl(f"{prefix}ban_floors:banned_identities:{base}")
     assert ban_pttl <= 600_000 - 1_400
     assert floor_pttl <= 300_000 - 1_400
+
+
+async def test_the_redis_rewrite_keeps_a_persistent_base_identity_key(
+    live_redis: RedisManager,
+) -> None:
+    manager = _manager([])
+    manager.redis_handler = live_redis
+    prefix = live_redis.config.redis_prefix
+    carve, base = "2002:c000:204:100::/56", "2002:c000:204::/48"
+    base_key = f"{prefix}banned_identities:{base}"
+    async with live_redis.get_connection() as conn:
+        await conn.set(f"{prefix}banned_identities:{carve}", "9999999999.5", ex=600)
+        await conn.set(base_key, "9999999999.7")
+
+    assert await manager.rewrite_carved_bans_without_whitelist() == 1
+
+    async with live_redis.get_connection() as conn:
+        assert await conn.pttl(base_key) == -1
+        assert await conn.get(base_key) == "9999999999.7"

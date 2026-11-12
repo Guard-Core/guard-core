@@ -187,6 +187,67 @@ async def test_migration_writes_the_canonical_key_and_its_expiry_in_one_transact
         await handler.close()
 
 
+async def test_migration_keeps_a_persistent_canonical_key_unshortened(
+    security_config_redis: SecurityConfig,
+) -> None:
+    handler = redis_handler_factory(security_config_redis)
+    await handler.initialize()
+    try:
+        await _seed_legacy_ban(handler)
+        prefix = security_config_redis.redis_prefix
+        canonical_key = f"{prefix}banned_ips:{CANONICAL_FORM}"
+        async with handler.get_connection() as conn:
+            await conn.set(canonical_key, "9999999999.5")
+
+        await ip_ban_manager.initialize_redis(handler)
+
+        async with handler.get_connection() as conn:
+            assert await conn.pttl(canonical_key) == -1
+            assert await conn.get(canonical_key) == "9999999999.5"
+            assert await conn.exists(f"{prefix}banned_ips:{LEGACY_MAPPED_FORM}") == 0
+    finally:
+        await ip_ban_manager.unban_ip(CANONICAL_FORM)
+        ip_ban_manager.redis_handler = None
+        await handler.close()
+
+
+async def test_migration_leaves_no_canonical_key_for_a_ban_that_expired_mid_migration(
+    security_config_redis: SecurityConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = redis_handler_factory(security_config_redis)
+    await handler.initialize()
+    try:
+        prefix = security_config_redis.redis_prefix
+        legacy_key = f"{prefix}banned_ips:{LEGACY_MAPPED_FORM}"
+        async with handler.get_connection() as conn:
+            await conn.set(legacy_key, "123456789.0", px=400)
+            async with conn.pipeline() as pipe:
+                pipeline_type = type(pipe)
+        real_execute = pipeline_type.execute
+
+        async def execute_then_outlive_the_ban(
+            self: object, *args: object, **kw: object
+        ) -> object:
+            names = [str(c[0][0]).upper() for c in vars(self)["command_stack"]]
+            result = await real_execute(self, *args, **kw)
+            if names == ["GET", "PTTL", "TIME"]:
+                time.sleep(0.8)
+            return result
+
+        monkeypatch.setattr(pipeline_type, "execute", execute_then_outlive_the_ban)
+        await ip_ban_manager.initialize_redis(handler)
+        monkeypatch.undo()
+
+        async with handler.get_connection() as conn:
+            assert await conn.exists(f"{prefix}banned_ips:{CANONICAL_FORM}") == 0
+            assert await conn.exists(legacy_key) == 0
+    finally:
+        monkeypatch.undo()
+        ip_ban_manager.redis_handler = None
+        await handler.close()
+
+
 async def test_migration_deletes_the_legacy_key(
     security_config_redis: SecurityConfig,
 ) -> None:

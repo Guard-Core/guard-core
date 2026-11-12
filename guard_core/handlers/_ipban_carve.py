@@ -6,7 +6,7 @@ from guard_core._utils.nat64 import nat64_table_of
 from guard_core._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.handlers._dynamic_rule_persistence import BAN_FLOORS_NAMESPACE
 from guard_core.handlers._ipban_lookup import IpBanLookupMixin
-from guard_core.handlers._ipban_migration import _expiry_ms
+from guard_core.handlers._ipban_migration import _MISSING_KEY, _expiry_ms
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 if TYPE_CHECKING:
@@ -36,7 +36,8 @@ async def _plan_floor_move(
         floor, floor_pttl, target_pttl, now = await pipe.execute()
     floor_expiry_ms = _expiry_ms(now, floor_pttl)
     moves = floor is not None and (
-        target_pttl < 0 or floor_expiry_ms > _expiry_ms(now, target_pttl)
+        target_pttl == _MISSING_KEY
+        or (target_pttl >= 0 and floor_expiry_ms > _expiry_ms(now, target_pttl))
     )
     return floor_key, floor_target, floor if moves else None, floor_expiry_ms
 
@@ -140,7 +141,9 @@ class IpBanCarveMixin(IpBanLookupMixin):
             conn, stem, key, target
         )
         async with conn.pipeline(transaction=True) as pipe:
-            if existing < 0 or _expiry_ms(now, existing) < expires_at_ms:
+            if existing == _MISSING_KEY or (
+                existing >= 0 and _expiry_ms(now, existing) < expires_at_ms
+            ):
                 await pipe.set(target_key, value)
                 await pipe.pexpireat(target_key, expires_at_ms)
             if floor is not None:

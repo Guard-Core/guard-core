@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
 _BANNED_IPS_NAMESPACE = "banned_ips"
+_MISSING_KEY = -2
 
 
 def _close_if_unusable(obj: object, required_attr: str) -> bool:
@@ -88,7 +89,9 @@ class IpBanMigrationMixin:
             await pipe.time()
             new_pttl, new_time = await pipe.execute()
 
-        if new_pttl < 0 or _expiry_ms(new_time, new_pttl) < expires_at_ms:
+        if new_pttl == _MISSING_KEY or (
+            new_pttl >= 0 and _expiry_ms(new_time, new_pttl) < expires_at_ms
+        ):
             async with conn.pipeline(transaction=True) as pipe:
                 await pipe.set(canonical_key, value)
                 await pipe.pexpireat(canonical_key, expires_at_ms)
