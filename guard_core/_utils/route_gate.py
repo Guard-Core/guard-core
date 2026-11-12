@@ -95,13 +95,31 @@ def route_knowledge(
 ) -> Iterator[None]:
     template_token = _matched_route_template.set(template)
     static_token = _static_file_served.set(static_file_served)
-    declared_token = declared_path_params_var.set(declared_path_params or {})
+    declared_token = declared_path_params_var.set(
+        _without_root_captures(template, declared_path_params or {})
+    )
     try:
         yield
     finally:
         declared_path_params_var.reset(declared_token)
         _static_file_served.reset(static_token)
         _matched_route_template.reset(template_token)
+
+
+@lru_cache(maxsize=4096)
+def _root_capture_names(template: str, names: tuple[str, ...]) -> frozenset[str]:
+    return frozenset(path_params_without_a_literal_segment_before(template, names))
+
+
+def _without_root_captures(
+    template: str | None, declared: Mapping[str, frozenset[str]]
+) -> Mapping[str, frozenset[str]]:
+    # a name with no literal segment before it would exempt the whole path, so the
+    # path is scanned in full instead (the safe side)
+    if template is None or not declared:
+        return declared
+    rootless = _root_capture_names(template, tuple(declared))
+    return {name: kept for name, kept in declared.items() if name not in rootless}
 
 
 def route_declares(probe_token: str) -> bool:
@@ -241,29 +259,39 @@ def _text_before_without_captures(template: str, end: int) -> str:
     return "".join(kept)
 
 
+def _declared_name_start(template: str, name: str) -> int | None:
+    group = next(
+        (found for found in capture_groups(template) if found.name == name), None
+    )
+    if group is not None:
+        return group.start
+    found = next(
+        (
+            candidate
+            for candidate in _PATTERNS["_STARLETTE_OR_ANGLE_PARAMETER_RE"].finditer(
+                template
+            )
+            if name in (candidate.group(1), candidate.group(4))
+        ),
+        None,
+    )
+    return None if found is None else found.start()
+
+
+def path_params_missing_from_template(
+    template: str, declared: Collection[str]
+) -> list[str]:
+    return [name for name in declared if _declared_name_start(template, name) is None]
+
+
 def path_params_without_a_literal_segment_before(
     template: str, declared: Collection[str]
 ) -> list[str]:
-    groups = capture_groups(template)
     rootless = []
     for name in declared:
-        group = next((found for found in groups if found.name == name), None)
-        if group is not None:
-            start = group.start
-        else:
-            found = next(
-                (
-                    candidate
-                    for candidate in _PATTERNS[
-                        "_STARLETTE_OR_ANGLE_PARAMETER_RE"
-                    ].finditer(template)
-                    if name in (candidate.group(1), candidate.group(4))
-                ),
-                None,
-            )
-            if found is None:
-                continue
-            start = found.start()
+        start = _declared_name_start(template, name)
+        if start is None:
+            continue
         prefix = _PATTERNS["_STARLETTE_OR_ANGLE_PARAMETER_RE"].sub(
             "", _text_before_without_captures(template, start)
         )

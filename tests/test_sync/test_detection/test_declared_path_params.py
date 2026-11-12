@@ -301,16 +301,14 @@ def test_a_root_capture_warns_when_the_flag_is_off(
     assert "'path'" in problems[0].getMessage()
 
 
-def test_a_root_capture_refuses_when_the_flag_is_on() -> None:
+def test_a_root_capture_never_raises_when_the_flag_is_on() -> None:
     check = _check(
         SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=True)
     )
     request = _request("/{path:path}", {"path"})
 
-    with pytest.raises(ValueError, match="no literal segment before it"):
-        check.check(request)
-    with pytest.raises(ValueError, match="no literal segment before it"):
-        check.check(request)
+    assert check.check(request) is None
+    assert check.check(request) is None
 
 
 @pytest.mark.parametrize(
@@ -345,10 +343,14 @@ def test_a_parameter_with_a_literal_segment_before_it_is_not_reported(
         "/(?P<tenant>[^/]+)/(?P<path>.*)",
     ],
 )
-def test_every_syntax_of_a_root_capture_is_reported(template: str) -> None:
+def test_every_syntax_of_a_root_capture_is_reported(
+    template: str, caplog: pytest.LogCaptureFixture
+) -> None:
     check = _check(
         SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=True)
     )
 
-    with pytest.raises(ValueError, match="'path'"):
+    with caplog.at_level(logging.WARNING):
         check.check(_request(template, {"path"}))
+
+    assert [r for r in caplog.records if "'path'" in r.getMessage()]
