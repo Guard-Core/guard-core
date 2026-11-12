@@ -241,6 +241,12 @@ class RedisCase(RedisCaseInput):
     expected: list[PinnedKey]
 
 
+class MisconfigurationCase(TypedDict):
+    id: str
+    input: JsonObject
+    expected: JsonObject
+
+
 class SuiteMeta(TypedDict):
     case_count: int
     kind: str
@@ -266,10 +272,18 @@ class Comparison(TypedDict):
     events_prefix_rules: list[PrefixRule]
     events_volatile_metadata: dict[str, list[str]]
     redis_interop: str
+    misconfiguration: str
     pattern_safety_records: str
 
 
-SuiteCase: TypeAlias = DetectCase | PipelineCase | EventsCase | RedisCase | SafetyCase
+SuiteCase: TypeAlias = (
+    DetectCase
+    | PipelineCase
+    | EventsCase
+    | RedisCase
+    | SafetyCase
+    | MisconfigurationCase
+)
 
 
 class CorpusIndex(TypedDict):

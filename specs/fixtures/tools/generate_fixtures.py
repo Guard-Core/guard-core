@@ -14,6 +14,13 @@ from events_cases import EVENTS_SUITES
 from events_harness import EVENT_DROP_KEYS, run_events_case
 from fixture_types import EventsCase, PipelineCase, RedisCase
 from host_dependent_fields import without_host_fields
+from misconfiguration_suites import (
+    COMPARISON as MISCONFIGURATION_COMPARISON,
+)
+from misconfiguration_suites import (
+    MISCONFIGURATION_CONSUMERS,
+    run_misconfiguration_suites,
+)
 from pipeline_cases import PIPELINE_SUITES
 from pipeline_harness import run_case
 from redis_interop_cases import REDIS_SUITES, run_redis_case
@@ -662,6 +669,8 @@ async def run_corpus(
                 "doc": REDIS_SUITE_DOC,
                 "cases": redis_observed,
             }
+    if only in (None, "misconfiguration"):
+        results.update(await run_misconfiguration_suites(SPEC_VERSION, engine_version))
     return results
 
 
@@ -684,6 +693,7 @@ def suite_consumers(kind: str) -> list[str]:
         "pipeline": PIPELINE_CONSUMERS,
         "events": EVENTS_CONSUMERS,
         "redis_interop": REDIS_CONSUMERS,
+        "misconfiguration": MISCONFIGURATION_CONSUMERS,
     }[kind]
 
 
@@ -739,6 +749,7 @@ def build_index(
                 "floats are pinned by SHAPE (regex), not value; zset "
                 "scores are compared as floats at 6-decimal precision"
             ),
+            "misconfiguration": MISCONFIGURATION_COMPARISON,
         },
     }
 

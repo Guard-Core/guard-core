@@ -274,6 +274,34 @@
     "rust"
    ]
   },
+  "misconfiguration_config": {
+   "case_count": 88,
+   "kind": "misconfiguration",
+   "consumers": [
+    "python"
+   ]
+  },
+  "misconfiguration_dynamic_rules": {
+   "case_count": 52,
+   "kind": "misconfiguration",
+   "consumers": [
+    "python"
+   ]
+  },
+  "misconfiguration_decorators": {
+   "case_count": 32,
+   "kind": "misconfiguration",
+   "consumers": [
+    "python"
+   ]
+  },
+  "misconfiguration_runtime": {
+   "case_count": 26,
+   "kind": "misconfiguration",
+   "consumers": [
+    "python"
+   ]
+  },
   "cost_bodies": {
    "case_count": 9,
    "kind": "detect",
@@ -361,6 +389,7 @@
    ]
   },
   "redis_interop": "byte equality: keys, static string values and TTL semantics are exact; zset members the engine generates at write time (uuid4 hex, epoch floats) and ban expiry floats are pinned by SHAPE (regex), not value; zset scores are compared as floats at 6-decimal precision",
+  "misconfiguration": "compare expected.raises exactly, and expected.reported and expected.fatal as sorted multisets of [kind, subject] pairs; the English message is never compared and no case encodes which problem came first. reported is every problem a run with fail_on_misconfiguration=False records, fatal is every error-severity problem the one raise of a run with fail_on_misconfiguration=True carries, so a warn kind is never fatal. A kind marked fatal_only in the suite kinds block is checked only while the flag is true and so appears in fatal and never in reported. A runner that does not implement a kind lists it as deferred; a runner meeting a suite kind it does not list as deferred fails closed",
   "pattern_safety_records": "compare expected.safe and expected.reason_class; the numeric parts of over-budget reason strings are host-measured and never compared; a runner whose safety chain cannot produce a reason_class yet maps the case to that class's documented divergence instead of failing silently"
  },
  "cost_budgets": {

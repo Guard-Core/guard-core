@@ -183,3 +183,27 @@ members) are pinned by SHAPE regex as recorded in each expected record.
 The reference runner replays both suites (`run_fixtures.py`); the
 redis-backed cases and scenarios require the Redis at
 `redis://localhost:6379`.
+
+## spec 5.0.0 additions: misconfiguration suites
+
+Four suites of `kind: "misconfiguration"` pin which misconfigurations an engine reports, by stable problem kind. Each case drives the reference engine twice on one input: once with `fail_on_misconfiguration=False` and once with `fail_on_misconfiguration=True`. The suites are `misconfiguration_config` (startup config), `misconfiguration_dynamic_rules` (the dynamic-rule validator), `misconfiguration_decorators` (route decorators) and `misconfiguration_runtime` (tier 2: startup and request-time reporters driven through stubs). `consumers` is `["python"]` until a port lands its runner; every port runner MUST fail closed on a suite kind it neither runs nor lists as deferred, and at release every suite lists all six engines.
+
+A kind is the stable id of one problem: `<setting>.<problem>`, dotted, lowercase, one kind per predicate. The English message is never compared and a port words its own. A pair is `[kind, subject]`: the subject is the offending key, entry, field or argument exactly as configured, or `null` when the kind has none. The `kinds` block of each suite file is the registry slice for that file: `severity` (`error` or `warn`), `scope`, what the `subject` is, a description, and `fatal_only` or `host_dependent` when true. `index.json > comparison > misconfiguration` carries the compare rule in one paragraph.
+
+```json
+{
+  "id": "endpoint_key_template_regex_group_class",
+  "input": { "config": { "enable_redis": false, "rate_limit": 10, "ban_on_hostile_signals": false, "endpoint_rate_limits": { "/users/([0-9]+)": [5, 60] } } },
+  "expected": {
+    "raises": true,
+    "reported": [["endpoint_rate_limits.router_template", "/users/([0-9]+)"]],
+    "fatal": [["endpoint_rate_limits.router_template", "/users/([0-9]+)"]]
+  }
+}
+```
+
+`expected.reported` is every problem a run with the flag off records, `expected.fatal` is every error-severity problem the one raise of a run with the flag on carries, and `expected.raises` is whether that run raised. Both lists are sorted multisets compared order-insensitively, so no case encodes which problem came first and a port is free to detect in any order. A raise carries every error-severity problem at once, never the first only. A `warn` kind is never in `fatal`. A kind marked `fatal_only` is checked only while the flag is true (the decorator country rule without a GeoIP source), so it appears in `fatal` and never in `reported`. `decorator.country_rule.geoip_download_extras_missing` depends on the installed extras of the host and no case pins it.
+
+The seam a runner implements is one function from a case input to `(reported, raised)`: build the engine's own config, decorator or reporter from the input with the flag set, record every problem the engine reports as `[kind, subject]` (a recording log sink works), and on a refusal read the problems the one error carries. The input shapes are: `config`, the stated SecurityConfig fields (snake_case, JSON safe, a tuple is a `[limit, window]` array; the runner states `fail_on_misconfiguration` itself unless `flag_stated` is false, and a config states exactly what it lists because the `changed_default.*` kinds report a field left unset); `dynamic_rules`, the fields of the dynamic-rule set the validator reads (a field left out is empty or null, and every problem rejects the whole set whatever the flag says); `geo` and `decorators`, a list of `{name, args}` applied one by one to a fresh function with the Python keyword names (`reported` is the union over the decorators and `fatal` the union of what each decorator's raise carries); and for the runtime suite a `seam` plus that seam's stubs: `ban_thresholds`, `nat64`, `redis_handler`, `country_decorators`, `ipv6_prefix_length`, `endpoint_key_routes` and `exclude_paths_routes`. The reference reports a default `redis_prefix` once per process, so a runner resets that memory per case.
+
+A kind a port does not implement yet is deferred in that port's baseline, never skipped silently. The suites are generated from curated inputs in `tools/misconfiguration_cases.py`, each declaring the kinds it intends: generation fails when the engine reports anything else, so a regeneration can never freeze a bug as an empty expectation. The reference runner replays them through `run_fixtures.py`.

@@ -13,6 +13,7 @@ from fixture_types import (
     EventsCase,
     JsonObject,
     JsonValue,
+    MisconfigurationCase,
     PipelineCase,
     RedisCase,
     SafetyCase,
@@ -260,6 +261,16 @@ async def replay_suites(
     return failures, total
 
 
+async def check_misconfiguration_case(
+    suite: str, case: MisconfigurationCase
+) -> str | None:
+    from misconfiguration_suites import (
+        check_misconfiguration_case as replay_misconfiguration_case,
+    )
+
+    return await replay_misconfiguration_case(suite, case)
+
+
 async def check_detect_case(suite: str, case: DetectCase) -> str | None:
     return await check_case(sus_patterns_handler, suite, case)
 
@@ -272,6 +283,7 @@ async def replay_corpus(*, safety: bool) -> tuple[list[str], int]:
         "events": check_events_case,
         "redis_interop": check_redis_case,
         "pattern_safety": check_safety_case,
+        "misconfiguration": check_misconfiguration_case,
     }
     names = [
         name
