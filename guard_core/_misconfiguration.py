@@ -94,7 +94,7 @@ def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
 
 WILDCARD_CORS_CREDENTIALS_PROBLEM = (
     "CORS misconfiguration: wildcard origin '*' is incompatible "
-    "with cors_allow_credentials=True"
+    "with cors_allow_credentials=True."
 )
 
 

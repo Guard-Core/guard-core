@@ -4,7 +4,10 @@ from collections.abc import Mapping
 
 from cachetools import TTLCache
 
-from guard_core._misconfiguration import WILDCARD_CORS_CREDENTIALS_PROBLEM
+from guard_core._misconfiguration import (
+    WILDCARD_CORS_CREDENTIALS_PROBLEM,
+    wildcard_cors_credentials_problems,
+)
 from guard_core._security_headers_defaults import (
     SECURITY_HEADER_NAMES,
     default_security_headers_config,
@@ -311,7 +314,8 @@ class SecurityHeadersConfigMixin:
             # No override: the app's own CORS, without the merge.
             return self._compute_cors_config(
                 list(config.cors_allow_origins or ()) if config.enable_cors else None,
-                bool(config.cors_allow_credentials),
+                bool(config.cors_allow_credentials)
+                and not wildcard_cors_credentials_problems(config),
                 list(config.cors_allow_methods or ()),
                 list(config.cors_allow_headers or ()),
                 int(config.cors_max_age),
@@ -319,7 +323,7 @@ class SecurityHeadersConfigMixin:
         params = self.cors_params_for(config, override)
         return self._compute_cors_config(
             list(params.origins) if params.enabled else None,
-            params.credentials,
+            params.credentials and "*" not in params.origins,
             list(params.methods),
             list(params.headers),
             params.max_age,

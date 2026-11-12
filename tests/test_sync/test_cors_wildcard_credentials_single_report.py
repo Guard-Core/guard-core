@@ -86,7 +86,9 @@ def test_a_direct_configure_logs_the_shared_text_as_one_warning(
 def test_a_direct_cors_handler_still_logs_its_one_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = _wildcard_config()
+    config = SyncSecurityConfig.model_construct(
+        fail_on_misconfiguration=False, **WILDCARD_WITH_CREDENTIALS
+    )
 
     with caplog.at_level(logging.DEBUG, logger=CORS_LOGGER):
         caplog.clear()

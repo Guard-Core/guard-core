@@ -62,7 +62,7 @@ CONFIG_PROBLEMS: list[tuple[dict[str, Any], str]] = [
             "cors_allow_credentials": True,
         },
         "CORS misconfiguration: wildcard origin '*' is incompatible with "
-        "cors_allow_credentials=True",
+        "cors_allow_credentials=True.",
     ),
     (
         {"endpoint_rate_limits": {"/a//b": (5, 60)}},
