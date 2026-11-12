@@ -69,14 +69,17 @@ class IpBanMigrationMixin:
         async with conn.pipeline() as pipe:
             await pipe.get(key)
             await pipe.pttl(key)
-            value, old_pttl = await pipe.execute()
+            await pipe.time()
+            value, old_pttl, (seconds, micros) = await pipe.execute()
 
         if old_pttl <= 0:
             await conn.delete(key)
             return
 
+        expires_at_ms = seconds * 1000 + micros // 1000 + old_pttl
         canonical_key = f"{prefix}{canonical_ip}"
         new_pttl = await conn.pttl(canonical_key)
-        if new_pttl < old_pttl:
-            await conn.set(canonical_key, value, px=old_pttl)
+        new_expires_at_ms = (await conn.time())[0] * 1000 + new_pttl
+        if new_pttl < 0 or new_expires_at_ms < expires_at_ms:
+            await conn.set(canonical_key, value, pxat=expires_at_ms)
         await conn.delete(key)

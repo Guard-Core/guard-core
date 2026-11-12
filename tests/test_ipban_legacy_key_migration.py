@@ -1,4 +1,5 @@
 import logging
+import time
 import warnings
 from unittest.mock import MagicMock
 
@@ -56,6 +57,10 @@ def _bad_connection_redis_handler() -> MagicMock:
     return handler
 
 
+def _elapsed_ms(since: float) -> float:
+    return (time.monotonic() - since) * 1_000
+
+
 async def _seed_legacy_ban(handler: RedisHandlerProtocol, duration: int = 60) -> None:
     await ip_ban_manager.initialize_redis(handler)
     await ip_ban_manager._ban_exact_ip(LEGACY_MAPPED_FORM, duration, "test_legacy_ban")
@@ -86,6 +91,7 @@ async def test_migration_preserves_remaining_ttl_within_one_second(
     handler = redis_handler_factory(security_config_redis)
     await handler.initialize()
     try:
+        seeded_at = time.monotonic()
         await _seed_legacy_ban(handler, duration=60)
 
         await ip_ban_manager.initialize_redis(handler)
@@ -93,9 +99,44 @@ async def test_migration_preserves_remaining_ttl_within_one_second(
         prefix = security_config_redis.redis_prefix
         async with handler.get_connection() as conn:
             pttl_ms = await conn.pttl(f"{prefix}banned_ips:{CANONICAL_FORM}")
+        elapsed_ms = _elapsed_ms(seeded_at)
 
-        assert pttl_ms == pytest.approx(60_000, abs=1_000)
+        assert 60_000 - elapsed_ms - 1_000 <= pttl_ms <= 60_000 + 1_000
     finally:
+        await ip_ban_manager.unban_ip(CANONICAL_FORM)
+        ip_ban_manager.redis_handler = None
+        await handler.close()
+
+
+async def test_migration_does_not_extend_the_ban_by_time_lost_mid_migration(
+    security_config_redis: SecurityConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = redis_handler_factory(security_config_redis)
+    await handler.initialize()
+    try:
+        await _seed_legacy_ban(handler, duration=60)
+        async with handler.get_connection() as conn:
+            client_type = type(conn)
+        read_pttl = client_type.pttl
+
+        async def pttl_then_stall(self: object, key: str) -> int:
+            remaining: int = await read_pttl(self, key)
+            if type(self) is client_type:
+                time.sleep(1.5)
+            return remaining
+
+        monkeypatch.setattr(client_type, "pttl", pttl_then_stall)
+        await ip_ban_manager.initialize_redis(handler)
+        monkeypatch.undo()
+
+        prefix = security_config_redis.redis_prefix
+        async with handler.get_connection() as conn:
+            pttl_ms = await conn.pttl(f"{prefix}banned_ips:{CANONICAL_FORM}")
+
+        assert pttl_ms <= 60_000 - 1_400
+    finally:
+        monkeypatch.undo()
         await ip_ban_manager.unban_ip(CANONICAL_FORM)
         ip_ban_manager.redis_handler = None
         await handler.close()
@@ -134,15 +175,17 @@ async def test_migration_second_start_is_idempotent(
         async with handler.get_connection() as conn:
             value_before = await conn.get(canonical_key)
             pttl_before = await conn.pttl(canonical_key)
+        read_before_at = time.monotonic()
 
         await ip_ban_manager.initialize_redis(handler)
 
         async with handler.get_connection() as conn:
             value_after = await conn.get(canonical_key)
             pttl_after = await conn.pttl(canonical_key)
+        elapsed_ms = _elapsed_ms(read_before_at)
 
         assert value_after == value_before
-        assert pttl_after == pytest.approx(pttl_before, abs=1_000)
+        assert pttl_before - elapsed_ms - 1_000 <= pttl_after <= pttl_before
         assert await ip_ban_manager.is_ip_banned(CANONICAL_FORM) is True
     finally:
         await ip_ban_manager.unban_ip(CANONICAL_FORM)
@@ -230,14 +273,16 @@ async def test_migration_keeps_the_longer_expiry_when_canonical_key_already_exis
         legacy_key = f"{prefix}banned_ips:{LEGACY_MAPPED_FORM}"
         async with handler.get_connection() as conn:
             pttl_before = await conn.pttl(canonical_key)
+        read_before_at = time.monotonic()
 
         await ip_ban_manager.initialize_redis(handler)
 
         async with handler.get_connection() as conn:
             pttl_after = await conn.pttl(canonical_key)
             legacy_exists = await conn.exists(legacy_key)
+        elapsed_ms = _elapsed_ms(read_before_at)
 
-        assert pttl_after == pytest.approx(pttl_before, abs=1_000)
+        assert pttl_before - elapsed_ms - 1_000 <= pttl_after <= pttl_before
         assert pttl_after > 100_000
         assert legacy_exists == 0
     finally:

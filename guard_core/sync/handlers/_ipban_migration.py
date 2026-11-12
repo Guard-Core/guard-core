@@ -69,14 +69,17 @@ class IpBanMigrationMixin:
         with conn.pipeline() as pipe:
             pipe.get(key)
             pipe.pttl(key)
-            value, old_pttl = pipe.execute()
+            pipe.time()
+            value, old_pttl, (seconds, micros) = pipe.execute()
 
         if old_pttl <= 0:
             conn.delete(key)
             return
 
+        expires_at_ms = seconds * 1000 + micros // 1000 + old_pttl
         canonical_key = f"{prefix}{canonical_ip}"
         new_pttl = conn.pttl(canonical_key)
-        if new_pttl < old_pttl:
-            conn.set(canonical_key, value, px=old_pttl)
+        new_expires_at_ms = (conn.time())[0] * 1000 + new_pttl
+        if new_pttl < 0 or new_expires_at_ms < expires_at_ms:
+            conn.set(canonical_key, value, pxat=expires_at_ms)
         conn.delete(key)
