@@ -200,3 +200,43 @@ def test_the_log_extra_helper_pairs_every_subject() -> None:
 def test_every_kind_is_named_setting_dot_problem() -> None:
     assert ALL_KINDS == frozenset(KINDS)
     assert all(kind.count(".") >= 1 and kind == kind.lower() for kind in ALL_KINDS)
+
+
+def test_an_adapters_plain_text_problem_is_reported_without_a_kind(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from guard_core._misconfiguration import report_misconfiguration
+
+    config = SecurityConfig(
+        enable_redis=False, ban_on_hostile_signals=False, fail_on_misconfiguration=False
+    )
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        report_misconfiguration(
+            config,
+            "an adapter's own line",
+            logger=logging.getLogger("guard_core"),
+            stacklevel=1,
+        )
+
+    [record] = caplog.records
+    assert "an adapter's own line" in record.getMessage()
+    assert record.__dict__["problems"] == ()
+
+
+def test_an_adapters_plain_text_problem_still_refuses_as_a_value_error() -> None:
+    from guard_core._misconfiguration import report_misconfiguration
+
+    config = SecurityConfig(
+        enable_redis=False, ban_on_hostile_signals=False, fail_on_misconfiguration=True
+    )
+
+    with pytest.raises(ValueError, match="an adapter's own line") as caught:
+        report_misconfiguration(
+            config,
+            "an adapter's own line",
+            logger=logging.getLogger("guard_core"),
+            stacklevel=1,
+        )
+
+    assert isinstance(caught.value, MisconfigurationError)
+    assert caught.value.problems == []

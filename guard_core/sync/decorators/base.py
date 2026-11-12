@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import (
     ParamSpec,
     Protocol,
@@ -12,7 +12,6 @@ from guard_core._misconfiguration import (
     report_misconfiguration,
     report_misconfigurations,
 )
-from guard_core._misconfiguration_kinds import Problem
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.route_config import (
     _REVISION_EXEMPT_ATTRS,
@@ -83,8 +82,8 @@ def get_route_id(func: object) -> str:
 
 
 class BaseSecurityMixin:
-    _report_misconfiguration: Callable[[Problem], None]
-    _report_misconfigurations: Callable[[list[Problem]], None]
+    _report_misconfiguration: Callable[[str], None]
+    _report_misconfigurations: Callable[[Sequence[str]], None]
     _require_geo_source: Callable[[str], None]
 
     def _ensure_route_config(self, func: object) -> RouteConfig:
@@ -112,7 +111,7 @@ class BaseSecurityDecorator:
         self.agent_handler: SyncAgentHandlerProtocol | None = None
         self.geo_ip_handler: _GeoCountryLookup | None = None
 
-    def _report_misconfiguration(self, problem: Problem) -> None:
+    def _report_misconfiguration(self, problem: str) -> None:
         report_misconfiguration(
             self.config,
             problem,
@@ -120,7 +119,7 @@ class BaseSecurityDecorator:
             stacklevel=4,
         )
 
-    def _report_misconfigurations(self, problems: list[Problem]) -> None:
+    def _report_misconfigurations(self, problems: Sequence[str]) -> None:
         report_misconfigurations(
             self.config,
             problems,

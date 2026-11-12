@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -505,11 +506,14 @@ def kinds_log_extra(kind: str, *subjects: str | None) -> dict[str, object]:
     return {"problems": tuple((kind, subject) for subject in subjects)}
 
 
-def problem_log_extra(*problems: Problem) -> dict[str, object]:
-    return {"problems": tuple((p.kind, p.subject) for p in problems)}
+def kinded(problems: Sequence[str]) -> list[Problem]:
+    """The problems that carry a kind: a plain str (an adapter's own line) has none."""
+    return [problem for problem in problems if isinstance(problem, Problem)]
 
 
-def log_problem(
-    logger: logging.Logger, problem: Problem, *, stacklevel: int = 1
-) -> None:
+def problem_log_extra(*problems: str) -> dict[str, object]:
+    return {"problems": tuple((p.kind, p.subject) for p in kinded(problems))}
+
+
+def log_problem(logger: logging.Logger, problem: str, *, stacklevel: int = 1) -> None:
     logger.warning(problem, extra=problem_log_extra(problem), stacklevel=stacklevel + 1)
