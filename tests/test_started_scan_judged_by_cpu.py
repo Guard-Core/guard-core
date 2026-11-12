@@ -162,6 +162,38 @@ async def test_a_started_job_on_the_legacy_path_that_used_its_cpu_is_a_timeout(
     assert result == (None, True)
 
 
+@pytest.mark.usefixtures("fresh_regex_pool")
+async def test_a_cpu_judged_overrun_logs_the_pattern_timeout_and_keeps_the_pool(
+    manager: SusPatternsManager,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager._compiler = None
+    monkeypatch.setattr(compiler_module, "_consecutive_timeouts", 0)
+    pool = compiler_module._shared_executor
+
+    def burn() -> None:
+        end = time.thread_time() + _TIMEOUT * 1.2
+        while time.thread_time() < end:
+            pass
+
+    _slow_start(monkeypatch, burn)
+
+    with caplog.at_level("WARNING"):
+        results = [
+            await manager._check_pattern_with_timeout(
+                re.compile("zzz"), "so evil", CLIENT, time.monotonic()
+            )
+            for _ in range(compiler_module._SHARED_EXECUTOR_MAX_WORKERS)
+        ]
+
+    runs = compiler_module._SHARED_EXECUTOR_MAX_WORKERS
+    assert results == [(None, True)] * runs
+    assert caplog.text.count("Pattern timeout: zzz...") == runs
+    assert compiler_module._shared_executor is pool
+    assert compiler_module._consecutive_timeouts == 0
+
+
 def test_a_started_job_that_never_ends_is_cut_at_the_wall_backstop() -> None:
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     release = threading.Event()

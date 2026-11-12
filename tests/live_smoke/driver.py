@@ -63,15 +63,6 @@ def _compose(
     )
 
 
-def baseline_env() -> dict[str, str] | None:
-    baseline = os.environ.get("LIVE_SMOKE_BASELINE")
-    if not baseline:
-        return None
-    for wheel in (STACK_DIR / "wheels").glob("*.whl"):
-        wheel.unlink()
-    return {"GUARD_CORE_SPEC": baseline}
-
-
 _LOG_TIMESTAMP = re.compile(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)\.(\d+)Z")
 _NANOS_PER_SECOND = 10**9
 _BOOT_MARKER = "Starting gunicorn"
@@ -277,10 +268,10 @@ class Stack:
         self._current_config_key: str | None = None
 
     def up(self) -> None:
-        _compose("up", "--build", "--wait", env=baseline_env())
+        _compose("up", "--build", "--wait")
 
     def restart_service(self, service: str = APP_SERVICE) -> None:
-        _compose("restart", service, env=baseline_env())
+        _compose("restart", service)
 
     def dump_logs(self) -> None:
         REPORT_DIR.mkdir(parents=True, exist_ok=True)

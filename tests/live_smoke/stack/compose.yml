@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:alpine
+    image: nginx:1.31.8-alpine@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11
     ports:
       - "${LIVE_SMOKE_NGINX_PORT:-8089}:80"
     volumes:
@@ -12,8 +12,6 @@ services:
   fastapi-guard-example:
     build:
       context: .
-      args:
-        GUARD_CORE_SPEC: ${GUARD_CORE_SPEC:-guard-core==3.17.0}
     expose:
       - "8000"
     environment:
@@ -44,7 +42,7 @@ services:
         condition: service_started
 
   agent-stub:
-    image: python:3.12-slim
+    image: python:3.12.16-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
     working_dir: /agent
     volumes:
       - ../agent_stub.py:/agent/agent_stub.py:ro
@@ -55,7 +53,7 @@ services:
       - "${LIVE_SMOKE_AGENT_PORT:-8091}:8090"
 
   otlp-stub:
-    image: python:3.12-slim
+    image: python:3.12.16-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
     working_dir: /otlp
     volumes:
       - ../otlp_stub.py:/otlp/otlp_stub.py:ro
@@ -66,7 +64,7 @@ services:
       - "${LIVE_SMOKE_OTLP_STUB_PORT:-8092}:4318"
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.12-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
     command: redis-server --save "" --loglevel warning
     ports:
       - "${LIVE_SMOKE_REDIS_PORT:-16379}:6379"

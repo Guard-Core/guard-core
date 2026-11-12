@@ -29,3 +29,23 @@ updates:
           - "*"
     allow:
       - dependency-type: "all"
+
+  - package-ecosystem: "docker"
+    directory: "/tests/live_smoke/stack"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "UTC"
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: "docker-compose"
+    directory: "/tests/live_smoke/stack"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "UTC"
+    cooldown:
+      default-days: 7

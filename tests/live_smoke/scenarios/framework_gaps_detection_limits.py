@@ -26,11 +26,21 @@ class _SmokeConfig:
     detection_compiler_timeout = 0.1
 
 
-class _SlowPattern:
-    pattern = "smoke-slow-pattern-probe"
+class _BurningPattern:
+    pattern = "smoke-burning-pattern-probe"
 
     def search(self, content, pos=0):
-        time.sleep(5)
+        end = time.thread_time() + 0.3
+        while time.thread_time() < end:
+            pass
+        return None
+
+
+class _WaitingPattern:
+    pattern = "smoke-waiting-pattern-probe"
+
+    def search(self, content, pos=0):
+        time.sleep(0.5)
         return None
 
 
@@ -38,13 +48,15 @@ sus_patterns_handler._config = _SmokeConfig()
 
 
 async def main():
-    start = time.monotonic()
-    match, timed_out = await sus_patterns_handler._check_pattern_with_timeout(
-        _SlowPattern(), "irrelevant", "203.0.113.9", start
-    )
-    elapsed = time.monotonic() - start
-    print(f"SMOKE_COMPILER_TIMEOUT_PROBE match={match} timed_out={timed_out} "
-          f"elapsed={elapsed:.3f}", flush=True)
+    patterns = (("burning", _BurningPattern()), ("waiting", _WaitingPattern()))
+    for label, pattern in patterns:
+        start = time.monotonic()
+        match, timed_out = await sus_patterns_handler._check_pattern_with_timeout(
+            pattern, "irrelevant", "203.0.113.9", start
+        )
+        elapsed = time.monotonic() - start
+        print(f"SMOKE_COMPILER_TIMEOUT_PROBE {label} match={match} "
+              f"timed_out={timed_out} elapsed={elapsed:.3f}", flush=True)
 
 
 asyncio.run(main())
@@ -61,21 +73,34 @@ def detection_compiler_timeout_cuts_off_a_slow_pattern_match(
     assert "SMOKE_COMPILER_TIMEOUT_PROBE" in output, (
         f"the detection_compiler_timeout probe did not complete; output: {output!r}"
     )
-    assert "timed_out=True" in output, (
-        "detection_compiler_timeout=0.1 did not cut off a pattern match "
-        f"whose search() call took 5s; probe output: {output!r}"
+    assert "burning match=None timed_out=True" in output, (
+        "detection_compiler_timeout=0.1 did not flag a pattern whose search() "
+        f"used 0.3s of CPU; probe output: {output!r}"
     )
-    assert "elapsed=0.1" in output, (
-        "the match should have been cut off close to the configured 0.1s "
-        f"budget, not the full 5s search duration; probe output: {output!r}"
+    assert "waiting match=None timed_out=False" in output, (
+        "a search() that only waited 0.5s without using CPU must not count "
+        f"against detection_compiler_timeout; probe output: {output!r}"
     )
-    assert (
-        "Regex timeout exceeded for pattern" in output
-        or "Pattern timeout:" in output
-        or "Pattern exceeded scan time budget" in output
-    ), (
-        "detection_compiler_timeout's cutoff did not produce its documented "
-        f"warning log line; probe output: {output!r}"
+
+
+SLOW_REQUEST_CONFIG = {
+    "detection_compiler_timeout": 0.1,
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+    "smoke_slow_pattern": "(a+)+$",
+}
+
+
+@scenario(covers={"detection_compiler_timeout"}, config=SLOW_REQUEST_CONFIG)
+def a_request_whose_scan_overruns_the_compiler_timeout_logs_the_warning(
+    ctx: ScenarioContext,
+) -> None:
+    mark = ctx.stack.logs.mark()
+    ctx.client.get("/basic/ip", params={"q": "a" * 23 + "!"})
+
+    lines = ctx.stack.logs.lines_since(mark, "Pattern timeout:")
+    assert any("(a+)+$" in line for line in lines), (
+        "a request whose regex scan used more than detection_compiler_timeout "
+        f"of CPU did not log the documented Pattern timeout warning: {lines!r}"
     )
 
 
