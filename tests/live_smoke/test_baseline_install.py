@@ -144,7 +144,11 @@ def test_the_baseline_wheel_install_brings_its_declared_extras(tmp_path: Path) -
     )
     dockerfile = (STACK / "Dockerfile").read_text()
     assert '"$(ls /wheels/fastapi_guard-*.whl)[redis,geo,cloud]"' in dockerfile
-    assert '--exclude-newer "$(cat /wheels/baseline-date.txt)"' in dockerfile
+    baseline_branch = dockerfile.split("if [ -f /wheels/baseline-date.txt ]")[1].split(
+        "else"
+    )[0]
+    assert '--exclude-newer "$(cat /wheels/baseline-date.txt)"' in baseline_branch
+    assert "redis guard-agent" in baseline_branch
 
     subprocess.run(["uv", "venv", "-q", str(tmp_path / "venv")], check=True)
 
@@ -155,3 +159,23 @@ def test_the_baseline_wheel_install_brings_its_declared_extras(tmp_path: Path) -
     assert " + redis==" in result.stderr
     assert " + maxminddb==" in result.stderr
     assert "does not have an extra named `cloud`" in result.stderr
+
+
+def test_a_server_package_installed_with_the_baseline_wheel_respects_the_cutoff(
+    tmp_path: Path, index: str
+) -> None:
+    wheel = _wheel(tmp_path, "v8shaped", "8.0.2", "Requires-Dist: fakeguard\n")
+    subprocess.run(["uv", "venv", "-q", str(tmp_path / "venv")], check=True)
+    python = str(tmp_path / "venv" / "bin" / "python")
+
+    one_resolution = _dry_run(
+        "--index-url",
+        index,
+        "--exclude-newer",
+        "2026-01-15T12:00:00+01:00",
+        "fakeguard",
+        str(wheel),
+        python=python,
+    )
+
+    assert " + fakeguard==1.0.0" in one_resolution.stderr

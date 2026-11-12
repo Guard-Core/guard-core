@@ -11,19 +11,22 @@ COPY wheels/ /wheels/
 # unless LIVE_SMOKE_BASELINE names a released tag, this checkout's guard-core wheel,
 # so the example and the libraries are one commit. For a baseline tag guard-core
 # resolves from PyPI within that tag's own requirements, as of the tag's commit date
-# (baseline-date.txt), so a later guard-core release cannot leak into the baseline.
+# (baseline-date.txt), and so do the server packages, in one resolution, so a later
+# release of any of them cannot leak into the baseline.
 RUN uv venv .venv && \
-    uv pip install --python .venv/bin/python gunicorn uvicorn websockets redis guard-agent httpx \
-        opentelemetry-sdk opentelemetry-exporter-otlp-proto-http logfire && \
-    if ls /wheels/guard_core-*.whl >/dev/null 2>&1; then \
-        uv pip install --python .venv/bin/python /wheels/fastapi_guard-*.whl \
-            "$(ls /wheels/guard_core-*.whl)[redis,geo,cloud]"; \
-    else \
+    if [ -f /wheels/baseline-date.txt ]; then \
         uv pip install --python .venv/bin/python \
             --exclude-newer "$(cat /wheels/baseline-date.txt)" \
+            gunicorn uvicorn websockets redis guard-agent httpx \
+            opentelemetry-sdk opentelemetry-exporter-otlp-proto-http logfire \
             "$(ls /wheels/fastapi_guard-*.whl)[redis,geo,cloud]"; \
+    else \
+        uv pip install --python .venv/bin/python gunicorn uvicorn websockets redis guard-agent httpx \
+            opentelemetry-sdk opentelemetry-exporter-otlp-proto-http logfire && \
+        uv pip install --python .venv/bin/python /wheels/fastapi_guard-*.whl \
+            "$(ls /wheels/guard_core-*.whl)[redis,geo,cloud]"; \
     fi && \
-    .venv/bin/python -c "import guard_core, importlib.metadata as m; import guard; print('guard-core', m.version('guard-core'), guard_core.__file__, 'fastapi-guard', m.version('fastapi-guard'), guard.__file__)"
+    .venv/bin/python -c "import guard_core, importlib.metadata as m; import guard; print('guard-core', m.version('guard-core'), guard_core.__file__, 'fastapi-guard', m.version('fastapi-guard'), guard.__file__, 'guard-agent', m.version('guard-agent'), 'redis-py', m.version('redis'))"
 
 RUN mkdir -m 700 /var/lib/guard-cache
 
