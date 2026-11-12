@@ -317,3 +317,20 @@ async def engine_commands_sent(
         f"server counted {served} on them: {dict(sent_on_live_connections)}"
     )
     return sent[command] if command else sum(sent.values())
+
+
+async def engine_scan_passes(engine_url: str | None) -> list[str]:
+    """The MATCH pattern of every SCAN pass the engine started (a SCAN with
+    cursor 0), in order. A pass takes as many SCAN commands as the database
+    has keys for, so the pass is the unit a test can pin, not the command. The
+    completeness proof of `engine_commands_sent` runs first."""
+    await engine_commands_sent(engine_url, "scan")
+    monitor = _MONITORS[_required(engine_url)]
+    return [
+        arguments[arguments.index("MATCH") + 1]
+        for owner, _address, arguments in monitor.snapshot()
+        if owner in monitor.engine_addresses
+        and arguments[0].lower() == "scan"
+        and arguments[1] == "0"
+        and "MATCH" in arguments
+    ]

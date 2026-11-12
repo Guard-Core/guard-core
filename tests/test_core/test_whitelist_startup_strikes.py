@@ -24,6 +24,7 @@ from tests.conftest import REDIS_URL, suite_redis_prefix
 from tests.engine_redis_commands import (
     engine_commands_sent,
     engine_redis_url,
+    engine_scan_passes,
     unwatch_engine_commands,
 )
 
@@ -253,12 +254,15 @@ async def test_an_empty_whitelist_stores_its_fingerprint_with_only_the_carve_sca
     redis: RedisManager, ban_manager: IPBanManager
 ) -> None:
     config = _config(redis_prefix=redis.config.redis_prefix)
-    before = await _scans(redis)
+    before = await engine_scan_passes(redis.config.redis_url)
 
     await reset_strikes_for_changed_whitelist(config, redis, ban_manager)
 
     assert await _keys(redis, "whitelist:strikes_applied")
-    assert await _scans(redis) - before == 1
+    # one SCAN pass takes as many SCAN commands as the database has keys, so
+    # pin the passes: the carve pass only, no strike pass
+    passes = (await engine_scan_passes(redis.config.redis_url))[len(before) :]
+    assert passes == [f"{redis.config.redis_prefix}banned_identities:*"]
 
 
 async def test_a_disabled_redis_takes_no_lock() -> None:
