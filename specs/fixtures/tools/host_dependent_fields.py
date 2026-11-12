@@ -12,7 +12,9 @@ value) and the line that writes it.
 from __future__ import annotations
 
 import copy
-from typing import Any
+from typing import TypeVar
+
+Payload = TypeVar("Payload")
 
 HOST_DEPENDENT_FIELDS: dict[str, dict[tuple[str, ...], str]] = {
     "index.json": {
@@ -75,12 +77,14 @@ HOST_DEPENDENT_FIELDS: dict[str, dict[tuple[str, ...], str]] = {
 }
 
 
-def _drop(node: Any, path: tuple[str, ...]) -> None:
+def _drop(node: object, path: tuple[str, ...]) -> None:
     head, rest = path[0], path[1:]
     if head == "*":
-        children = node if isinstance(node, list) else list(node.values())
-        for child in children:
-            _drop(child, rest)
+        if isinstance(node, dict):
+            node = list(node.values())
+        if isinstance(node, list):
+            for child in node:
+                _drop(child, rest)
         return
     if not isinstance(node, dict) or head not in node:
         return
@@ -90,7 +94,7 @@ def _drop(node: Any, path: tuple[str, ...]) -> None:
         del node[head]
 
 
-def without_host_fields(file_name: str, payload: Any) -> Any:
+def without_host_fields(file_name: str, payload: Payload) -> Payload:
     """A copy of the parsed corpus file with its host-dependent fields removed."""
     masked = copy.deepcopy(payload)
     for path in HOST_DEPENDENT_FIELDS.get(file_name, {}):
