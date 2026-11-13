@@ -3,7 +3,7 @@
   "kind": "misconfiguration",
   "spec_version": "4.1.0",
   "engine_version": "5.0.0",
-  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Input: config, the stated SecurityConfig fields (snake_case, JSON safe, a tuple is a [limit, window] array); the runner adds fail_on_misconfiguration itself unless flag_stated is false, which leaves it unset. A config states exactly what it lists, because the changed_default.* kinds report a field the config leaves unset.",
+  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Input: config, the stated SecurityConfig fields (snake_case, JSON safe, a tuple is a [limit, window] array); the runner adds fail_on_misconfiguration itself unless flag_stated is false, which leaves it unset. A config states exactly what it lists, because the changed_default.* kinds report a field the config leaves unset. geo, optional, is \"stub\" for a config that holds a configured GeoIP handler, which the country fields need.",
   "kinds": {
     "agent_endpoint.insecure_remote_http": {
       "severity": "warn",
@@ -46,6 +46,12 @@
       "scope": "config",
       "subject": "null",
       "description": "whitelist_access_only is left unset beside a whitelist and its default changed in 5.0.0"
+    },
+    "config.unknown_field": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "the unknown field name as given",
+      "description": "SecurityConfig is given a field it does not have, which is ignored"
     },
     "cors.wildcard_origin_with_credentials": {
       "severity": "error",
@@ -154,6 +160,12 @@
       "scope": "config",
       "subject": "null",
       "description": "whitelist holds a /0 network"
+    },
+    "whitelist_countries.shadows_blocked_countries": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "whitelist_countries and blocked_countries are both non-empty, so blocked_countries has no effect"
     }
   },
   "cases": [
@@ -2571,6 +2583,118 @@
             "/users/(\\d+)"
           ]
         ]
+      }
+    },
+    {
+      "id": "unknown_field_is_reported",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "colour": "red"
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "config.unknown_field",
+            "colour"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "two_unknown_fields_are_reported",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "colour": "red",
+          "shade": "blue"
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "config.unknown_field",
+            "colour"
+          ],
+          [
+            "config.unknown_field",
+            "shade"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "whitelist_countries_shadows_blocked_countries",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "whitelist_countries": [
+            "FR"
+          ],
+          "blocked_countries": [
+            "CN"
+          ]
+        },
+        "geo": "stub"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "whitelist_countries.shadows_blocked_countries",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "whitelist_countries_alone",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "whitelist_countries": [
+            "FR"
+          ]
+        },
+        "geo": "stub"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "blocked_countries_alone",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "blocked_countries": [
+            "CN"
+          ]
+        },
+        "geo": "stub"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
       }
     }
   ]

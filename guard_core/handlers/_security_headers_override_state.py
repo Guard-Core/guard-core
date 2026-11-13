@@ -4,6 +4,12 @@ from collections.abc import Mapping, Sequence
 from cachetools import TTLCache
 
 from guard_core import _security_headers_override as clocks
+from guard_core._misconfiguration_kinds import (
+    K_CORS_OVERRIDE_FIELDS_REFUSED,
+    K_CORS_OVERRIDE_REFUSED,
+    K_CORS_OVERRIDE_WIDENS,
+    kinds_log_extra,
+)
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import (
     CORS_EVENTED,
@@ -131,10 +137,16 @@ class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
         self, base: CorsParams, merged: CorsParams, reason: str | None
     ) -> None:
         if reason is not None and merged is not base:
-            self.logger.warning("CORS override fields refused for this app: %s", reason)
+            self.logger.warning(
+                "CORS override fields refused for this app: %s",
+                reason,
+                extra=kinds_log_extra(K_CORS_OVERRIDE_FIELDS_REFUSED, None),
+            )
         elif reason is not None:
             self.logger.warning(
-                "CORS override refused for this app, it keeps its own CORS: %s", reason
+                "CORS override refused for this app, it keeps its own CORS: %s",
+                reason,
+                extra=kinds_log_extra(K_CORS_OVERRIDE_REFUSED, None),
             )
         elif cors_widens(base, merged):
             self.logger.warning(
@@ -146,6 +158,7 @@ class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
                 "; the app was built without CORS and may run its own CORS layer"
                 if not base.enabled
                 else "",
+                extra=kinds_log_extra(K_CORS_OVERRIDE_WIDENS, None),
             )
         else:
             self.logger.info("CORS override narrows or keeps the CORS of this app")

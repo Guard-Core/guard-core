@@ -6,9 +6,11 @@ from guard_core._misconfiguration_kinds import (
     K_BLOCK_CLOUDS_EMPTY_LIST,
     K_BLOCK_CLOUDS_UNKNOWN_PROVIDER,
     K_BLOCK_COUNTRIES_EMPTY_LIST,
+    K_BYPASS_UNKNOWN_CHECK,
     K_REQUIRE_IP_EMPTY_WHITELIST,
     K_REQUIRE_IP_INVALID_ENTRY,
     Problem,
+    kinds_log_extra,
 )
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
@@ -182,6 +184,10 @@ class AccessControlMixin(BaseSecurityMixin):
                 logging.getLogger("guard_core.sync.decorators").warning(
                     "@bypass: ignored unknown checks %s",
                     sorted(invalid, key=str),
+                    extra=kinds_log_extra(
+                        K_BYPASS_UNKNOWN_CHECK,
+                        ", ".join(sorted(map(str, invalid))),
+                    ),
                 )
             return self._apply_route_config(func)
 

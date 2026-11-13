@@ -315,6 +315,200 @@ K_STATIC_ROUTE_PREFIXES_RAISED = _kind(
     NO_SUBJECT,
     "static_route_prefixes raised during the exclude_paths route check",
 )
+K_CONFIG_UNKNOWN_FIELD = _kind(
+    "config.unknown_field",
+    "warn",
+    "config",
+    "the unknown field name as given",
+    "SecurityConfig is given a field it does not have, which is ignored",
+)
+K_COUNTRY_ALLOWLIST_SHADOWS_BLOCKLIST = _kind(
+    "whitelist_countries.shadows_blocked_countries",
+    "warn",
+    "config",
+    NO_SUBJECT,
+    "whitelist_countries and blocked_countries are both non-empty, so "
+    "blocked_countries has no effect",
+)
+K_CSP_UNSAFE_SOURCE = _kind(
+    "security_headers.csp_unsafe_source",
+    "warn",
+    "runtime",
+    "the CSP directive",
+    "a csp directive holds 'unsafe-inline' or 'unsafe-eval', and is kept as given",
+)
+K_HSTS_PRELOAD_MAX_AGE_TOO_LOW = _kind(
+    "security_headers.hsts_preload_max_age_too_low",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "hsts preload is asked for with a max_age below 31536000, and preload is turned "
+    "off",
+)
+K_HSTS_PRELOAD_WITHOUT_INCLUDE_SUBDOMAINS = _kind(
+    "security_headers.hsts_preload_without_include_subdomains",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "hsts preload is asked for without includeSubDomains, and includeSubDomains is "
+    "turned on",
+)
+K_CORS_WILDCARD_CREDENTIALS_DROPPED = _kind(
+    "cors.wildcard_origin_with_credentials_dropped",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a headers manager is given a wildcard origin and credentials, and drops the "
+    "credentials",
+)
+K_CORS_WILDCARD_CREDENTIALS_BLOCKED = _kind(
+    "cors.wildcard_origin_with_credentials_blocked",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a response with an Origin header meets a wildcard origin with credentials, and "
+    "no CORS header is emitted",
+)
+K_REDIS_PREFIX_SPLIT_CONNECTION = _kind(
+    "redis_prefix.split_connection",
+    "warn",
+    "runtime",
+    "the shared redis_prefix",
+    "two apps use one redis_prefix on different Redis connections",
+)
+K_BAN_UNENFORCED_FOR_APP = _kind(
+    "ban.unenforced_for_app",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a stored ban is on a trusted proxy or loopback address of the app, so the app "
+    "does not enforce it",
+)
+K_REDIS_URL_NONE_WITH_ENABLE_REDIS = _kind(
+    "redis_url.none_with_enable_redis",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "enable_redis is on and redis_url is None, so no Redis connection is made",
+)
+K_CORS_OVERRIDE_FIELDS_REFUSED = _kind(
+    "cors_override.fields_refused",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a configure() override gives CORS fields this app refuses, and they are dropped",
+)
+K_CORS_OVERRIDE_REFUSED = _kind(
+    "cors_override.refused",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a configure() override of the CORS settings is refused, and the app keeps its own",
+)
+K_CORS_OVERRIDE_WIDENS = _kind(
+    "cors_override.widens",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a configure() override widens the CORS of this app",
+)
+K_CORS_HEADER_VALUE_INVALID = _kind(
+    "cors.header_value_invalid",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a configured CORS value is not a valid header value, so no CORS header is emitted",
+)
+K_DYNAMIC_RULES_ENABLED_WITHOUT_AGENT = _kind(
+    "dynamic_rules.enabled_without_agent",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "enable_dynamic_rules is on and the app has no agent handler, so dynamic rules "
+    "never arrive",
+)
+K_FORWARDED_HEADER_PREEMPTED = _kind(
+    "forwarded_header.preempted_by_server",
+    "warn",
+    "runtime",
+    "the trusted_proxy_depth setting",
+    "the application server resolved the client from X-Forwarded-For before guard- "
+    "core ran",
+)
+K_TRUSTED_PROXY_DEPTH_CHAIN_TOO_SHORT = _kind(
+    "trusted_proxy_depth.chain_too_short",
+    "warn",
+    "runtime",
+    "the trusted_proxy_depth setting",
+    "the X-Forwarded-For chain is shorter than trusted_proxy_depth",
+)
+K_TRUSTED_PROXY_DEPTH_SELECTS_TRUSTED_PROXY = _kind(
+    "trusted_proxy_depth.selects_trusted_proxy",
+    "warn",
+    "runtime",
+    "the trusted_proxy_depth setting",
+    "trusted_proxy_depth selects an address that is itself a trusted proxy",
+)
+K_TRUSTED_PROXY_DEPTH_OVERCOUNTS_HOPS = _kind(
+    "trusted_proxy_depth.overcounts_hops",
+    "warn",
+    "runtime",
+    "the trusted_proxy_depth setting",
+    "trusted_proxy_depth is higher than the proxy hops listed in trusted_proxies",
+)
+K_BODY_READER_NO_IDLE_DEADLINE = _kind(
+    "body_reader.prefix_without_idle_deadline",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "the request class has read_body_prefix but not read_body_prefix_until_idle, so "
+    "a stalled body has no idle deadline",
+)
+K_BODY_READER_NO_BOUNDED_READER = _kind(
+    "body_reader.no_bounded_reader",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "the request class has no bounded body reader, so the body is read in full with "
+    "no idle deadline",
+)
+K_THROTTLE_NEEDS_MIDDLEWARE = _kind(
+    "behavior_rules.throttle_needs_middleware",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a throttle behavior rule is declared and the adapter passes no middleware, so "
+    "it is only logged",
+)
+K_ROUTE_UNKNOWN_TO_DECORATOR = _kind(
+    "route.unknown_to_decorator",
+    "warn",
+    "runtime",
+    "the route id",
+    "a route carries a route id this SecurityDecorator does not know, so none of "
+    "its decorators apply",
+)
+K_MAX_REQUEST_SIZE_ZERO = _kind(
+    "decorator.max_request_size.zero",
+    "warn",
+    "decorators",
+    NO_SUBJECT,
+    "max_request_size(0) refuses any request body",
+)
+K_BYPASS_UNKNOWN_CHECK = _kind(
+    "decorator.bypass.unknown_check",
+    "warn",
+    "decorators",
+    "the unknown checks as given, sorted and joined by a comma and a space",
+    "a bypass names a check that does not exist, so it is ignored",
+)
+K_REQUIRE_AUTH_CAPITALIZED_SCHEME = _kind(
+    "decorator.require_auth.capitalized_scheme",
+    "warn",
+    "decorators",
+    NO_SUBJECT,
+    "require_auth names a built-in scheme with other capitalization",
+)
 K_TIME_WINDOW_INVALID_TIME = _kind(
     "decorator.time_window.invalid_time",
     "error",

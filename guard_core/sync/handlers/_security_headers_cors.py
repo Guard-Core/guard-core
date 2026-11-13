@@ -1,6 +1,11 @@
 import logging
 from abc import abstractmethod
 
+from guard_core._misconfiguration_kinds import (
+    K_CORS_HEADER_VALUE_INVALID,
+    K_CORS_WILDCARD_CREDENTIALS_BLOCKED,
+    kinds_log_extra,
+)
 from guard_core._security_headers_override import OverrideRecord
 from guard_core.models import SyncSecurityConfig
 
@@ -43,7 +48,8 @@ class SecurityHeadersCorsMixin:
         )
         if effective_cors_config and effective_cors_config.get("allow_credentials"):
             self.logger.warning(
-                "Credentials cannot be used with wildcard origin - blocking CORS"
+                "Credentials cannot be used with wildcard origin - blocking CORS",
+                extra=kinds_log_extra(K_CORS_WILDCARD_CREDENTIALS_BLOCKED, None),
             )
             return True
 
@@ -130,5 +136,8 @@ class SecurityHeadersCorsMixin:
                 origin, allowed_origins, allow_methods, allow_headers, cors_config
             )
         except ValueError:
-            self.logger.warning("CORS headers not emitted, a header value is invalid")
+            self.logger.warning(
+                "CORS headers not emitted, a header value is invalid",
+                extra=kinds_log_extra(K_CORS_HEADER_VALUE_INVALID, None),
+            )
             return {}

@@ -3,13 +3,73 @@
   "kind": "misconfiguration",
   "spec_version": "4.1.0",
   "engine_version": "5.0.0",
-  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Tier 2: each case names a seam (ban_thresholds, nat64, redis_handler, country_decorators, ipv6_prefix_length, endpoint_key_routes, exclude_paths_routes, declared_path_params, lazy_init_without_redis, ipinfo_download_url_ignored, purge_on_start_left_set) and gives that seam's stubs; a port wires the same stubs around its own reporter. The reference reports a default redis_prefix once per process; a runner resets that memory per case.",
+  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Tier 2: each case names a seam (ban_thresholds, nat64, redis_handler, country_decorators, ipv6_prefix_length, endpoint_key_routes, exclude_paths_routes, declared_path_params, lazy_init_without_redis, ipinfo_download_url_ignored, purge_on_start_left_set, security_headers_config, cors_response_wildcard, redis_prefix_split, unenforced_ban, route_unknown_to_decorator, redis_url_none, cors_override, cors_header_value, dynamic_rules_agent, forwarded_header, body_reader_fallback, throttle_without_middleware) and gives that seam's stubs; a port wires the same stubs around its own reporter. The reference reports a default redis_prefix once per process; a runner resets that memory per case.",
   "kinds": {
     "auto_ban_threshold.unreachable": {
       "severity": "error",
       "scope": "runtime",
       "subject": "null",
       "description": "auto_ban_threshold is above the strikes one client can produce in the window"
+    },
+    "ban.unenforced_for_app": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "a stored ban is on a trusted proxy or loopback address of the app, so the app does not enforce it"
+    },
+    "behavior_rules.throttle_needs_middleware": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "a throttle behavior rule is declared and the adapter passes no middleware, so it is only logged"
+    },
+    "body_reader.no_bounded_reader": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "the request class has no bounded body reader, so the body is read in full with no idle deadline"
+    },
+    "body_reader.prefix_without_idle_deadline": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "the request class has read_body_prefix but not read_body_prefix_until_idle, so a stalled body has no idle deadline"
+    },
+    "cors.header_value_invalid": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "a configured CORS value is not a valid header value, so no CORS header is emitted"
+    },
+    "cors.wildcard_origin_with_credentials_blocked": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "a response with an Origin header meets a wildcard origin with credentials, and no CORS header is emitted"
+    },
+    "cors.wildcard_origin_with_credentials_dropped": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "a headers manager is given a wildcard origin and credentials, and drops the credentials"
+    },
+    "cors_override.fields_refused": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "a configure() override gives CORS fields this app refuses, and they are dropped"
+    },
+    "cors_override.refused": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "a configure() override of the CORS settings is refused, and the app keeps its own"
+    },
+    "cors_override.widens": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "a configure() override widens the CORS of this app"
     },
     "decorator.detection_exclusion.param_not_in_template": {
       "severity": "error",
@@ -22,6 +82,12 @@
       "scope": "decorators",
       "subject": "the declared parameter name",
       "description": "a path_params name of @detection_exclusion has no literal segment before it in the route template, so it would exempt the whole path from the probe rows"
+    },
+    "dynamic_rules.enabled_without_agent": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "enable_dynamic_rules is on and the app has no agent handler, so dynamic rules never arrive"
     },
     "endpoint_rate_limits.matches_no_route": {
       "severity": "warn",
@@ -46,6 +112,12 @@
       "scope": "runtime",
       "subject": "null",
       "description": "static_route_prefixes raised during the exclude_paths route check"
+    },
+    "forwarded_header.preempted_by_server": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the trusted_proxy_depth setting",
+      "description": "the application server resolved the client from X-Forwarded-For before guard- core ran"
     },
     "ipinfo_download_url.ignored": {
       "severity": "warn",
@@ -89,17 +161,71 @@
       "subject": "null",
       "description": "the Redis handler lacks members of the handler protocol"
     },
+    "redis_prefix.split_connection": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the shared redis_prefix",
+      "description": "two apps use one redis_prefix on different Redis connections"
+    },
+    "redis_url.none_with_enable_redis": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "enable_redis is on and redis_url is None, so no Redis connection is made"
+    },
     "route.country_rule_without_geoip": {
       "severity": "error",
       "scope": "runtime",
       "subject": "the route id",
       "description": "a route uses a country rule and no GeoIP source is configured"
     },
+    "route.unknown_to_decorator": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the route id",
+      "description": "a route carries a route id this SecurityDecorator does not know, so none of its decorators apply"
+    },
+    "security_headers.csp_unsafe_source": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the CSP directive",
+      "description": "a csp directive holds 'unsafe-inline' or 'unsafe-eval', and is kept as given"
+    },
+    "security_headers.hsts_preload_max_age_too_low": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "hsts preload is asked for with a max_age below 31536000, and preload is turned off"
+    },
+    "security_headers.hsts_preload_without_include_subdomains": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "hsts preload is asked for without includeSubDomains, and includeSubDomains is turned on"
+    },
     "threat_ban_config.unreachable": {
       "severity": "error",
       "scope": "runtime",
       "subject": "the threat_ban_config category",
       "description": "a category threshold is above the strikes one client can produce in the window"
+    },
+    "trusted_proxy_depth.chain_too_short": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the trusted_proxy_depth setting",
+      "description": "the X-Forwarded-For chain is shorter than trusted_proxy_depth"
+    },
+    "trusted_proxy_depth.overcounts_hops": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the trusted_proxy_depth setting",
+      "description": "trusted_proxy_depth is higher than the proxy hops listed in trusted_proxies"
+    },
+    "trusted_proxy_depth.selects_trusted_proxy": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the trusted_proxy_depth setting",
+      "description": "trusted_proxy_depth selects an address that is itself a trusted proxy"
     }
   },
   "cases": [
@@ -1296,6 +1422,589 @@
           [
             "purge_dynamic_rules_on_start.left_set",
             "rule-1:3"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "csp_unsafe_inline",
+      "input": {
+        "seam": "security_headers_config",
+        "csp": {
+          "script-src": [
+            "'self'",
+            "'unsafe-inline'"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "security_headers.csp_unsafe_source",
+            "script-src"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "csp_unsafe_eval_in_two_directives",
+      "input": {
+        "seam": "security_headers_config",
+        "csp": {
+          "script-src": [
+            "'unsafe-eval'"
+          ],
+          "style-src": [
+            "'unsafe-inline'"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "security_headers.csp_unsafe_source",
+            "script-src"
+          ],
+          [
+            "security_headers.csp_unsafe_source",
+            "style-src"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "csp_without_unsafe_sources",
+      "input": {
+        "seam": "security_headers_config",
+        "csp": {
+          "default-src": [
+            "'self'"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "hsts_preload_with_a_short_max_age",
+      "input": {
+        "seam": "security_headers_config",
+        "hsts": {
+          "max_age": 86400,
+          "include_subdomains": true,
+          "preload": true
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "security_headers.hsts_preload_max_age_too_low",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "hsts_preload_without_include_subdomains",
+      "input": {
+        "seam": "security_headers_config",
+        "hsts": {
+          "max_age": 31536000,
+          "include_subdomains": false,
+          "preload": true
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "security_headers.hsts_preload_without_include_subdomains",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "hsts_preload_short_max_age_and_no_include_subdomains",
+      "input": {
+        "seam": "security_headers_config",
+        "hsts": {
+          "max_age": 86400,
+          "include_subdomains": false,
+          "preload": true
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "security_headers.hsts_preload_max_age_too_low",
+            null
+          ],
+          [
+            "security_headers.hsts_preload_without_include_subdomains",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "hsts_preload_valid",
+      "input": {
+        "seam": "security_headers_config",
+        "hsts": {
+          "max_age": 31536000,
+          "include_subdomains": true,
+          "preload": true
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "hsts_without_preload",
+      "input": {
+        "seam": "security_headers_config",
+        "hsts": {
+          "max_age": 86400,
+          "include_subdomains": false,
+          "preload": false
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_wildcard_origin_with_credentials_is_dropped",
+      "input": {
+        "seam": "security_headers_config",
+        "cors": {
+          "origins": [
+            "*"
+          ],
+          "allow_credentials": true
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "cors.wildcard_origin_with_credentials_dropped",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_wildcard_origin_without_credentials",
+      "input": {
+        "seam": "security_headers_config",
+        "cors": {
+          "origins": [
+            "*"
+          ],
+          "allow_credentials": false
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_response_wildcard_with_credentials_is_blocked",
+      "input": {
+        "seam": "cors_response_wildcard",
+        "origins": [
+          "*"
+        ],
+        "allow_credentials": true
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "cors.wildcard_origin_with_credentials_blocked",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_response_wildcard_without_credentials",
+      "input": {
+        "seam": "cors_response_wildcard",
+        "origins": [
+          "*"
+        ],
+        "allow_credentials": false
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "redis_prefix_on_two_connections",
+      "input": {
+        "seam": "redis_prefix_split",
+        "prefix": "guard_core:",
+        "first_url": "redis://a.example:6379/0",
+        "second_url": "redis://b.example:6379/0"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "redis_prefix.split_connection",
+            "guard_core:"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "unenforced_ban_is_reported_once_per_address",
+      "input": {
+        "seam": "unenforced_ban",
+        "self_dos": true,
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "ban.unenforced_for_app",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "enforced_ban_is_not_reported",
+      "input": {
+        "seam": "unenforced_ban",
+        "self_dos": false
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "redis_enabled_without_a_url",
+      "input": {
+        "seam": "redis_url_none",
+        "enable_redis": true
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "redis_url.none_with_enable_redis",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "redis_disabled_without_a_url",
+      "input": {
+        "seam": "redis_url_none",
+        "enable_redis": false
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_override_fields_refused",
+      "input": {
+        "seam": "cors_override",
+        "branch": "fields_refused"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "cors_override.fields_refused",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_override_refused",
+      "input": {
+        "seam": "cors_override",
+        "branch": "refused"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "cors_override.refused",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_override_widens",
+      "input": {
+        "seam": "cors_override",
+        "branch": "widens"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "cors_override.widens",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_override_unchanged",
+      "input": {
+        "seam": "cors_override",
+        "branch": "unchanged"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_configured_method_is_no_header_value",
+      "input": {
+        "seam": "cors_header_value",
+        "origin": "https://a.example",
+        "method": "GE\nT"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "cors.header_value_invalid",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_request_origin_with_a_control_character",
+      "input": {
+        "seam": "cors_header_value",
+        "origin": "https://a.example\r\nX: y",
+        "method": "GET"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "dynamic_rules_enabled_without_an_agent",
+      "input": {
+        "seam": "dynamic_rules_agent",
+        "enable_dynamic_rules": true
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "dynamic_rules.enabled_without_agent",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "dynamic_rules_disabled_without_an_agent",
+      "input": {
+        "seam": "dynamic_rules_agent",
+        "enable_dynamic_rules": false
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "forwarded_chain_preempted_by_the_server_is_reported_once",
+      "input": {
+        "seam": "forwarded_header",
+        "warning": "preempted",
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "forwarded_header.preempted_by_server",
+            "trusted_proxy_depth"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "forwarded_chain_shorter_than_the_depth_is_reported_once",
+      "input": {
+        "seam": "forwarded_header",
+        "warning": "chain_too_short",
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "trusted_proxy_depth.chain_too_short",
+            "trusted_proxy_depth"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "depth_selecting_a_trusted_proxy_is_reported_once",
+      "input": {
+        "seam": "forwarded_header",
+        "warning": "selects_trusted_proxy",
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "trusted_proxy_depth.selects_trusted_proxy",
+            "trusted_proxy_depth"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "depth_overcounting_the_hops_is_reported_once",
+      "input": {
+        "seam": "forwarded_header",
+        "warning": "overcounts_hops",
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "trusted_proxy_depth.overcounts_hops",
+            "trusted_proxy_depth"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "request_class_without_an_idle_deadline_is_reported_once",
+      "input": {
+        "seam": "body_reader_fallback",
+        "reader": "prefix",
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "body_reader.prefix_without_idle_deadline",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "request_class_without_a_bounded_reader_is_reported_once",
+      "input": {
+        "seam": "body_reader_fallback",
+        "reader": "full",
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "body_reader.no_bounded_reader",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "throttle_rule_without_a_middleware_is_reported_once",
+      "input": {
+        "seam": "throttle_without_middleware",
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "behavior_rules.throttle_needs_middleware",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "route_unknown_to_the_decorator_is_reported_once",
+      "input": {
+        "seam": "route_unknown_to_decorator",
+        "route_id": "pkg.module.handler",
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "route.unknown_to_decorator",
+            "pkg.module.handler"
           ]
         ],
         "fatal": []

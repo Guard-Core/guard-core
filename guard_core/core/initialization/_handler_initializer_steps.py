@@ -4,6 +4,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING, Protocol
 
 from guard_core._misconfiguration_kinds import (
+    K_DYNAMIC_RULES_ENABLED_WITHOUT_AGENT,
     K_LAZY_INIT_WITHOUT_REDIS,
     kinds_log_extra,
 )
@@ -312,9 +313,11 @@ class _HandlerInitializerStepsMixin(
             return
         if not self.agent_handler:
             self.logger.warning(
-                "Dynamic rules enabled but agent unavailable; falling back to "
-                "static config. Dashboard rule updates will not propagate until "
-                "agent connectivity is restored."
+                "enable_dynamic_rules is True but this app has no agent handler, so "
+                "no dynamic rule can arrive and the static configuration stays in "
+                "force. Start the agent (enable_agent=True with the guard-agent "
+                "package installed) or set enable_dynamic_rules=False.",
+                extra=kinds_log_extra(K_DYNAMIC_RULES_ENABLED_WITHOUT_AGENT, None),
             )
             return
 

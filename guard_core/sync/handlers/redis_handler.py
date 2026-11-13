@@ -13,6 +13,10 @@ from typing import TYPE_CHECKING, NoReturn, TypeGuard, cast
 
 from typing_extensions import ContextManager
 
+from guard_core._misconfiguration_kinds import (
+    K_REDIS_URL_NONE_WITH_ENABLE_REDIS,
+    kinds_log_extra,
+)
 from guard_core._redis_abandoned_client import sweep_no_abandoned_clients
 from guard_core._redis_client_loop import EventLoop, running_loop_or_none
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
@@ -295,7 +299,10 @@ class RedisManager(RedisOutageMixin, RedisBanStrikeMixin):
         url = configured_redis_url(config)
         if url is None:
             if config.enable_redis:
-                self.logger.warning("Redis URL is None, skipping connection")
+                self.logger.warning(
+                    "Redis URL is None, skipping connection",
+                    extra=kinds_log_extra(K_REDIS_URL_NONE_WITH_ENABLE_REDIS, None),
+                )
             with self._connection_lock_here():
                 self._discard_client()
             return

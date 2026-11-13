@@ -1,3 +1,7 @@
+from guard_core._misconfiguration_kinds import (
+    K_ROUTE_UNKNOWN_TO_DECORATOR,
+    kinds_log_extra,
+)
 from guard_core.sync.core.routing.context import RoutingContext
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers._cloud_provider_registry import merge_cloud_selectors
@@ -21,6 +25,7 @@ class RouteConfigResolver:
             "know: it was decorated by a different SecurityDecorator instance "
             "than the one the middleware uses, so none of its decorators apply.",
             route_id,
+            extra=kinds_log_extra(K_ROUTE_UNKNOWN_TO_DECORATOR, route_id),
         )
 
     def get_route_config(self, request: SyncGuardRequest) -> RouteConfig | None:

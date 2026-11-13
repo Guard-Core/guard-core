@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Callable
 
+from guard_core._misconfiguration_kinds import K_MAX_REQUEST_SIZE_ZERO, kinds_log_extra
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.decorators.base import (
@@ -81,6 +82,7 @@ class ContentFilteringMixin(BaseSecurityMixin):
                     "max_request_size(0) on %s: 0 now refuses any request body; "
                     "use None for no limit",
                     getattr(func, "__qualname__", repr(func)),
+                    extra=kinds_log_extra(K_MAX_REQUEST_SIZE_ZERO, None),
                 )
             route_config = self._ensure_route_config(func)
             route_config.max_request_size = size_bytes

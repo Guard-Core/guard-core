@@ -288,6 +288,12 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         known.update(field.alias for field in fields.values() if field.alias)
 
         unknown = not_a_field_name - known
+        # imported here so the names stay out of the public namespace of this module
+        from guard_core._misconfiguration_kinds import (
+            K_CONFIG_UNKNOWN_FIELD,
+            kinds_log_extra,
+        )
+
         for key in sorted(unknown):
             match = difflib.get_close_matches(str(key), known, n=1)
             hint = f" Did you mean '{match[0]}'?" if match else ""
@@ -296,6 +302,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
                 "and had no effect.%s",
                 key,
                 hint,
+                extra=kinds_log_extra(K_CONFIG_UNKNOWN_FIELD, str(key)),
             )
         return data
 

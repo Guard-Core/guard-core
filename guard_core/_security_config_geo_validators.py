@@ -8,6 +8,10 @@ from pydantic import BaseModel
 from pydantic_core import PydanticCustomError
 
 from guard_core._config_capabilities import require_geo_extra
+from guard_core._misconfiguration_kinds import (
+    K_COUNTRY_ALLOWLIST_SHADOWS_BLOCKLIST,
+    Problem,
+)
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
@@ -47,14 +51,14 @@ def _validate_geo_ip_handler_value(value: object) -> GeoIPHandler | SyncGeoIPHan
 
 
 def _warn_country_allowlist_shadows_blocklist(*, stacklevel: int) -> None:
-    warnings.warn(
+    problem = Problem(
         "blocked_countries is ignored when whitelist_countries is "
         "non-empty: a non-empty whitelist_countries is restrictive "
         "(only listed countries pass), so blocked_countries has no "
         "effect. Use one or the other.",
-        UserWarning,
-        stacklevel=stacklevel,
+        kind=K_COUNTRY_ALLOWLIST_SHADOWS_BLOCKLIST,
     )
+    warnings.warn(problem, UserWarning, stacklevel=stacklevel)
 
 
 _COUNTRY_CODE = re.compile(r"[A-Za-z]{2}")
