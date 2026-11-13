@@ -47,7 +47,9 @@ def index(tmp_path: Path) -> Iterator[str]:
         def do_GET(self) -> None:
             if self.path.rstrip("/") != "/simple/fakeguard":
                 return super().do_GET()
-            base = f"http://127.0.0.1:{self.server.server_address[1]}"
+            address = self.server.server_address
+            assert isinstance(address, tuple)
+            base = f"http://127.0.0.1:{address[1]}"
             body = json.dumps(
                 {
                     "meta": {"api-version": "1.1"},

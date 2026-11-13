@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator, Generator
 from unittest.mock import patch
 
 import pytest
+from redis.asyncio import Redis
 
 from guard_core.handlers import _ipban_carve
 from guard_core.handlers.ipban_handler import IPBanManager
@@ -253,8 +254,10 @@ async def test_the_redis_rewrite_does_not_extend_a_ban_by_time_lost_mid_move(
         )
     real_plan = _ipban_carve._plan_floor_move
 
-    async def plan_then_stall(*args: object, **kw: object) -> object:
-        plan = await real_plan(*args, **kw)
+    async def plan_then_stall(
+        conn: Redis, stem: str, key: str, target: str
+    ) -> tuple[str, str, str | None, int]:
+        plan = await real_plan(conn, stem, key, target)
         time.sleep(1.5)
         return plan
 

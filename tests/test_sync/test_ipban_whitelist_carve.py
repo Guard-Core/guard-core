@@ -4,6 +4,7 @@ from collections.abc import Generator
 from unittest.mock import patch
 
 import pytest
+from redis import Redis
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import _ipban_carve
@@ -253,8 +254,10 @@ def test_the_redis_rewrite_does_not_extend_a_ban_by_time_lost_mid_move(
         )
     real_plan = _ipban_carve._plan_floor_move
 
-    def plan_then_stall(*args: object, **kw: object) -> object:
-        plan = real_plan(*args, **kw)
+    def plan_then_stall(
+        conn: Redis, stem: str, key: str, target: str
+    ) -> tuple[str, str, str | None, int]:
+        plan = real_plan(conn, stem, key, target)
         time.sleep(1.5)
         return plan
 
