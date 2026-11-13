@@ -768,6 +768,18 @@ def write_corpus(
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
     if write_index:
         (CASES_DIR / "index.json").write_text(json.dumps(index, indent=2) + "\n")
+    else:
+        refresh_suite_counts(index)
+
+
+def refresh_suite_counts(fresh_index: dict) -> None:
+    """After an ``--only`` run: take the suites it wrote from the fresh index into
+    the committed one and keep every other field as committed, so the host-dependent
+    fields (host_dependent_fields.py) are not re-measured."""
+    path = CASES_DIR / "index.json"
+    committed = json.loads(path.read_text())
+    committed["suites"].update(fresh_index["suites"])
+    path.write_text(json.dumps(committed, indent=2) + "\n")
 
 
 def suite_bytes(payload: dict) -> str:

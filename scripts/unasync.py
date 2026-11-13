@@ -57,6 +57,7 @@ SKIP_SRC = {
 }
 
 SKIP_TESTS = {
+    "test_fixture_generator_only_index.py",
     "test_warning_kinds_config_sites.py",
     "warning_site_registry.py",
     "test_misconfiguration_kind_registry.py",
