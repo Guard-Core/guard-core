@@ -95,3 +95,17 @@ async def test_the_helper_runs_once_per_route_however_many_requests(
         await check.check(_bad_request())
 
     assert calls == ["app.item"]
+
+
+def test_the_per_app_cache_is_bounded() -> None:
+    import guard_core._misconfiguration as module
+
+    config = _config(fail_on_misconfiguration=False)
+    cap = module._DECLARED_PROBLEMS_CAP
+
+    for index in range(cap + 1):
+        module.declared_path_problems_of(
+            config, f"route.{index}", "/items/{id}", ["ghost"]
+        )
+
+    assert len(module._declared_problems_found.for_app(config)) == 1
