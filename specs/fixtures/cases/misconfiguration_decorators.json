@@ -50,6 +50,18 @@
       "description": "a country rule is declared and no GeoIP source is configured; checked only while fail_on_misconfiguration is True, so it is fatal and never merely reported",
       "fatal_only": true
     },
+    "decorator.detection_exclusion.param_not_in_template": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the declared parameter name",
+      "description": "a path_params name of @detection_exclusion is not a parameter of the route template, so it exempts nothing"
+    },
+    "decorator.detection_exclusion.param_without_literal_segment": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the declared parameter name",
+      "description": "a path_params name of @detection_exclusion has no literal segment before it in the route template, so it would exempt the whole path from the probe rows"
+    },
     "decorator.geo_rate_limit.below_one": {
       "severity": "error",
       "scope": "decorators",

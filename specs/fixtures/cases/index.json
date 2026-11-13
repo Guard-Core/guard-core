@@ -296,7 +296,7 @@
    ]
   },
   "misconfiguration_runtime": {
-   "case_count": 26,
+   "case_count": 40,
    "kind": "misconfiguration",
    "consumers": [
     "python"

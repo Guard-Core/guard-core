@@ -7,6 +7,11 @@ from functools import lru_cache
 from types import MappingProxyType
 
 from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
+from guard_core._misconfiguration_kinds import (
+    K_DETECTION_EXCLUSION_PARAM_NOT_IN_TEMPLATE,
+    K_DETECTION_EXCLUSION_PARAM_WITHOUT_LITERAL_SEGMENT,
+    Problem,
+)
 from guard_core._utils.route_template import (
     CONVERTER_PARAMETER_SOURCE,
     capture_groups,
@@ -314,6 +319,33 @@ def declared_path_param_problems(
         name: f"is not in the route template {template!r}, so it exempts nothing."
         for name in path_params_missing_from_template(template, declared)
     }
+
+
+def detection_exclusion_path_param_problems(
+    route_id: str, template: str, declared: Collection[str]
+) -> list[Problem]:
+    """The kinded problems of one route's ``@detection_exclusion(path_params=...)``.
+
+    Every adapter reports these through this one helper, so the text and the kind
+    are the same in every framework. The subject is the declared parameter name.
+    """
+    rootless = set(path_params_without_a_literal_segment_before(template, declared))
+    problems = []
+    for name, text in declared_path_param_problems(template, declared).items():
+        kind = (
+            K_DETECTION_EXCLUSION_PARAM_WITHOUT_LITERAL_SEGMENT
+            if name in rootless
+            else K_DETECTION_EXCLUSION_PARAM_NOT_IN_TEMPLATE
+        )
+        problems.append(
+            Problem(
+                f"@detection_exclusion(path_params=...) on route {route_id!r} "
+                f"declares {name!r}, which {text}",
+                kind=kind,
+                subject=name,
+            )
+        )
+    return problems
 
 
 def route_template_event_fields(state: object) -> dict[str, str]:

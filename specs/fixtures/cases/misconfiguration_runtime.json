@@ -3,13 +3,25 @@
   "kind": "misconfiguration",
   "spec_version": "4.1.0",
   "engine_version": "5.0.0",
-  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Tier 2: each case names a seam (ban_thresholds, nat64, redis_handler, country_decorators, ipv6_prefix_length, endpoint_key_routes, exclude_paths_routes) and gives that seam's stubs; a port wires the same stubs around its own reporter. The reference reports a default redis_prefix once per process; a runner resets that memory per case.",
+  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Tier 2: each case names a seam (ban_thresholds, nat64, redis_handler, country_decorators, ipv6_prefix_length, endpoint_key_routes, exclude_paths_routes, declared_path_params) and gives that seam's stubs; a port wires the same stubs around its own reporter. The reference reports a default redis_prefix once per process; a runner resets that memory per case.",
   "kinds": {
     "auto_ban_threshold.unreachable": {
       "severity": "error",
       "scope": "runtime",
       "subject": "null",
       "description": "auto_ban_threshold is above the strikes one client can produce in the window"
+    },
+    "decorator.detection_exclusion.param_not_in_template": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the declared parameter name",
+      "description": "a path_params name of @detection_exclusion is not a parameter of the route template, so it exempts nothing"
+    },
+    "decorator.detection_exclusion.param_without_literal_segment": {
+      "severity": "error",
+      "scope": "decorators",
+      "subject": "the declared parameter name",
+      "description": "a path_params name of @detection_exclusion has no literal segment before it in the route template, so it would exempt the whole path from the probe rows"
     },
     "endpoint_rate_limits.matches_no_route": {
       "severity": "warn",
@@ -786,6 +798,372 @@
             null
           ]
         ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "declared_param_not_in_brace_template",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/items/{item_id:int}",
+        "declared": [
+          "ghost"
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "ghost"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "ghost"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "declared_param_not_in_angle_template",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/items/<int:item_id>",
+        "declared": [
+          "ghost"
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "ghost"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "ghost"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "declared_param_not_in_named_group_template",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/items/(?P<item_id>[0-9]+)",
+        "declared": [
+          "ghost"
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "ghost"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "ghost"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "declared_param_rootless_catch_all",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/{tail:path}",
+        "declared": [
+          "tail"
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.detection_exclusion.param_without_literal_segment",
+            "tail"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.detection_exclusion.param_without_literal_segment",
+            "tail"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "declared_param_rootless_angle",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/<name>",
+        "declared": [
+          "name"
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.detection_exclusion.param_without_literal_segment",
+            "name"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.detection_exclusion.param_without_literal_segment",
+            "name"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "declared_params_missing_and_rootless",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/{tail:path}",
+        "declared": [
+          "tail",
+          "ghost"
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "ghost"
+          ],
+          [
+            "decorator.detection_exclusion.param_without_literal_segment",
+            "tail"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "ghost"
+          ],
+          [
+            "decorator.detection_exclusion.param_without_literal_segment",
+            "tail"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "declared_params_both_missing",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/items/{item_id}",
+        "declared": [
+          "ghost",
+          "phantom"
+        ]
+      },
+      "expected": {
+        "raises": true,
+        "reported": [
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "ghost"
+          ],
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "phantom"
+          ]
+        ],
+        "fatal": [
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "ghost"
+          ],
+          [
+            "decorator.detection_exclusion.param_not_in_template",
+            "phantom"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "declared_param_in_brace_template",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/items/{item_id}",
+        "declared": [
+          "item_id"
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "declared_param_in_brace_converter_template",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/items/{item_id:int}",
+        "declared": [
+          "item_id"
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "declared_param_in_angle_converter_template",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/items/<int:item_id>",
+        "declared": [
+          "item_id"
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "declared_param_in_django_slug_converter_template",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/blog/<slug:post>/edit",
+        "declared": [
+          "post"
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "declared_param_in_tornado_named_group_template",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/items/(?P<item_id>[0-9]+)",
+        "declared": [
+          "item_id"
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "declared_param_in_catch_all_after_a_literal",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/files/{path:path}",
+        "declared": [
+          "path"
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "no_declared_params",
+      "input": {
+        "seam": "declared_path_params",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "template": "/items/{item_id}",
+        "declared": []
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
         "fatal": []
       }
     }

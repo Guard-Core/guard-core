@@ -51,11 +51,13 @@ from pydantic import ValidationError
 from typing_extensions import get_protocol_members
 
 from guard_core import _staged_defaults
+from guard_core._misconfiguration import report_misconfigurations
 from guard_core._misconfiguration_kinds import (
     KINDS,
     MisconfigurationError,
     Problem,
 )
+from guard_core._utils.route_gate import detection_exclusion_path_param_problems
 from guard_core.core.checks.endpoint_limit_keys import (
     EndpointLimitKeyMap,
     RouteResolver,
@@ -108,6 +110,7 @@ SEAMS = (
     "ipv6_prefix_length",
     "endpoint_key_routes",
     "exclude_paths_routes",
+    "declared_path_params",
 )
 _LOGGER = logging.getLogger("guard_core")
 _DYNAMIC_FIELDS = {
@@ -473,6 +476,25 @@ def _exclude_paths_routes_driver(case_input: JsonObject) -> Driver:
     return drive
 
 
+def _declared_path_params_driver(case_input: JsonObject) -> Driver:
+    stated = cast("JsonObject", case_input["config"])
+    template = cast("str", case_input["template"])
+    declared = cast("list[str]", case_input["declared"])
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        config = _config(stated, flag)
+        problems = detection_exclusion_path_param_problems("route", template, declared)
+        _try_fatal(
+            fatal,
+            lambda: report_misconfigurations(
+                config, problems, logger=_LOGGER, stacklevel=2
+            ),
+        )
+        return []
+
+    return drive
+
+
 _RUNTIME_DRIVERS: dict[str, Callable[[JsonObject], Driver]] = {
     "ban_thresholds": _ban_threshold_driver,
     "nat64": _nat64_driver,
@@ -481,6 +503,7 @@ _RUNTIME_DRIVERS: dict[str, Callable[[JsonObject], Driver]] = {
     "ipv6_prefix_length": _ipv6_prefix_driver,
     "endpoint_key_routes": _endpoint_key_routes_driver,
     "exclude_paths_routes": _exclude_paths_routes_driver,
+    "declared_path_params": _declared_path_params_driver,
 }
 
 

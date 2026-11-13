@@ -991,6 +991,97 @@ def runtime_cases() -> list[MisconfigurationCaseInput]:
             config={**QUIET, "exclude_paths": ["/typo"]},
             static_route_prefixes="raises",
         ),
+        *_declared_path_param_cases(),
+    ]
+
+
+def _declared_case(
+    case_id: str, intends: list[str], template: str, declared: list[str]
+) -> MisconfigurationCaseInput:
+    return _runtime_case(
+        case_id,
+        intends,
+        "declared_path_params",
+        config=dict(QUIET),
+        template=template,
+        declared=declared,
+    )
+
+
+def _declared_path_param_cases() -> list[MisconfigurationCaseInput]:
+    missing = "decorator.detection_exclusion.param_not_in_template"
+    rootless = "decorator.detection_exclusion.param_without_literal_segment"
+    return [
+        _declared_case(
+            "declared_param_not_in_brace_template",
+            [missing],
+            "/items/{item_id:int}",
+            ["ghost"],
+        ),
+        _declared_case(
+            "declared_param_not_in_angle_template",
+            [missing],
+            "/items/<int:item_id>",
+            ["ghost"],
+        ),
+        _declared_case(
+            "declared_param_not_in_named_group_template",
+            [missing],
+            "/items/(?P<item_id>[0-9]+)",
+            ["ghost"],
+        ),
+        _declared_case(
+            "declared_param_rootless_catch_all", [rootless], "/{tail:path}", ["tail"]
+        ),
+        _declared_case(
+            "declared_param_rootless_angle", [rootless], "/<name>", ["name"]
+        ),
+        _declared_case(
+            "declared_params_missing_and_rootless",
+            [missing, rootless],
+            "/{tail:path}",
+            ["tail", "ghost"],
+        ),
+        _declared_case(
+            "declared_params_both_missing",
+            [missing, missing],
+            "/items/{item_id}",
+            ["ghost", "phantom"],
+        ),
+        _declared_case(
+            "declared_param_in_brace_template", [], "/items/{item_id}", ["item_id"]
+        ),
+        _declared_case(
+            "declared_param_in_brace_converter_template",
+            [],
+            "/items/{item_id:int}",
+            ["item_id"],
+        ),
+        _declared_case(
+            "declared_param_in_angle_converter_template",
+            [],
+            "/items/<int:item_id>",
+            ["item_id"],
+        ),
+        _declared_case(
+            "declared_param_in_django_slug_converter_template",
+            [],
+            "/blog/<slug:post>/edit",
+            ["post"],
+        ),
+        _declared_case(
+            "declared_param_in_tornado_named_group_template",
+            [],
+            "/items/(?P<item_id>[0-9]+)",
+            ["item_id"],
+        ),
+        _declared_case(
+            "declared_param_in_catch_all_after_a_literal",
+            [],
+            "/files/{path:path}",
+            ["path"],
+        ),
+        _declared_case("no_declared_params", [], "/items/{item_id}", []),
     ]
 
 

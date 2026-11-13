@@ -380,6 +380,22 @@ K_COUNTRY_RULE_GEOIP_DOWNLOAD_EXTRAS_MISSING = _kind(
     "dependent, never pinned in the corpus",
     fatal_only=True,
 )
+K_DETECTION_EXCLUSION_PARAM_NOT_IN_TEMPLATE = _kind(
+    "decorator.detection_exclusion.param_not_in_template",
+    "error",
+    "decorators",
+    "the declared parameter name",
+    "a path_params name of @detection_exclusion is not a parameter of the route "
+    "template, so it exempts nothing",
+)
+K_DETECTION_EXCLUSION_PARAM_WITHOUT_LITERAL_SEGMENT = _kind(
+    "decorator.detection_exclusion.param_without_literal_segment",
+    "error",
+    "decorators",
+    "the declared parameter name",
+    "a path_params name of @detection_exclusion has no literal segment before it "
+    "in the route template, so it would exempt the whole path from the probe rows",
+)
 K_DYNAMIC_IP_BLACKLIST_INVALID_ENTRY = _kind(
     "dynamic_rules.ip_blacklist.invalid_entry",
     "error",
