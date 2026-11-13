@@ -65,6 +65,48 @@ _ROUTE_ID_ATTR = "_guard_route_id"
 # dropped decorator frees its ids) and a colliding id takes the next "#n".
 _LIVE_DECORATORS: "weakref.WeakSet[BaseSecurityDecorator]" = weakref.WeakSet()
 _ROUTE_ID_LOCK = threading.RLock()
+# An issued id also stays reserved while any function stamped with it lives, so a
+# router that still holds f (stamped "m.f") never sees "m.f" reissued to another
+# function after f's decorator was collected. Weakly held, freed when f dies.
+_STAMPED_WEAK: "dict[str, weakref.WeakValueDictionary[int, object]]" = {}
+# shortcut: a stamped callable that cannot be weakly referenced (a __slots__ class
+# without __weakref__) is held strongly, so its id stays reserved for the process.
+_STAMPED_STRONG: dict[str, dict[int, object]] = {}
+
+
+def _reserve_stamped_id(route_id: str, func: object) -> None:
+    try:
+        _STAMPED_WEAK.setdefault(route_id, weakref.WeakValueDictionary())[id(func)] = (
+            func
+        )
+    except TypeError:
+        _STAMPED_STRONG.setdefault(route_id, {})[id(func)] = func
+
+
+def _reserved_by_other(route_id: str, owner_chain: list[int]) -> bool:
+    weak = _STAMPED_WEAK.get(route_id)
+    if weak is not None and not weak:
+        del _STAMPED_WEAK[route_id]
+        weak = None
+    holders = [*(weak or {}), *_STAMPED_STRONG.get(route_id, {})]
+    return any(holder not in owner_chain for holder in holders)
+
+
+def _owner_chain(func: object) -> list[int]:
+    chain: list[int] = []
+    current: object = func
+    while current is not None and id(current) not in chain:
+        chain.append(id(current))
+        current = getattr(current, "__wrapped__", None)
+    return chain
+
+
+def _id_is_taken(
+    route_id: str, holders: "list[BaseSecurityDecorator]", owner_chain: list[int]
+) -> bool:
+    return any(route_id in d._route_configs for d in holders) or _reserved_by_other(
+        route_id, owner_chain
+    )
 
 
 @runtime_checkable
@@ -163,11 +205,7 @@ class BaseSecurityDecorator:
 
     def _get_route_id(self, func: object) -> str:
         route_id = getattr(func, "_guard_route_id", None)
-        owner_chain: list[int] = []
-        current: object = func
-        while current is not None and id(current) not in owner_chain:
-            owner_chain.append(id(current))
-            current = getattr(current, "__wrapped__", None)
+        owner_chain = _owner_chain(func)
         with _ROUTE_ID_LOCK:
             holders = [self, *(d for d in _LIVE_DECORATORS if d is not self)]
             if isinstance(route_id, str) and any(
@@ -181,9 +219,10 @@ class BaseSecurityDecorator:
                 return route_id
             # a callable object has no __qualname__ of its own; its class names it
             qualname = getattr(func, "__qualname__", None) or type(func).__qualname__
-            route_id = base_id = f"{func.__module__}.{qualname}"
+            base_id = f"{func.__module__}.{qualname}"
             suffix = 1
-            while any(route_id in d._route_configs for d in holders):
+            route_id = base_id
+            while _id_is_taken(route_id, holders, owner_chain):
                 suffix += 1
                 route_id = f"{base_id}#{suffix}"
             return route_id
@@ -200,13 +239,16 @@ class BaseSecurityDecorator:
                 self._route_config_revision.bump()
             self._route_id_owner.setdefault(route_id, id(func))
             setattr(func, _ROUTE_ID_ATTR, route_id)
+            _reserve_stamped_id(route_id, func)
             return self._route_configs[route_id]
 
     def _apply_route_config(
         self, func: Callable[GuardedParams, GuardedReturn]
     ) -> Callable[GuardedParams, GuardedReturn]:
-        route_id = self._get_route_id(func)
-        setattr(func, _ROUTE_ID_ATTR, route_id)
+        with _ROUTE_ID_LOCK:
+            route_id = self._get_route_id(func)
+            setattr(func, _ROUTE_ID_ATTR, route_id)
+            _reserve_stamped_id(route_id, func)
         return func
 
     async def initialize_behavior_tracking(
