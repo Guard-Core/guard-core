@@ -1,4 +1,6 @@
 import logging
+import threading
+import weakref
 from collections.abc import Callable, Sequence
 from typing import (
     ParamSpec,
@@ -58,6 +60,12 @@ __all__ = [
 
 _ROUTE_ID_ATTR = "_guard_route_id"
 
+# Route ids are Redis bucket ids shared across ports, so one id must never name
+# two routes in the process: every live decorator is listed here (weakly, so a
+# dropped decorator frees its ids) and a colliding id takes the next "#n".
+_LIVE_DECORATORS: "weakref.WeakSet[BaseSecurityDecorator]" = weakref.WeakSet()
+_ROUTE_ID_LOCK = threading.RLock()
+
 
 @runtime_checkable
 class DecoratedFunction(Protocol):
@@ -103,12 +111,15 @@ class BaseSecurityDecorator:
         self.config = config
         self._route_configs: dict[str, RouteConfig] = {}
         # id -> id(func) of the function the id was derived from. A stamped
-        # _guard_route_id is only reused when THIS instance assigned it to
-        # THIS function; otherwise a cross-instance collision would select
-        # another route's config.
+        # _guard_route_id is only reused for the function that owns it (in this
+        # instance or another live one: one function decorated by two
+        # decorators keeps one id); otherwise a collision would select another
+        # route's config.
         self._route_id_owner: dict[str, int] = {}
         self._route_config_revision = RouteConfigRevision()
         self.behavior_tracker = BehaviorTracker(config)
+        with _ROUTE_ID_LOCK:
+            _LIVE_DECORATORS.add(self)
         self.agent_handler: SyncAgentHandlerProtocol | None = None
         self.geo_ip_handler: _GeoCountryLookup | None = None
 
@@ -157,36 +168,39 @@ class BaseSecurityDecorator:
         while current is not None and id(current) not in owner_chain:
             owner_chain.append(id(current))
             current = getattr(current, "__wrapped__", None)
-        if (
-            isinstance(route_id, str)
-            and route_id in self._route_configs
-            and self._route_id_owner.get(route_id) in owner_chain
-        ):
-            # Same instance, same function: stacked decorators intentionally
-            # share this config. An id assigned to a DIFFERENT function (in
-            # this or another instance) must not select its config.
+        with _ROUTE_ID_LOCK:
+            holders = [self, *(d for d in _LIVE_DECORATORS if d is not self)]
+            if isinstance(route_id, str) and any(
+                d._route_id_owner.get(route_id) in owner_chain
+                for d in holders
+                if route_id in d._route_configs
+            ):
+                # Same function, stacked decorators (of this or another live
+                # instance) intentionally share this id. An id assigned to a
+                # DIFFERENT function must not select its config.
+                return route_id
+            # a callable object has no __qualname__ of its own; its class names it
+            qualname = getattr(func, "__qualname__", None) or type(func).__qualname__
+            route_id = base_id = f"{func.__module__}.{qualname}"
+            suffix = 1
+            while any(route_id in d._route_configs for d in holders):
+                suffix += 1
+                route_id = f"{base_id}#{suffix}"
             return route_id
-        # a callable object has no __qualname__ of its own; its class names it
-        qualname = getattr(func, "__qualname__", None) or type(func).__qualname__
-        route_id = base_id = f"{func.__module__}.{qualname}"
-        suffix = 1
-        while route_id in self._route_configs:
-            suffix += 1
-            route_id = f"{base_id}#{suffix}"
-        return route_id
 
     def _ensure_route_config(self, func: object) -> RouteConfig:
-        route_id = self._get_route_id(func)
-        if route_id not in self._route_configs:
-            config = RouteConfig(self._route_config_revision)
-            config._inherit_suspicious_detection(
-                self.config.enable_penetration_detection
-            )
-            self._route_configs[route_id] = config
-            self._route_config_revision.bump()
-        self._route_id_owner.setdefault(route_id, id(func))
-        setattr(func, _ROUTE_ID_ATTR, route_id)
-        return self._route_configs[route_id]
+        with _ROUTE_ID_LOCK:
+            route_id = self._get_route_id(func)
+            if route_id not in self._route_configs:
+                config = RouteConfig(self._route_config_revision)
+                config._inherit_suspicious_detection(
+                    self.config.enable_penetration_detection
+                )
+                self._route_configs[route_id] = config
+                self._route_config_revision.bump()
+            self._route_id_owner.setdefault(route_id, id(func))
+            setattr(func, _ROUTE_ID_ATTR, route_id)
+            return self._route_configs[route_id]
 
     def _apply_route_config(
         self, func: Callable[GuardedParams, GuardedReturn]
