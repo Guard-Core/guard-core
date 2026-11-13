@@ -63,3 +63,21 @@ def test_with_the_flag_off_both_are_logged_and_nothing_raises(
     texts = [record.getMessage() for record in caplog.records]
     assert any("rate_limit is 0" in text for text in texts)
     assert any("rate_limit_window is 0" in text for text in texts)
+
+
+def test_construction_wraps_the_error_and_assignment_raises_it_directly() -> None:
+    from guard_core._misconfiguration_kinds import MisconfigurationError
+
+    with pytest.raises(ValidationError) as built:
+        _two_bad_settings(True)
+    wrapped = built.value.errors()[0]["ctx"]["error"]
+    assert isinstance(wrapped, MisconfigurationError)
+    assert wrapped.kinds == ["rate_limit.below_one", "rate_limit_window.below_one"]
+
+    config = SecurityConfig(
+        enable_redis=False, ban_on_hostile_signals=False, fail_on_misconfiguration=True
+    )
+    with pytest.raises(MisconfigurationError) as assigned:
+        config.rate_limit = 0
+    assert assigned.value.kinds == ["rate_limit.below_one"]
+    assert not isinstance(assigned.value, ValidationError)

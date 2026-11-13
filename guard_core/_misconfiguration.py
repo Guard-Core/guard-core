@@ -16,7 +16,6 @@ from guard_core._misconfiguration_kinds import (
     K_THREAT_SCORE_THRESHOLD_NON_POSITIVE,
     MisconfigurationError,
     Problem,
-    kinded,
     problem_log_extra,
 )
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
@@ -36,13 +35,13 @@ _TRUE_NOTE = f"Set {FLAG_NAME}=False to start with it anyway."
 
 def report_misconfiguration(
     config: "SecurityConfig[RequestT]",
-    problem: str,
+    problem: Problem,
     *,
     logger: logging.Logger,
     stacklevel: int,
 ) -> None:
     if config.fail_on_misconfiguration:
-        raise MisconfigurationError(f"{problem} {_TRUE_NOTE}", kinded([problem]))
+        raise MisconfigurationError(f"{problem} {_TRUE_NOTE}", [problem])
     logger.warning(
         f"{problem} {_FALSE_NOTE}",
         extra=problem_log_extra(problem),
@@ -50,7 +49,7 @@ def report_misconfiguration(
     )
 
 
-def _raised_message(problems: Sequence[str]) -> str:
+def _raised_message(problems: Sequence[Problem]) -> str:
     if len(problems) == 1:
         return f"{problems[0]} {_TRUE_NOTE}"
     listed = "\n".join(f"- {problem}" for problem in problems)
@@ -59,13 +58,13 @@ def _raised_message(problems: Sequence[str]) -> str:
 
 def report_misconfigurations(
     config: "SecurityConfig[RequestT]",
-    problems: Sequence[str],
+    problems: Sequence[Problem],
     *,
     logger: logging.Logger,
     stacklevel: int,
 ) -> None:
     if config.fail_on_misconfiguration and problems:
-        raise MisconfigurationError(_raised_message(problems), kinded(problems))
+        raise MisconfigurationError(_raised_message(problems), list(problems))
     for problem in problems:
         logger.warning(
             f"{problem} {_FALSE_NOTE}",
