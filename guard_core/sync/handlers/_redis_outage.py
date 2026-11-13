@@ -43,6 +43,7 @@ class RedisOutageMixin:
     if TYPE_CHECKING:
 
         def _open_connection(self, url: str) -> None: ...
+        def _discard_main_client(self) -> None: ...
         def _discard_client(self) -> None: ...
         def _safe_aclose(self, client: Redis) -> None: ...
         def _send_redis_event(
@@ -51,6 +52,13 @@ class RedisOutageMixin:
         def _reconnect_gate(self) -> RedisReconnectGate: ...
         def register_background_user(self, stop: Callable[[], None]) -> None: ...
 
+    def _parked_clients(self) -> dict[EventLoop | None, tuple[Redis, Hashable | None]]:
+        # Created on first use: a subclass that overrides __new__ skips __init__ work.
+        parked: dict[EventLoop | None, tuple[Redis, Hashable | None]] = vars(
+            self
+        ).setdefault("_parked_clients_by_loop", {})
+        return parked
+
     def _swap_client(
         self,
         new_redis: Redis | None,
@@ -58,16 +66,91 @@ class RedisOutageMixin:
         new_loop: EventLoop | None,
     ) -> tuple[Redis | None, Hashable | None, EventLoop | None]:
         # No inside: loops on two threads each swap whole, so a client one
-        # thread bound is always the "old" one of the next swap and gets released.
+        # thread bound is always the "old" one of the next swap and gets released,
+        # unless its loop is still alive: then it is parked, never aborted.
         swap_lock: Lock = vars(self).setdefault("_client_swap_lock", Lock())
         with swap_lock:
             old = (self._redis, self._pool_key, self._client_loop)
-            self._redis, self._pool_key, self._client_loop = (
-                new_redis,
-                new_key,
-                new_loop,
-            )
+            if new_redis is not None:
+                old = self._park_or_keep(old, new_redis, new_loop)
+            self._pool_key = new_key
+            # A reader on another thread sees the pair between the two stores: it
+            # must never see a client together with the loop of the thread reading.
+            # Binding a client writes the loop first (the one loop that then
+            # matches is the writer's own), dropping it writes the client first.
+            if new_redis is None:
+                self._redis, self._client_loop = new_redis, new_loop
+            else:
+                self._client_loop, self._redis = new_loop, new_redis
         return old
+
+    def _park_or_keep(
+        self,
+        old: tuple[Redis | None, Hashable | None, EventLoop | None],
+        new_redis: Redis,
+        new_loop: EventLoop | None,
+    ) -> tuple[Redis | None, Hashable | None, EventLoop | None]:
+        # The caller holds the swap lock. A client of a loop that is still alive is
+        # parked under that loop; one of a closed loop is returned to be released.
+        parked = self._parked_clients()
+        held = parked.get(new_loop)
+        if held is not None and held[0] is new_redis:
+            del parked[new_loop]
+        old_redis, old_key, old_loop = old
+        if (
+            old_redis is None
+            or old_redis is new_redis
+            or old_loop in (None, new_loop)
+            or old_loop.is_closed()
+        ):
+            return old
+        parked[old_loop] = (old_redis, old_key)
+        return None, None, None
+
+    def _client_here(self) -> Redis | None:
+        """The client bound to the running loop: the manager's main one when it
+        belongs to this loop (or to none), else the one parked for this loop."""
+        client = self._redis
+        client_loop = self._client_loop
+        if client is not None and (
+            client_loop is None or client_loop is running_loop_or_none()
+        ):
+            return client
+        return self._parked_client_here()
+
+    def _parked_client_here(self) -> Redis | None:
+        held = self._parked_clients().get(running_loop_or_none())
+        return None if held is None else held[0]
+
+    def is_connected_on_this_loop(self) -> bool:
+        """Whether the running loop has a client of this manager."""
+        return self._client_here() is not None
+
+    def _holds_a_client(self) -> bool:
+        return self._redis is not None or bool(self._parked_clients())
+
+    def _take_parked(
+        self, wanted: Callable[[EventLoop | None, Redis], bool]
+    ) -> list[tuple[Redis, Hashable | None, EventLoop | None]]:
+        swap_lock: Lock = vars(self).setdefault("_client_swap_lock", Lock())
+        with swap_lock:
+            parked = self._parked_clients()
+            taken = [
+                (client, key, loop)
+                for loop, (client, key) in parked.items()
+                if wanted(loop, client)
+            ]
+            for _, _, loop in taken:
+                del parked[loop]
+        return taken
+
+    def _release_parked(
+        self, wanted: Callable[[EventLoop | None, Redis], bool]
+    ) -> bool:
+        taken = self._take_parked(wanted)
+        for client, key, loop in taken:
+            self._release_client(client, key, loop, keep=None)
+        return bool(taken)
 
     def _release_client(
         self,
@@ -136,9 +219,7 @@ class RedisOutageMixin:
         )
 
     def _is_bound_to_this_loop(self) -> bool:
-        return self._redis is not None and (
-            self._client_loop is None or self._client_loop is running_loop_or_none()
-        )
+        return self._client_here() is not None
 
     def _attempt_in_background(self, url: str) -> None:
         gate = self._reconnect_gate()
@@ -158,15 +239,20 @@ class RedisOutageMixin:
             self._report_recovery(url)
 
     def _discard_if_current(self, client: Redis | None) -> bool:
-        if client is None or self._redis is not client:
+        if client is None or not self._holds(client):
             # Already discarded or replaced: the usual case for the errors of the
             # requests that were in flight when the outage began.
             return False
         with self._connection_lock_here():
-            if self._redis is not client:
-                return False
-            self._discard_client()
-            return True
+            if self._redis is client:
+                self._discard_main_client()
+                return True
+            return self._release_parked(lambda _loop, held: held is client)
+
+    def _holds(self, client: Redis) -> bool:
+        return self._redis is client or any(
+            held[0] is client for held in self._parked_clients().values()
+        )
 
     def _probe_then_decide(self) -> None:
         # Holds the gate claim while it probes, so no caller connects meanwhile, and

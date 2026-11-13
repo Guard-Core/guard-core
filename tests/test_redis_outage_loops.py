@@ -196,11 +196,13 @@ def unreleased_clients(
     # A drop is queued on its client's loop: wait for each loop to run what it holds.
     for loop in loops:
         loop.run(asyncio.sleep(0))
-    live = manager._redis
+    # A client of a loop that is still alive is parked, not released.
+    live = [manager._redis, *(held[0] for held in manager._parked_clients().values())]
     return [
         client
         for client in rig.clients
-        if client is not live and not (client.closed or client.dropped)
+        if all(client is not kept for kept in live)
+        and not (client.closed or client.dropped)
     ]
 
 
