@@ -255,8 +255,8 @@ jobs:
 
       - name: Install the shipped dependencies at their declared floors
         run: |
-          uv pip compile pyproject.toml --extra otel --extra logfire --extra redis --extra cloud --extra geo --resolution lowest-direct --python-version "$MATRIX_PYTHON_VERSION" --no-emit-package guard-agent --no-emit-package fastapi-guard --no-header -o floors.txt
-          uv pip install -r floors.txt
+          uv pip compile pyproject.toml --extra otel --extra logfire --extra redis --extra cloud --extra geo --resolution lowest-direct --python-version "$MATRIX_PYTHON_VERSION" --no-emit-package guard-agent --no-emit-package fastapi-guard --no-header --generate-hashes -o floors.txt
+          uv pip install --require-hashes -r floors.txt
         env:
           MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
 
