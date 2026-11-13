@@ -8,6 +8,7 @@ import pytest
 
 from guard_core.exceptions import DownloaderNotInstalledError, MisconfigurationError
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync._utils.app_scope import app_scope_of
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.decorators.base import BaseSecurityDecorator
@@ -406,6 +407,27 @@ def test_completing_with_nothing_pending_runs_no_step(
 
     monkeypatch.setattr(decorator, "initialize_behavior_tracking", counted)
 
+    initializer.complete_decorator_adoption()
+
+    assert calls == []
+
+
+def test_a_release_and_reinitialization_leaves_no_adoption_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = SyncSecurityConfig()
+    initializer = HandlerInitializer(config)
+    adopted = BaseSecurityDecorator(SyncSecurityConfig())
+    calls: list[int] = []
+
+    def counted(_: object = None) -> None:
+        calls.append(1)
+
+    monkeypatch.setattr(adopted, "initialize_behavior_tracking", counted)
+    initializer.adopt_decorator(adopted)
+
+    initializer.reinitialize_after_release()
+    monkeypatch.setattr(app_scope_of(config), "redis_handler", object())
     initializer.complete_decorator_adoption()
 
     assert calls == []

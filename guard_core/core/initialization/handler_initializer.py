@@ -12,6 +12,7 @@ from guard_core.core.initialization._handler_initializer_steps import (
     _HandlerInitializerStepsMixin,
     _RateLimitSlot,
 )
+from guard_core.handlers._redis_attempt import ConnectionLocks
 from guard_core.handlers.behavior_handler import BehaviorTracker
 
 if TYPE_CHECKING:
@@ -75,7 +76,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
             None if guard_decorator is not None else BehaviorTracker(config)
         )
         self._lazy_init_task: asyncio.Task[None] | None = None
-        self._decorator_adoption_lock = asyncio.Lock()
+        self._decorator_adoption_lock = ConnectionLocks()
         self.logger = logging.getLogger("guard_core.core.initialization")
         self._require_tree_downloader(adapter)
         self.inject_bound_ban_manager()
@@ -92,6 +93,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
             await self.initialize_agent_for_handlers()
             await self._initialize_behavior_telemetry()
             await self.initialize_dynamic_rule_manager()
+        self._decorator_adoption_pending = None
 
     def inject_bound_ban_manager(self) -> None:
         """Hand the ban manager this app was bound to (the bind is in ``__init__``)

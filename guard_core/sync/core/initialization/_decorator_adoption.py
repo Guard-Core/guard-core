@@ -1,4 +1,3 @@
-import threading
 from abc import abstractmethod
 from typing import TYPE_CHECKING
 
@@ -6,6 +5,7 @@ from guard_core.sync._utils.app_scope import app_scope_of, in_app_scope
 from guard_core.sync.core.initialization._route_misconfiguration_reports import (
     RouteMisconfigurationReportsMixin,
 )
+from guard_core.sync.handlers._redis_attempt import ConnectionLocks
 from guard_core.sync.handlers.behavior_handler import BehaviorTracker
 
 if TYPE_CHECKING:
@@ -25,7 +25,7 @@ class DecoratorAdoptionMixin(RouteMisconfigurationReportsMixin):
     enricher: "EventEnricher | None" = None
     composite_handler: "CompositeAgentHandler | None" = None
     _decorator_adoption_pending: "tuple[BaseSecurityDecorator | None] | None" = None
-    _decorator_adoption_lock: threading.Lock
+    _decorator_adoption_lock: ConnectionLocks
 
     @abstractmethod
     def inject_bound_ban_manager(self) -> None: ...
@@ -80,7 +80,7 @@ class DecoratorAdoptionMixin(RouteMisconfigurationReportsMixin):
         pending so the next call retries."""
         if self._decorator_adoption_pending is None:
             return
-        with self._decorator_adoption_lock:
+        with self._decorator_adoption_lock.here():
             pending = self._pending_adoption()
             if pending is None:
                 return

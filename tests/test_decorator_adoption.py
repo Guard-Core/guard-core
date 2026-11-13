@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from guard_core._utils.app_scope import app_scope_of
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.decorators import SecurityDecorator
 from guard_core.decorators.base import BaseSecurityDecorator
@@ -450,6 +451,27 @@ async def test_completing_with_nothing_pending_runs_no_step(
 
     monkeypatch.setattr(decorator, "initialize_behavior_tracking", counted)
 
+    await initializer.complete_decorator_adoption()
+
+    assert calls == []
+
+
+async def test_a_release_and_reinitialization_leaves_no_adoption_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = SecurityConfig()
+    initializer = HandlerInitializer(config)
+    adopted = BaseSecurityDecorator(SecurityConfig())
+    calls: list[int] = []
+
+    async def counted(_: object = None) -> None:
+        calls.append(1)
+
+    monkeypatch.setattr(adopted, "initialize_behavior_tracking", counted)
+    initializer.adopt_decorator(adopted)
+
+    await initializer.reinitialize_after_release()
+    monkeypatch.setattr(app_scope_of(config), "redis_handler", object())
     await initializer.complete_decorator_adoption()
 
     assert calls == []
