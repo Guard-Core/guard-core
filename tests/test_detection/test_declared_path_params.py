@@ -4,12 +4,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from guard_core._misconfiguration_kinds import MisconfigurationError
 from guard_core.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
 from guard_core.decorators.base import BaseSecurityDecorator, RouteConfig
 from guard_core.decorators.content_filtering import ContentFilteringMixin
+from guard_core.exceptions import MisconfigurationError
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest, declare_route

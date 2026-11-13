@@ -66,7 +66,7 @@ def test_with_the_flag_off_both_are_logged_and_nothing_raises(
 
 
 def test_construction_wraps_the_error_and_assignment_raises_it_directly() -> None:
-    from guard_core._misconfiguration_kinds import MisconfigurationError
+    from guard_core.exceptions import MisconfigurationError
 
     with pytest.raises(ValidationError) as built:
         _two_bad_settings(True)

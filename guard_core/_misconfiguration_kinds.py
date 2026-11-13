@@ -541,21 +541,6 @@ def _rebuild_problem(message: str, kind: str, subject: str | None) -> Problem:
     return Problem(message, kind=kind, subject=subject)
 
 
-class MisconfigurationError(ValueError):
-    """Raised once with every error-severity problem found."""
-
-    def __init__(self, message: str, problems: list[Problem]) -> None:
-        super().__init__(message)
-        self.problems = problems
-
-    def __reduce__(self) -> tuple[object, ...]:
-        return (type(self), (str(self), self.problems))
-
-    @property
-    def kinds(self) -> list[str]:
-        return [problem.kind for problem in self.problems]
-
-
 def kinds_log_extra(kind: str, *subjects: str | None) -> dict[str, object]:
     return {"problems": tuple((kind, subject) for subject in subjects)}
 

@@ -14,10 +14,10 @@ from guard_core._misconfiguration_kinds import (
     ALL_KINDS,
     K_RATE_LIMIT_BELOW_ONE,
     KINDS,
-    MisconfigurationError,
     Problem,
     kinds_log_extra,
 )
+from guard_core.exceptions import MisconfigurationError
 from guard_core.handlers._dynamic_rule_validation import (
     MalformedDynamicRules,
     endpoint_rate_limit_key_problems,
@@ -245,3 +245,19 @@ def test_the_empty_enabled_detection_categories_warning_carries_its_kind(
         r.__dict__["problems"] for r in caplog.records if "problems" in r.__dict__
     ]
     assert (("enabled_detection_categories.empty", None),) in carried
+
+
+def test_the_error_is_public_and_the_one_the_reporters_raise() -> None:
+    from guard_core.exceptions import GuardCoreError, MisconfigurationError
+
+    config = SecurityConfig(
+        enable_redis=False, ban_on_hostile_signals=False, fail_on_misconfiguration=True
+    )
+    with pytest.raises(MisconfigurationError) as raised:
+        config.rate_limit = 0
+
+    assert issubclass(MisconfigurationError, GuardCoreError)
+    assert issubclass(MisconfigurationError, ValueError)
+    assert type(raised.value) is MisconfigurationError
+    with pytest.raises(ValueError):
+        config.rate_limit = 0

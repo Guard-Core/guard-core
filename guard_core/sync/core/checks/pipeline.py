@@ -3,9 +3,8 @@ import threading
 import time
 from collections.abc import Callable
 
-from guard_core._misconfiguration_kinds import MisconfigurationError
 from guard_core._parked_records import RELEASE_EPOCH_RECORD
-from guard_core.exceptions import GuardRedisError
+from guard_core.exceptions import GuardRedisError, MisconfigurationError
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.app_scope import (

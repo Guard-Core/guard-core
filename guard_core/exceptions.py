@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from guard_core._misconfiguration_kinds import Problem
     from guard_core.core.checks.base import SecurityCheck
 
 
@@ -27,6 +28,28 @@ class AgentPackageNotInstalledError(GuardCoreError):
 
 class DownloaderNotInstalledError(GuardCoreError, ValueError):
     pass
+
+
+class MisconfigurationError(GuardCoreError, ValueError):
+    """A refused misconfiguration, raised once with every error-severity problem.
+
+    ``problems`` holds each problem (a ``str`` that also carries ``.kind``,
+    ``.subject`` and ``.severity``) and ``kinds`` their kinds. Building a
+    ``SecurityConfig`` wraps it in pydantic's ``ValidationError``, which holds it at
+    ``.errors()[i]["ctx"]["error"]``; assigning a field, a decorator and the
+    startup reports raise it directly.
+    """
+
+    def __init__(self, message: str, problems: "list[Problem]") -> None:
+        super().__init__(message)
+        self.problems = problems
+
+    def __reduce__(self) -> tuple[object, ...]:
+        return (type(self), (str(self), self.problems))
+
+    @property
+    def kinds(self) -> list[str]:
+        return [problem.kind for problem in self.problems]
 
 
 class GeoDatabaseLoadError(GuardCoreError):

@@ -3,13 +3,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from guard_core._misconfiguration_kinds import MisconfigurationError
 from guard_core._parked_records import RELEASE_EPOCH_RECORD
 from guard_core.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.decorators.base import RouteConfig
+from guard_core.exceptions import MisconfigurationError
 from guard_core.models import SecurityConfig
 from tests.conftest import MockGuardRequest, declare_route
 

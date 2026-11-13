@@ -3,8 +3,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core._misconfiguration_kinds import MisconfigurationError
 from guard_core._parked_records import RELEASE_EPOCH_RECORD
+from guard_core.exceptions import MisconfigurationError
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,

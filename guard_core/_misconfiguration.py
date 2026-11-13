@@ -14,13 +14,13 @@ from guard_core._misconfiguration_kinds import (
     K_SECURITY_HEADERS_UNKNOWN_KEY,
     K_SEMANTIC_THRESHOLD_NON_POSITIVE,
     K_THREAT_SCORE_THRESHOLD_NON_POSITIVE,
-    MisconfigurationError,
     Problem,
     problem_log_extra,
 )
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core._security_headers_defaults import unknown_security_headers_keys
 from guard_core._utils.sampling import PerApp, WarnedKeys
+from guard_core.exceptions import MisconfigurationError
 
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT

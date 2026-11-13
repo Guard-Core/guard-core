@@ -5,12 +5,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from guard_core._misconfiguration import report_declared_path_param_problems
-from guard_core._misconfiguration_kinds import MisconfigurationError, Problem
+from guard_core._misconfiguration_kinds import Problem
 from guard_core._utils.route_gate import detection_exclusion_path_param_problems
 from guard_core.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
 from guard_core.decorators.base import RouteConfig
+from guard_core.exceptions import MisconfigurationError
 from guard_core.models import SecurityConfig
 from tests.conftest import MockGuardRequest, declare_route
 

@@ -55,7 +55,6 @@ from guard_core import _staged_defaults
 from guard_core._misconfiguration import report_misconfigurations
 from guard_core._misconfiguration_kinds import (
     KINDS,
-    MisconfigurationError,
     Problem,
 )
 from guard_core._utils.route_gate import detection_exclusion_path_param_problems
@@ -83,6 +82,7 @@ from guard_core.core.initialization._redis_handler_members import (
 )
 from guard_core.decorators import SecurityDecorator
 from guard_core.decorators.base import BaseSecurityDecorator
+from guard_core.exceptions import MisconfigurationError
 from guard_core.handlers._dynamic_rule_purge import DynamicRulePurgeMixin
 from guard_core.handlers._dynamic_rule_validation import (
     MalformedDynamicRules,

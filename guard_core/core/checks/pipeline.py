@@ -3,7 +3,6 @@ import threading
 import time
 from collections.abc import Awaitable, Callable
 
-from guard_core._misconfiguration_kinds import MisconfigurationError
 from guard_core._parked_records import RELEASE_EPOCH_RECORD
 from guard_core._utils.app_scope import (
     AppScope,
@@ -19,7 +18,7 @@ from guard_core.core.checks._usage_rules_step import (
     warn_at_startup_if_throttle_cannot_refuse,
 )
 from guard_core.core.checks.base import SecurityCheck
-from guard_core.exceptions import GuardRedisError
+from guard_core.exceptions import GuardRedisError, MisconfigurationError
 from guard_core.handlers._redis_attempt import ConnectionLocks
 from guard_core.handlers._redis_reconnect_gate import REDIS_RECONNECT_WINDOW_SECONDS
 from guard_core.models import SecurityConfig
