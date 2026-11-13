@@ -86,6 +86,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         bind, the Redis and detection setup (Redis and config-declared state come
         back, runtime state does not), the agent wiring and the rule loop. The
         pipeline awaits it once, before it rebuilds its checks."""
+        adoption_pending = self._pending_adoption()
         bind_app_managers(self.config)
         self.inject_bound_ban_manager()
         await self.initialize_redis_handlers()
@@ -93,7 +94,8 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
             await self.initialize_agent_for_handlers()
             await self._initialize_behavior_telemetry()
             await self.initialize_dynamic_rule_manager()
-        self._decorator_adoption_pending = None
+        if self._pending_adoption() is adoption_pending:
+            self._decorator_adoption_pending = None
 
     def inject_bound_ban_manager(self) -> None:
         """Hand the ban manager this app was bound to (the bind is in ``__init__``)

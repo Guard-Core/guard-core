@@ -475,3 +475,29 @@ async def test_a_release_and_reinitialization_leaves_no_adoption_pending(
     await initializer.complete_decorator_adoption()
 
     assert calls == []
+
+
+async def test_an_adoption_during_a_reinitialization_stays_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = SecurityConfig()
+    late = BaseSecurityDecorator(SecurityConfig())
+    calls: list[int] = []
+
+    async def counted(_: object = None) -> None:
+        calls.append(1)
+
+    monkeypatch.setattr(late, "initialize_behavior_tracking", counted)
+
+    class _AdoptingDuringStartup(HandlerInitializer):
+        async def initialize_redis_handlers(self) -> None:
+            await super().initialize_redis_handlers()
+            self.adopt_decorator(late)
+
+    initializer = _AdoptingDuringStartup(config)
+
+    await initializer.reinitialize_after_release()
+    monkeypatch.setattr(app_scope_of(config), "redis_handler", object())
+    await initializer.complete_decorator_adoption()
+
+    assert calls == [1]
