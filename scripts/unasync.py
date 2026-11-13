@@ -149,6 +149,7 @@ SKIP_TESTS = {
     "test_conformance_safety_before_timing_replay.py",
     "test_fixture_generator_determinism.py",
     "test_fixture_corpus_stamps_and_redis_override.py",
+    "test_corpus_route_template_seam.py",
     "test_unasync_check_passes_on_the_repo.py",
     "test_perf_gate_rules.py",
     "test_perf_detection_components.py",
