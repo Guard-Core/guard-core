@@ -410,6 +410,10 @@ class EventsCase:
         self.geo = _StubGeoHandler(case.get("geo_countries", {}))
         self.config = _make_events_config(case, self.geo)
         self.patterns = sus_patterns_manager_for(self.config, bind=True)
+        # The initializer's own step (_handler_initializer_steps.py:176): a
+        # bound default manager keeps no detection state of a gone app, so
+        # without it a direct detect call reads whatever ran before.
+        self.patterns.configure(self.config)
         self.routes = {
             path: _build_events_route(path, overrides)
             for path, overrides in case.get("routes", {}).items()
