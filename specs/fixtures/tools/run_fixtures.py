@@ -252,7 +252,13 @@ async def replay_suites(
     failures: list[str] = []
     total = 0
     for name in names:
-        checker = checkers.get(suites[name]["kind"], check_detect_case)
+        kind = suites[name]["kind"]
+        checker = checkers.get(kind)
+        if checker is None:
+            failures.append(
+                f"{name}: unknown suite kind {kind!r}, none of its cases replayed"
+            )
+            continue
         for case in suite_cases(name):
             total += 1
             failure = await checker(name, case)
@@ -279,6 +285,7 @@ async def replay_corpus(*, safety: bool) -> tuple[list[str], int]:
     sus_patterns_handler.configure(SecurityConfig(**STAGED_FIELDS))
     suites = load_index()["suites"]
     checkers: dict[str, Callable[..., Awaitable[str | None]]] = {
+        "detect": check_detect_case,
         "pipeline": check_pipeline_case,
         "events": check_events_case,
         "redis_interop": check_redis_case,
