@@ -304,7 +304,23 @@ virtualenv = "2026-10-23T00:00:00Z"
 
 [tool.deptry]
 extend_exclude = ['vulture_whitelist\.py', 'docs', 'conftest\.py', '\.claude', 'interop', 'tools/semgrep/\.venv']
-known_first_party = ["guard_core", "run_fixtures"]
+known_first_party = [
+    "guard_core",
+    "events_cases",
+    "events_harness",
+    "fixture_types",
+    "generate_cost_cases",
+    "generate_fixtures",
+    "generate_safety_gates",
+    "host_dependent_fields",
+    "misconfiguration_cases",
+    "misconfiguration_harness",
+    "misconfiguration_suites",
+    "pipeline_cases",
+    "pipeline_harness",
+    "redis_interop_cases",
+    "run_fixtures",
+]
 per_rule_ignores = { "DEP002" = [
     "tzdata",
     "bandit",
