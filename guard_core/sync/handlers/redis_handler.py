@@ -160,6 +160,10 @@ _SUM_INDEXED_WINDOW_HITS_SHA = hashlib.sha1(
 ).hexdigest()
 
 
+def _loop_is_closed(loop: EventLoop | None) -> bool:
+    return loop is not None and loop.is_closed()
+
+
 _LIVE_MANAGERS: weakref.WeakSet[RedisManager] = weakref.WeakSet()
 
 
@@ -286,9 +290,34 @@ class RedisManager(RedisOutageMixin, RedisBanStrikeMixin):
         except Exception as e:
             self.logger.warning(f"Failed to close a Redis client: {e}")
 
-    def _discard_client(self) -> None:
+    def _discard_main_client(self) -> None:
         old_redis, key, old_loop = self._swap_client(None, None, None)
         self._release_client(old_redis, key, old_loop, keep=None)
+
+    def _discard_client(self) -> None:
+        """Every client of this manager, whichever loop it belongs to."""
+        self._discard_main_client()
+        self._release_parked(lambda _loop, _client: True)
+
+    def _discard_before_connecting(self) -> None:
+        # The main client goes unless another loop that is still alive is using it:
+        # that loop's client is parked by the swap that binds this loop's one.
+        self._release_parked(lambda loop, _client: _loop_is_closed(loop))
+        main_loop = self._client_loop
+        if (
+            main_loop is None
+            or main_loop is running_loop_or_none()
+            or main_loop.is_closed()
+        ):
+            self._discard_main_client()
+
+    def _adopt_the_parked_client_of_this_loop(self) -> bool:
+        held = self._parked_clients().get(running_loop_or_none())
+        if held is None:
+            return False
+        replaced = self._swap_client(held[0], held[1], running_loop_or_none())
+        self._release_client(*replaced, keep=held[0])
+        return True
 
     def _mark_most_recently_initialized(self) -> None:
         if self._registered:
@@ -326,7 +355,9 @@ class RedisManager(RedisOutageMixin, RedisBanStrikeMixin):
     def _open_connection(self, url: str) -> None:
         config = self.config
         sweep_no_abandoned_clients()
-        self._discard_client()
+        if self._adopt_the_parked_client_of_this_loop():
+            return
+        self._discard_before_connecting()
 
         new_redis: Redis | None = None
         key: Hashable | None = None
@@ -407,14 +438,14 @@ class RedisManager(RedisOutageMixin, RedisBanStrikeMixin):
             stop()
 
     def is_connected(self) -> bool:
-        return self._redis is not None
+        return self._holds_a_client()
 
     def close(self) -> None:
         sweep_no_abandoned_clients()
         self._stop_background_users()
         self._closed = True
         self._degraded = False
-        if self._redis:
+        if self._holds_a_client():
             self._discard_client()
             self.logger.info("Redis connection closed")
 
@@ -437,13 +468,17 @@ class RedisManager(RedisOutageMixin, RedisBanStrikeMixin):
             )
             raise GuardRedisError(503, "Redis connection closed")
 
-        if not self._redis or (
+        client = self._redis
+        if not client or (
             self._client_loop is not None
             and self._client_loop is not running_loop_or_none()
         ):
-            self.initialize()
+            client = self._parked_client_here()
+            if client is None:
+                self.initialize()
+                client = self._client_here()
 
-        if self._redis is None:
+        if client is None:
             self._send_redis_event(
                 event_type=EVENT_REDIS_ERROR,
                 action_taken="operation_failed",
@@ -452,7 +487,7 @@ class RedisManager(RedisOutageMixin, RedisBanStrikeMixin):
             )
             raise GuardRedisError(503, "Redis connection failed")
 
-        return self._redis
+        return client
 
     def _fail_on_connection_error(self, client: Redis | None, error: Exception) -> None:
         """A connection error becomes ``GuardRedisError``; a timeout only degrades
