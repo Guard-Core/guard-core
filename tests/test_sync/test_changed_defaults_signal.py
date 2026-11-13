@@ -180,6 +180,50 @@ def test_a_slash_entry_assigned_after_bind_is_logged_once(
     assert "ban_on_hostile_signals" not in fresh[0]
 
 
+@pytest.fixture
+def logging_off() -> Generator[None, None, None]:
+    logging.disable(logging.CRITICAL)
+    try:
+        yield
+    finally:
+        logging.disable(logging.NOTSET)
+
+
+def test_a_config_built_while_no_warning_can_be_logged_touches_no_notice_state(
+    monkeypatch: pytest.MonkeyPatch, logging_off: None
+) -> None:
+    looked_up: list[object] = []
+    real = _staged_defaults._changed_defaults_logged.for_app
+
+    def spy(config: object) -> object:
+        looked_up.append(config)
+        return real(config)
+
+    monkeypatch.setattr(_staged_defaults._changed_defaults_logged, "for_app", spy)
+
+    SyncSecurityConfig()
+
+    assert looked_up == []
+
+
+def test_a_notice_skipped_while_logging_was_off_is_logged_when_logging_comes_on(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    logging.disable(logging.CRITICAL)
+    try:
+        config = SyncSecurityConfig(enable_redis=False, lazy_init=False)
+    finally:
+        logging.disable(logging.NOTSET)
+
+    with _logging(caplog):
+        HandlerInitializer(config=config)._configure_detection()
+        first = _signals(caplog)
+        HandlerInitializer(config=config)._configure_detection()
+
+    assert len(first) == 1
+    assert len(_signals(caplog)) == 1
+
+
 def test_a_stated_trigger_assignment_logs_nothing_new(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

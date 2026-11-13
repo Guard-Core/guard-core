@@ -183,6 +183,8 @@ def _states_every_changed_default(config: StagedDefaultsConfig) -> bool:
 
 
 def signal_changed_defaults(config: StagedDefaultsConfig) -> None:
+    if not logger.isEnabledFor(logging.WARNING):
+        return
     if _states_every_changed_default(config):
         return
     entries = (
