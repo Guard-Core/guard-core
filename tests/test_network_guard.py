@@ -4,7 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-from tests import network_guard
+from guard_core.models import SecurityConfig
+from tests import conftest, network_guard
 
 
 def test_non_loopback_connect_is_refused_and_recorded() -> None:
@@ -128,3 +129,42 @@ def test_an_unresolvable_redis_host_allows_only_loopback(
     assert not network_guard.is_allowed(socket.AF_INET, ("nowhere.invalid", 6478))
     assert not network_guard.is_allowed(socket.AF_INET, ("192.0.2.10", 6478))
     assert network_guard.is_allowed(socket.AF_INET, ("::1", 6478, 0, 0))
+
+
+@pytest.mark.usefixtures("configured_endpoints")
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "::1"])
+def test_the_host_redis_port_is_refused_when_redis_url_is_elsewhere(host: str) -> None:
+    network_guard.configure("redis://localhost:6538")
+
+    assert not network_guard.is_allowed(socket.AF_INET, (host, 6379))
+    assert network_guard.is_allowed(socket.AF_INET, (host, 6538))
+
+
+@pytest.mark.usefixtures("configured_endpoints")
+def test_the_host_redis_port_is_allowed_when_redis_url_names_it() -> None:
+    network_guard.configure("redis://localhost:6379")
+
+    assert network_guard.is_allowed(socket.AF_INET, ("127.0.0.1", 6379))
+
+
+@pytest.mark.usefixtures("configured_endpoints")
+def test_connecting_to_the_host_redis_port_is_recorded_before_any_connect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    network_guard.configure("redis://localhost:6538")
+    reached: list[object] = []
+    monkeypatch.setattr(
+        network_guard, "_real_connect", lambda _self, address: reached.append(address)
+    )
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        with pytest.raises(network_guard.NetworkAccessError):
+            sock.connect(("127.0.0.1", 6379))
+        with pytest.raises(network_guard.NetworkAccessError):
+            sock.connect_ex(("127.0.0.1", 6379))
+
+    assert reached == []
+    assert len(network_guard.drain()) == 2
+
+
+def test_the_default_redis_url_of_a_config_follows_redis_url() -> None:
+    assert SecurityConfig().redis_url == conftest.REDIS_URL

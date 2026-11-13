@@ -211,7 +211,7 @@ def test_an_unenforced_ban_warns_once_with_its_kind(
     record = _the_one_warning(caplog)
     assert record.getMessage() == (
         f"A stored ban on 127.0.0.1 is not enforced for the app with the Redis "
-        f"prefix 'kind-unenforced-{flag}:' (redis://localhost:6379): the address "
+        f"prefix 'kind-unenforced-{flag}:' ({config.redis_url}): the address "
         "is one of its trusted proxies or a loopback address, and a ban there "
         "would block every user behind it. The ban stays in force for apps that "
         "do not trust it."
