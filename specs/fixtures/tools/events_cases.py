@@ -21,6 +21,14 @@ ANOMALY_SAMPLES: list[AnomalySample] = [
 ]
 ANOMALY_SAMPLES.append({"pattern": ANOMALY_PATTERN, "execution_time": 5.0})
 
+# Raw route templates as the Python adapters stamp them (normalised by the
+# engine, never by the case): fastapi ``{name:conv}``, flask and djapi
+# ``<conv:name>``, tornado a regex with a named and an unnamed group.
+TEMPLATE_CONVERTER = "/items/{item_id:int}"
+TEMPLATE_ANGLE = "/items/<int:item_id>"
+TEMPLATE_REGEX = r"^/orgs/(?P<org>[^/]+)/files/(\d+)$"
+TEMPLATE_UNNORMALIZABLE = "^/files/[a-z]+$"
+
 EVENTS_SUITES: dict[str, list[EventsCaseInput]] = {}
 
 EVENTS_SUITES["event_stream"] = [
@@ -532,6 +540,166 @@ EVENTS_SUITES["event_stream"] = [
                 "slow_pattern_threshold": 10.0,
                 "samples": ANOMALY_SAMPLES,
             }
+        ],
+    },
+    # ---- route_template (spec 12 "Event bus"): one case per request-bound
+    # emitter per raw template form, plus the null forms ----
+    {
+        "id": "evt_route_template_middleware_converter",
+        "config": {"blacklist": ["203.0.113.50"]},
+        "drives": [
+            {
+                "client_ip": "203.0.113.50",
+                "url_path": "/items/42",
+                "guard_route_template": TEMPLATE_CONVERTER,
+            }
+        ],
+    },
+    {
+        "id": "evt_route_template_middleware_angle",
+        "config": {"blacklist": ["203.0.113.51"]},
+        "drives": [
+            {
+                "client_ip": "203.0.113.51",
+                "url_path": "/items/42",
+                "guard_route_template": TEMPLATE_ANGLE,
+            }
+        ],
+    },
+    {
+        "id": "evt_route_template_middleware_regex",
+        "config": {"blacklist": ["203.0.113.52"]},
+        "drives": [
+            {
+                "client_ip": "203.0.113.52",
+                "url_path": "/orgs/acme/files/7",
+                "guard_route_template": TEMPLATE_REGEX,
+            }
+        ],
+    },
+    {
+        "id": "evt_route_template_middleware_unnormalizable",
+        "config": {"blacklist": ["203.0.113.53"]},
+        "drives": [
+            {
+                "client_ip": "203.0.113.53",
+                "url_path": "/files/abc",
+                "guard_route_template": TEMPLATE_UNNORMALIZABLE,
+            }
+        ],
+    },
+    {
+        "id": "evt_route_template_send_agent_event_converter",
+        "config": {"trusted_proxies": ["192.0.2.1"]},
+        "drives": [
+            {
+                "client_ip": "203.0.113.54",
+                "url_path": "/items/42",
+                "headers": {"X-Forwarded-For": "198.51.100.78"},
+                "drop_cached_client_ip": True,
+                "guard_route_template": TEMPLATE_CONVERTER,
+            }
+        ],
+    },
+    {
+        "id": "evt_route_template_send_agent_event_regex",
+        "config": {"trusted_proxies": ["192.0.2.1"]},
+        "drives": [
+            {
+                "client_ip": "203.0.113.55",
+                "url_path": "/orgs/acme/files/7",
+                "headers": {"X-Forwarded-For": "198.51.100.79"},
+                "drop_cached_client_ip": True,
+                "guard_route_template": TEMPLATE_REGEX,
+            }
+        ],
+    },
+    {
+        "id": "evt_route_template_rate_limited_converter",
+        "config": {"rate_limit": 1, "rate_limit_window": 60},
+        "drives": [
+            {
+                "client_ip": "203.0.113.56",
+                "url_path": "/items/42",
+                "guard_route_template": TEMPLATE_CONVERTER,
+            },
+            {
+                "client_ip": "203.0.113.56",
+                "url_path": "/items/42",
+                "guard_route_template": TEMPLATE_CONVERTER,
+            },
+        ],
+    },
+    {
+        "id": "evt_route_template_rate_limited_regex",
+        "config": {"rate_limit": 1, "rate_limit_window": 60},
+        "drives": [
+            {
+                "client_ip": "203.0.113.57",
+                "url_path": "/orgs/acme/files/7",
+                "guard_route_template": TEMPLATE_REGEX,
+            },
+            {
+                "client_ip": "203.0.113.57",
+                "url_path": "/orgs/acme/files/7",
+                "guard_route_template": TEMPLATE_REGEX,
+            },
+        ],
+    },
+    {
+        "id": "evt_route_template_detection_converter",
+        "config": {},
+        "drives": [
+            {"call": "wire_pattern_events"},
+            {
+                "client_ip": "203.0.113.58",
+                "url_path": "/items/42",
+                "body": ATTACK,
+                "guard_route_template": TEMPLATE_CONVERTER,
+            },
+        ],
+    },
+    {
+        "id": "evt_route_template_detection_regex",
+        "config": {},
+        "drives": [
+            {"call": "wire_pattern_events"},
+            {
+                "client_ip": "203.0.113.59",
+                "url_path": "/orgs/acme/files/7",
+                "body": ATTACK,
+                "guard_route_template": TEMPLATE_REGEX,
+            },
+        ],
+    },
+    {
+        "id": "evt_route_template_system_event_on_templated_request",
+        "config": {
+            "enable_ip_banning": True,
+            "auto_ban_threshold": 1,
+            "ban_on_hostile_signals": False,
+        },
+        "drives": [
+            {"call": "wire_ip_ban_events"},
+            {
+                "client_ip": "203.0.113.60",
+                "url_path": "/items/42",
+                "body": ATTACK,
+                "guard_route_template": TEMPLATE_CONVERTER,
+            },
+        ],
+    },
+    {
+        "id": "evt_route_template_rate_limited_by_ip",
+        "config": {"rate_limit": 1, "rate_limit_window": 60},
+        "drives": [
+            {
+                "client_ip": "203.0.113.61",
+                "url_path": "/items/42",
+                "guard_route_template": TEMPLATE_CONVERTER,
+            },
+            {"call": "rate_limit_by_ip", "ip": "203.0.113.61"},
+            {"call": "rate_limit_by_ip", "ip": "203.0.113.61"},
         ],
     },
 ]

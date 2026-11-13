@@ -2353,6 +2353,598 @@
           }
         }
       ]
+    },
+    {
+      "id": "evt_route_template_middleware_converter",
+      "config": {
+        "blacklist": [
+          "203.0.113.50"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.50",
+          "url_path": "/items/42",
+          "guard_route_template": "/items/{item_id:int}"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "ip_blocked",
+          "ip_address": "203.0.113.50",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "IP 203.0.113.50 not in global allowlist/blocklist",
+          "endpoint": "/items/42",
+          "route_template": "/items/{item_id}",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.50",
+            "filter_type": "global"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_template_middleware_angle",
+      "config": {
+        "blacklist": [
+          "203.0.113.51"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.51",
+          "url_path": "/items/42",
+          "guard_route_template": "/items/<int:item_id>"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "ip_blocked",
+          "ip_address": "203.0.113.51",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "IP 203.0.113.51 not in global allowlist/blocklist",
+          "endpoint": "/items/42",
+          "route_template": "/items/{item_id}",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.51",
+            "filter_type": "global"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_template_middleware_regex",
+      "config": {
+        "blacklist": [
+          "203.0.113.52"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.52",
+          "url_path": "/orgs/acme/files/7",
+          "guard_route_template": "^/orgs/(?P<org>[^/]+)/files/(\\d+)$"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "ip_blocked",
+          "ip_address": "203.0.113.52",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "IP 203.0.113.52 not in global allowlist/blocklist",
+          "endpoint": "/orgs/acme/files/7",
+          "route_template": "/orgs/{org}/files/{1}",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.52",
+            "filter_type": "global"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_template_middleware_unnormalizable",
+      "config": {
+        "blacklist": [
+          "203.0.113.53"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.53",
+          "url_path": "/files/abc",
+          "guard_route_template": "^/files/[a-z]+$"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "ip_blocked",
+          "ip_address": "203.0.113.53",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "IP 203.0.113.53 not in global allowlist/blocklist",
+          "endpoint": "/files/abc",
+          "route_template": null,
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.53",
+            "filter_type": "global"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_template_send_agent_event_converter",
+      "config": {
+        "trusted_proxies": [
+          "192.0.2.1"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.54",
+          "url_path": "/items/42",
+          "headers": {
+            "X-Forwarded-For": "198.51.100.78"
+          },
+          "drop_cached_client_ip": true,
+          "guard_route_template": "/items/{item_id:int}"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "suspicious_request",
+          "ip_address": "203.0.113.54",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "spoofing_detected",
+          "reason": "Potential IP spoof attempt: X-Forwarded-For header 198.51.100.78",
+          "endpoint": "/items/42",
+          "route_template": "/items/{item_id}",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "ip_extraction",
+          "metadata": {
+            "suppressed_count": 0,
+            "suppressed_evicted_count": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_template_send_agent_event_regex",
+      "config": {
+        "trusted_proxies": [
+          "192.0.2.1"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.55",
+          "url_path": "/orgs/acme/files/7",
+          "headers": {
+            "X-Forwarded-For": "198.51.100.79"
+          },
+          "drop_cached_client_ip": true,
+          "guard_route_template": "^/orgs/(?P<org>[^/]+)/files/(\\d+)$"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "suspicious_request",
+          "ip_address": "203.0.113.55",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "spoofing_detected",
+          "reason": "Potential IP spoof attempt: X-Forwarded-For header 198.51.100.79",
+          "endpoint": "/orgs/acme/files/7",
+          "route_template": "/orgs/{org}/files/{1}",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "ip_extraction",
+          "metadata": {
+            "suppressed_count": 0,
+            "suppressed_evicted_count": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_template_rate_limited_converter",
+      "config": {
+        "rate_limit": 1,
+        "rate_limit_window": 60
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.56",
+          "url_path": "/items/42",
+          "guard_route_template": "/items/{item_id:int}"
+        },
+        {
+          "client_ip": "203.0.113.56",
+          "url_path": "/items/42",
+          "guard_route_template": "/items/{item_id:int}"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "rate_limited",
+          "ip_address": "203.0.113.56",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Rate limit exceeded: 2 requests in 60s window",
+          "endpoint": "/items/42",
+          "route_template": "/items/{item_id}",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "rate_limit",
+          "metadata": {
+            "request_count": 2,
+            "rate_limit": 1,
+            "window": 60
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_template_rate_limited_regex",
+      "config": {
+        "rate_limit": 1,
+        "rate_limit_window": 60
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.57",
+          "url_path": "/orgs/acme/files/7",
+          "guard_route_template": "^/orgs/(?P<org>[^/]+)/files/(\\d+)$"
+        },
+        {
+          "client_ip": "203.0.113.57",
+          "url_path": "/orgs/acme/files/7",
+          "guard_route_template": "^/orgs/(?P<org>[^/]+)/files/(\\d+)$"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "rate_limited",
+          "ip_address": "203.0.113.57",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Rate limit exceeded: 2 requests in 60s window",
+          "endpoint": "/orgs/acme/files/7",
+          "route_template": "/orgs/{org}/files/{1}",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "rate_limit",
+          "metadata": {
+            "request_count": 2,
+            "rate_limit": 1,
+            "window": 60
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_template_detection_converter",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "wire_pattern_events"
+        },
+        {
+          "client_ip": "203.0.113.58",
+          "url_path": "/items/42",
+          "body": "<script>alert(1)</script>",
+          "guard_route_template": "/items/{item_id:int}"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "pattern_detected",
+          "ip_address": "203.0.113.58",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "threat_detected",
+          "reason": "Threat detected in request_body",
+          "endpoint": "/items/42",
+          "route_template": "/items/{item_id}",
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": "<script[^>]*>[^<]*<\\/script\\s*>",
+          "handler_name": "sus_patterns",
+          "metadata": {
+            "pattern": "<script[^>]*>[^<]*<\\/script\\s*>",
+            "context": "request_body",
+            "content_preview": "<script>alert(1)</script>",
+            "threat_score": 1.0,
+            "threats": 1,
+            "regex_threats": 1,
+            "semantic_threats": 0,
+            "timeouts": 0,
+            "detection_method": "enhanced",
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
+          }
+        },
+        {
+          "event_type": "penetration_attempt",
+          "ip_address": "203.0.113.58",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Penetration attempt detected: Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+          "endpoint": "/items/42",
+          "route_template": "/items/{item_id}",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "request_count": 1,
+            "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_template_detection_regex",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "wire_pattern_events"
+        },
+        {
+          "client_ip": "203.0.113.59",
+          "url_path": "/orgs/acme/files/7",
+          "body": "<script>alert(1)</script>",
+          "guard_route_template": "^/orgs/(?P<org>[^/]+)/files/(\\d+)$"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "pattern_detected",
+          "ip_address": "203.0.113.59",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "threat_detected",
+          "reason": "Threat detected in request_body",
+          "endpoint": "/orgs/acme/files/7",
+          "route_template": "/orgs/{org}/files/{1}",
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": "<script[^>]*>[^<]*<\\/script\\s*>",
+          "handler_name": "sus_patterns",
+          "metadata": {
+            "pattern": "<script[^>]*>[^<]*<\\/script\\s*>",
+            "context": "request_body",
+            "content_preview": "<script>alert(1)</script>",
+            "threat_score": 1.0,
+            "threats": 1,
+            "regex_threats": 1,
+            "semantic_threats": 0,
+            "timeouts": 0,
+            "detection_method": "enhanced",
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
+          }
+        },
+        {
+          "event_type": "penetration_attempt",
+          "ip_address": "203.0.113.59",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Penetration attempt detected: Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+          "endpoint": "/orgs/acme/files/7",
+          "route_template": "/orgs/{org}/files/{1}",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "request_count": 1,
+            "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_template_system_event_on_templated_request",
+      "config": {
+        "enable_ip_banning": true,
+        "auto_ban_threshold": 1,
+        "ban_on_hostile_signals": false
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "wire_ip_ban_events"
+        },
+        {
+          "client_ip": "203.0.113.60",
+          "url_path": "/items/42",
+          "body": "<script>alert(1)</script>",
+          "guard_route_template": "/items/{item_id:int}"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "ip_banned",
+          "ip_address": "203.0.113.60",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "banned",
+          "reason": "penetration_attempt",
+          "endpoint": null,
+          "route_template": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "ip_ban",
+          "metadata": {
+            "duration": 3600
+          }
+        },
+        {
+          "event_type": "penetration_attempt",
+          "ip_address": "203.0.113.60",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Penetration attempt detected: Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+          "endpoint": "/items/42",
+          "route_template": "/items/{item_id}",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "request_count": 1,
+            "ban_duration": 3600,
+            "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_template_rate_limited_by_ip",
+      "config": {
+        "rate_limit": 1,
+        "rate_limit_window": 60
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.61",
+          "url_path": "/items/42",
+          "guard_route_template": "/items/{item_id:int}"
+        },
+        {
+          "call": "rate_limit_by_ip",
+          "ip": "203.0.113.61"
+        },
+        {
+          "call": "rate_limit_by_ip",
+          "ip": "203.0.113.61"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "rate_limited",
+          "ip_address": "203.0.113.61",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Rate limit exceeded for IP: 203.0.113.61 (2 requests in 60s window)",
+          "endpoint": null,
+          "route_template": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "rate_limit",
+          "metadata": {
+            "request_count": 2,
+            "rate_limit": 1,
+            "window": 60
+          }
+        }
+      ]
     }
   ]
 }

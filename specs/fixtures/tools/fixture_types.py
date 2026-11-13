@@ -99,6 +99,7 @@ class AnomalySample(TypedDict):
 
 
 class EventsStep(RequestStep, total=False):
+    guard_route_template: str
     call: str
     ip: str
     duration: int

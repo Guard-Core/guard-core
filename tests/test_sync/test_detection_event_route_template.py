@@ -76,7 +76,7 @@ def test_the_detection_event_carries_the_normalised_route_template() -> None:
 def test_the_detection_event_of_an_unrouted_request_has_no_template() -> None:
     event = _pattern_event(None)
 
-    assert "route_template" not in event.model_dump()
+    assert event.model_dump().get("route_template") is None
 
 
 def test_outside_a_request_scan_there_is_no_template_to_report() -> None:

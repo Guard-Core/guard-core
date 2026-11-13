@@ -222,7 +222,7 @@ async def test_the_middleware_event_has_no_template_for_an_unrouted_path() -> No
     )
 
     event = agent.send_event.call_args.args[0]
-    assert "route_template" not in event.model_dump()
+    assert event.model_dump().get("route_template") is None
 
 
 async def test_send_agent_event_carries_the_route_template() -> None:
@@ -240,7 +240,7 @@ async def test_send_agent_event_without_a_request_has_no_template() -> None:
 
     await send_agent_event(agent, "x", "1.2.3.4", "a", "r")
 
-    assert "route_template" not in agent.send_event.call_args.args[0].model_dump()
+    assert agent.send_event.call_args.args[0].model_dump().get("route_template") is None
 
 
 def test_the_metric_endpoint_tag_is_the_normalised_template() -> None:

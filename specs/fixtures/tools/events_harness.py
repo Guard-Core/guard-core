@@ -24,6 +24,15 @@ Injection seams (documented, deterministic):
   deterministic async check function.
 - ``drive.guard_route_unresolved: true`` pre-sets the request-state flag
   the middleware resolver sets when route resolution fails.
+- ``drive.guard_route_template: "<raw template>"`` pre-sets
+  ``request.state.<ROUTE_TEMPLATE_STATE_ATTR>`` to the raw route template an
+  adapter stamps (``/items/{item_id:int}``, ``/items/<int:item_id>`` or a
+  regex), so the engine normalises it into the ``route_template`` event field.
+- ``call: "rate_limit_by_ip"`` runs ``check_rate_limit_by_ip`` outside the
+  pipeline: a by-IP ``rate_limited`` event, which has no request and so no
+  ``route_template``.
+- ``call: "wire_ip_ban_events"`` hands the ban handler the capturing agent, so
+  a ban the pipeline applies reports its ``ip_banned`` system event.
 - ``call: "cloud_stub"`` pins the cloud handler's lookup answers.
 - ``call: "ipban_fault"`` makes ``ban_ip`` raise, exercising the
   ban-escalation failure path.
@@ -71,6 +80,7 @@ from pipeline_harness import (
     reset_check_samplers,
 )
 
+from guard_core._utils.route_gate import ROUTE_TEMPLATE_STATE_ATTR
 from guard_core._utils.rule_attribution import set_attribution_view
 from guard_core.core.bypass.context import BypassContext
 from guard_core.core.bypass.handler import BypassHandler
@@ -87,7 +97,10 @@ from guard_core.handlers.cloud_handler import cloud_handler
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager, reset_global_state
 from guard_core.handlers.ipinfo_handler import IPInfoManager
-from guard_core.handlers.ratelimit_handler import RateLimitManager
+from guard_core.handlers.ratelimit_handler import (
+    RateLimitManager,
+    check_rate_limit_by_ip,
+)
 from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.handlers.suspatterns_handler import (
@@ -447,6 +460,10 @@ class EventsCase:
         request = _PipelineRequest(step)
         if step.get("guard_route_unresolved"):
             request.state.guard_route_unresolved = True
+        if "guard_route_template" in step:
+            setattr(
+                request.state, ROUTE_TEMPLATE_STATE_ATTR, step["guard_route_template"]
+            )
         if step.get("drop_cached_client_ip"):
             # Make extract_client_ip resolve from the peer/headers chain
             # (the real adapters do not pre-cache state.client_ip).
@@ -556,6 +573,9 @@ class EventsCase:
 
     async def _call_wire_pattern_events(self, step: EventsStep) -> None:
         await self.patterns.initialize_agent(self.agent)
+
+    async def _call_wire_ip_ban_events(self, step: EventsStep) -> None:
+        await ip_ban_manager.initialize_agent(self.agent)
 
     async def _call_decorator_event(self, step: EventsStep) -> None:
         request = _PipelineRequest(step)
@@ -697,6 +717,11 @@ class EventsCase:
             redis_manager._closed = True
             await redis_manager._discard_client()
             await _flush_events_prefix()
+
+    async def _call_rate_limit_by_ip(self, step: EventsStep) -> None:
+        await check_rate_limit_by_ip(
+            step["ip"], self.config, None, "", agent_handler=self.agent
+        )
 
     async def _call_bypass(self, step: EventsStep) -> None:
         validator = RequestValidator(
