@@ -36,7 +36,9 @@ class RouteMisconfigurationReportsMixin:
     _geo_handler_is_ours: bool = False
     _route_misconfigurations_reported: tuple[int, int | None, int] | None = None
 
-    def _report_unreachable_ban_thresholds(self) -> None:
+    def _report_unreachable_ban_thresholds(
+        self, candidate: "BaseSecurityDecorator | None" = None
+    ) -> None:
         # The context is parked on this app's config, which this initializer owns, so
         # it reads the app through a weak reference and holds no cycle.
         app = weakref.ref(self)
@@ -52,45 +54,72 @@ class RouteMisconfigurationReportsMixin:
                 redis_is_configured(live.config) and live.redis_handler
             )
 
-        context = _BanThresholdContext(route_configs, redis_shared)
-        remember_ban_threshold_context(
-            context.route_configs, context.redis_shared, self.config
-        )
+        remember_ban_threshold_context(route_configs, redis_shared, self.config)
+
+        def candidate_routes() -> tuple["RouteConfig", ...]:
+            return tuple(getattr(candidate, "_route_configs", {}).values())
+
+        reported_routes = route_configs if candidate is None else candidate_routes
         report_unreachable_ban_thresholds(
-            self.config, context, self.logger, stacklevel=6
+            self.config,
+            _BanThresholdContext(reported_routes, redis_shared),
+            self.logger,
+            stacklevel=6,
         )
 
-    def _build_geo_ip_handler_for_route_rules(self) -> None:
+    def _route_rules_need_geo_ip_handler(
+        self, decorator: "BaseSecurityDecorator | None"
+    ) -> bool:
         if self.geo_ip_handler is not None or not self.config.ipinfo_token:
+            return False
+        route_configs = getattr(decorator, "_route_configs", {})
+        return routes_need_geo_ip_handler(route_configs.values())
+
+    def _require_what_the_geo_handler_for_route_rules_needs(
+        self, decorator: "BaseSecurityDecorator | None"
+    ) -> None:
+        if not self._route_rules_need_geo_ip_handler(decorator):
             return
-        route_configs = getattr(self.guard_decorator, "_route_configs", {})
-        if not routes_need_geo_ip_handler(route_configs.values()):
-            return
-        from guard_core.sync.handlers._downloader import (
-            TREE_DOWNLOADER,
-            require_downloader_installed,
-        )
+        from guard_core._config_capabilities import require_geo_extra
+        from guard_core.sync.handlers._downloader import require_downloader_installed
 
         require_downloader_installed(
             "geo", "The built-in GeoIP database download", self._adapter
         )
+        require_geo_extra()
+
+    def _build_geo_ip_handler_for_route_rules(
+        self, decorator: "BaseSecurityDecorator | None"
+    ) -> None:
+        if not self._route_rules_need_geo_ip_handler(decorator):
+            return
+        from guard_core.sync.handlers._downloader import TREE_DOWNLOADER
+
+        self._require_what_the_geo_handler_for_route_rules_needs(decorator)
         self.geo_ip_handler = build_geo_ip_handler_from_token(
             self.config, tree_awaits=TREE_DOWNLOADER == "aiohttp"
         )
         self._geo_handler_is_ours = True
 
-    def _report_country_decorators_without_geoip(self) -> None:
+    def _report_country_decorators_without_geoip(
+        self, decorator: "BaseSecurityDecorator | None"
+    ) -> None:
         report_country_decorators_without_geoip(
-            self.config, self.guard_decorator, self.geo_ip_handler, self.logger
+            self.config, decorator, self.geo_ip_handler, self.logger
         )
 
-    def _report_route_limits_with_global_switch_off(self) -> None:
-        report_route_limits_with_global_switch_off(
-            self.config, self.guard_decorator, self.logger
-        )
+    def _report_route_limits_with_global_switch_off(
+        self, decorator: "BaseSecurityDecorator | None"
+    ) -> None:
+        report_route_limits_with_global_switch_off(self.config, decorator, self.logger)
 
-    def report_route_misconfigurations(self) -> None:
-        decorator = self.guard_decorator
+    def report_route_misconfigurations(
+        self, candidate: "BaseSecurityDecorator | None" = None
+    ) -> None:
+        """Report the route misconfigurations of the bound decorator, or of a
+        ``candidate`` not bound yet (then the geo handler is left to the caller,
+        who builds it once the candidate is bound)."""
+        decorator = self.guard_decorator if candidate is None else candidate
         reported = (
             id(decorator),
             getattr(decorator, "route_config_revision", None),
@@ -98,8 +127,9 @@ class RouteMisconfigurationReportsMixin:
         )
         if self._route_misconfigurations_reported == reported:
             return
-        self._build_geo_ip_handler_for_route_rules()
-        self._report_unreachable_ban_thresholds()
-        self._report_country_decorators_without_geoip()
-        self._report_route_limits_with_global_switch_off()
+        if candidate is None:
+            self._build_geo_ip_handler_for_route_rules(decorator)
+        self._report_unreachable_ban_thresholds(candidate)
+        self._report_country_decorators_without_geoip(decorator)
+        self._report_route_limits_with_global_switch_off(decorator)
         self._route_misconfigurations_reported = reported

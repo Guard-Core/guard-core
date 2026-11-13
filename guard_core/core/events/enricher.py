@@ -138,6 +138,9 @@ class EventEnricher:
     def __init__(self, context: EnrichmentContext) -> None:
         self._context = context
 
+    def use_behavior_tracker(self, behavior_tracker: object) -> None:
+        self._context.behavior_tracker = behavior_tracker
+
     async def enrich_event(self, event: object) -> None:
         try:
             metadata = getattr(event, "metadata", None)

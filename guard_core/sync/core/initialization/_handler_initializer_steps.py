@@ -21,6 +21,9 @@ from guard_core.sync._utils.sampling import PerApp, SampledKeys, observe_sampled
 from guard_core.sync.core.initialization._cloud_initialization import (
     CloudInitializationMixin,
 )
+from guard_core.sync.core.initialization._decorator_adoption import (
+    DecoratorAdoptionMixin,
+)
 from guard_core.sync.core.initialization._headers_manager_attach import (
     attach_security_headers_manager_to_redis,
 )
@@ -30,9 +33,6 @@ from guard_core.sync.core.initialization._redis_cold_start_recovery import (
 )
 from guard_core.sync.core.initialization._redis_handler_members import (
     report_incomplete_redis_handler,
-)
-from guard_core.sync.core.initialization._route_misconfiguration_reports import (
-    RouteMisconfigurationReportsMixin,
 )
 from guard_core.sync.core.initialization._whitelist_strikes import (
     reset_startup_whitelist_strikes,
@@ -75,7 +75,7 @@ class _RateLimitSlot(Protocol):
 
 
 class _HandlerInitializerStepsMixin(
-    RouteMisconfigurationReportsMixin,
+    DecoratorAdoptionMixin,
     CloudInitializationMixin,
     RedisColdStartRecoveryMixin,
 ):
@@ -232,6 +232,11 @@ class _HandlerInitializerStepsMixin(
         sus_patterns_manager_for(self.config).initialize_redis(redis_handler)
         attach_security_headers_manager_to_redis(redis_handler, self.config)
 
+        self._initialize_behavior_tracking_on_redis(redis_handler)
+
+    def _initialize_behavior_tracking_on_redis(
+        self, redis_handler: "SyncRedisHandlerProtocol"
+    ) -> None:
         if self.guard_decorator is not None:
             self.guard_decorator.initialize_behavior_tracking(redis_handler)
         if self.behavior_tracker is not None:

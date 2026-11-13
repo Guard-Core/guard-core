@@ -5,9 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 
 from guard_core._utils.app_managers import release_app
+from guard_core._utils.app_scope import app_scope_of
 from guard_core.core.checks import build_default_pipeline
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
+from guard_core.decorators.base import BaseSecurityDecorator
 from guard_core.handlers import ipban_handler as ipban_module
 from guard_core.handlers import suspatterns_handler as patterns_module
 from guard_core.models import SecurityConfig
@@ -69,3 +71,30 @@ def test_a_second_event_loop_after_contention_still_decides() -> None:
     for _ in range(3):
         release_app(config)
         assert asyncio.run(_two_first_requests(pipeline)) == [None, None]
+
+
+def test_contended_decorator_adoption_completions_work_in_a_second_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = SecurityConfig()
+    initializer = HandlerInitializer(config)
+    calls: list[int] = []
+
+    async def slow(_: object = None) -> None:
+        calls.append(1)
+        await asyncio.sleep(0.02)
+
+    async def two_contended_completions() -> None:
+        await asyncio.gather(
+            initializer.complete_decorator_adoption(),
+            initializer.complete_decorator_adoption(),
+        )
+
+    for _ in range(2):
+        adopted = BaseSecurityDecorator(SecurityConfig())
+        monkeypatch.setattr(adopted, "initialize_behavior_tracking", slow)
+        initializer.adopt_decorator(adopted)
+        monkeypatch.setattr(app_scope_of(config), "redis_handler", object())
+        asyncio.run(two_contended_completions())
+
+    assert len(calls) == 2
