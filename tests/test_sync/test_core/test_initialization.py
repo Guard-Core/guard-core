@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from guard_core._misconfiguration_kinds import K_DYNAMIC_RULES_ENABLED_WITHOUT_AGENT
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
@@ -476,7 +477,9 @@ def test_initialize_dynamic_rule_manager_no_agent(
         for r in caplog.records
         if r.levelname == "WARNING"
         and r.name == "guard_core.sync.core.initialization"
-        and "Dynamic rules enabled but agent unavailable" in r.getMessage()
+        and getattr(r, "problems", None)
+        == ((K_DYNAMIC_RULES_ENABLED_WITHOUT_AGENT, None),)
+        and "has no agent handler" in r.getMessage()
     ]
     assert len(warnings) == 1
 

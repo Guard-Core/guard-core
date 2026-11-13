@@ -6,6 +6,10 @@ import pytest
 from redis import Redis
 from redis.exceptions import ConnectionError
 
+from guard_core._misconfiguration_kinds import (
+    K_REDIS_URL_NONE_WITH_ENABLE_REDIS,
+    kinds_log_extra,
+)
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import RedisManager, redis_handler
@@ -383,7 +387,10 @@ def test_redis_url_none(security_config_redis: SyncSecurityConfig) -> None:
 
     with patch("logging.Logger.warning") as mock_warning:
         handler.initialize()
-        mock_warning.assert_called_once_with("Redis URL is None, skipping connection")
+        mock_warning.assert_called_once_with(
+            "Redis URL is None, skipping connection",
+            extra=kinds_log_extra(K_REDIS_URL_NONE_WITH_ENABLE_REDIS, None),
+        )
         assert handler._redis is None
 
 
