@@ -57,7 +57,6 @@ SKIP_SRC = {
 }
 
 SKIP_TESTS = {
-    "test_detection_exclusion_path_param_kinds.py",
     "test_misconfiguration_kind_registry.py",
     "test_misconfiguration_problem_kinds.py",
     "test_misconfiguration_raises_all.py",
