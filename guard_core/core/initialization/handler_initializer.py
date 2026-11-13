@@ -75,6 +75,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
             None if guard_decorator is not None else BehaviorTracker(config)
         )
         self._lazy_init_task: asyncio.Task[None] | None = None
+        self._decorator_adoption_lock = asyncio.Lock()
         self.logger = logging.getLogger("guard_core.core.initialization")
         self._require_tree_downloader(adapter)
         self.inject_bound_ban_manager()

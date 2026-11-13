@@ -151,6 +151,7 @@ SKIP_TESTS = {
     "test_compiler_cache_loop_and_threads.py",
     "test_release_stops_the_default_rule_loop.py",
     "test_released_app_two_event_loops.py",
+    "test_decorator_adoption_in_threads.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}

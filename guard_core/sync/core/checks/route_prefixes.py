@@ -103,6 +103,16 @@ def warn_unmatched_endpoint_keys(middleware: object, keys: Iterable[str]) -> Non
         )
 
 
+def is_route_check_candidate(entry: str) -> bool:
+    """Whether an ``exclude_paths`` entry is one the unmatched-route check examines:
+    not a default, not just slashes, and with no routing anomaly in any decoding."""
+    return bool(
+        entry not in DEFAULT_EXCLUDE_PATHS
+        and entry.rstrip("/")
+        and not _has_routing_anomaly_in_any_decoding(entry)
+    )
+
+
 def warn_unmatched_exclude_paths(
     middleware: object, config: "SyncSecurityConfig"
 ) -> None:
@@ -128,11 +138,7 @@ def _warn_unmatched_exclude_paths(
     if provider is None:
         return
     candidates = [
-        entry
-        for entry in config.exclude_paths
-        if entry not in DEFAULT_EXCLUDE_PATHS
-        and entry.rstrip("/")
-        and not _has_routing_anomaly_in_any_decoding(entry)
+        entry for entry in config.exclude_paths if is_route_check_candidate(entry)
     ]
     if not candidates:
         return

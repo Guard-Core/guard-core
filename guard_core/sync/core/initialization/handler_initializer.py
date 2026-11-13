@@ -75,6 +75,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
             None if guard_decorator is not None else BehaviorTracker(config)
         )
         self._lazy_init_task: threading.Thread | None = None
+        self._decorator_adoption_lock = threading.Lock()
         self.logger = logging.getLogger("guard_core.sync.core.initialization")
         self._require_tree_downloader(adapter)
         self.inject_bound_ban_manager()
