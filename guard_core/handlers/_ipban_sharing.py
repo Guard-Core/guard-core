@@ -1,6 +1,10 @@
 import logging
 from typing import TYPE_CHECKING
 
+from guard_core._misconfiguration_kinds import (
+    K_BAN_UNENFORCED_FOR_APP,
+    kinds_log_extra,
+)
 from guard_core._utils.app_scope import (
     SHARED_BY_APPS,
     AppScope,
@@ -88,6 +92,7 @@ class IpBanSharedAppsMixin(
                     ip,
                     config.redis_prefix,
                     _redact_redis_url(config.redis_url),
+                    extra=kinds_log_extra(K_BAN_UNENFORCED_FOR_APP, None),
                 )
         return False
 

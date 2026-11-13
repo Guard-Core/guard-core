@@ -8,6 +8,13 @@ from guard_core._misconfiguration import (
     WILDCARD_CORS_CREDENTIALS_PROBLEM,
     wildcard_cors_credentials_problems,
 )
+from guard_core._misconfiguration_kinds import (
+    K_CORS_WILDCARD_CREDENTIALS_DROPPED,
+    K_CSP_UNSAFE_SOURCE,
+    K_HSTS_PRELOAD_MAX_AGE_TOO_LOW,
+    K_HSTS_PRELOAD_WITHOUT_INCLUDE_SUBDOMAINS,
+    kinds_log_extra,
+)
 from guard_core._security_headers_defaults import (
     SECURITY_HEADER_NAMES,
     default_security_headers_config,
@@ -76,7 +83,8 @@ class SecurityHeadersConfigMixin:
             require_clean_csp_directive(directive, sources)
             if "'unsafe-inline'" in sources or "'unsafe-eval'" in sources:
                 self.logger.warning(
-                    f"CSP directive '{directive}' contains unsafe sources"
+                    f"CSP directive '{directive}' contains unsafe sources",
+                    extra=kinds_log_extra(K_CSP_UNSAFE_SOURCE, str(directive)),
                 )
         return csp
 
@@ -95,10 +103,18 @@ class SecurityHeadersConfigMixin:
 
         if hsts_preload:
             if hsts_max_age < 31536000:
-                self.logger.warning("HSTS preload requires max_age >= 31536000")
+                self.logger.warning(
+                    "HSTS preload requires max_age >= 31536000",
+                    extra=kinds_log_extra(K_HSTS_PRELOAD_MAX_AGE_TOO_LOW, None),
+                )
                 hsts_preload = False
             if not hsts_include_subdomains:
-                self.logger.warning("HSTS preload requires includeSubDomains")
+                self.logger.warning(
+                    "HSTS preload requires includeSubDomains",
+                    extra=kinds_log_extra(
+                        K_HSTS_PRELOAD_WITHOUT_INCLUDE_SUBDOMAINS, None
+                    ),
+                )
                 hsts_include_subdomains = True
 
         return {
@@ -129,7 +145,10 @@ class SecurityHeadersConfigMixin:
             return None
 
         if "*" in cors_origins and cors_allow_credentials:
-            self.logger.warning(WILDCARD_CORS_CREDENTIALS_PROBLEM)
+            self.logger.warning(
+                WILDCARD_CORS_CREDENTIALS_PROBLEM,
+                extra=kinds_log_extra(K_CORS_WILDCARD_CREDENTIALS_DROPPED, None),
+            )
             cors_allow_credentials = False
 
         return {

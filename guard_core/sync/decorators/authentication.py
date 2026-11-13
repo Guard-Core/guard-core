@@ -1,6 +1,10 @@
 import logging
 from collections.abc import Callable
 
+from guard_core._misconfiguration_kinds import (
+    K_REQUIRE_AUTH_CAPITALIZED_SCHEME,
+    kinds_log_extra,
+)
 from guard_core.sync.decorators.base import (
     AuthVerifier,
     BaseSecurityMixin,
@@ -53,7 +57,8 @@ class AuthenticationMixin(BaseSecurityMixin):
                 logger.warning(
                     capitalized_scheme_note(
                         getattr(func, "__qualname__", repr(func)), type, scheme
-                    )
+                    ),
+                    extra=kinds_log_extra(K_REQUIRE_AUTH_CAPITALIZED_SCHEME, None),
                 )
             route_config.auth_required = scheme
             route_config.auth_verifier = verifier

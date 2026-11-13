@@ -315,6 +315,111 @@ K_STATIC_ROUTE_PREFIXES_RAISED = _kind(
     NO_SUBJECT,
     "static_route_prefixes raised during the exclude_paths route check",
 )
+K_CONFIG_UNKNOWN_FIELD = _kind(
+    "config.unknown_field",
+    "warn",
+    "config",
+    "the unknown field name as given",
+    "SecurityConfig is given a field it does not have, which is ignored",
+)
+K_COUNTRY_ALLOWLIST_SHADOWS_BLOCKLIST = _kind(
+    "whitelist_countries.shadows_blocked_countries",
+    "warn",
+    "config",
+    NO_SUBJECT,
+    "whitelist_countries and blocked_countries are both non-empty, so "
+    "blocked_countries has no effect",
+)
+K_CSP_UNSAFE_SOURCE = _kind(
+    "security_headers.csp_unsafe_source",
+    "warn",
+    "runtime",
+    "the CSP directive",
+    "a csp directive holds 'unsafe-inline' or 'unsafe-eval', and is kept as given",
+)
+K_HSTS_PRELOAD_MAX_AGE_TOO_LOW = _kind(
+    "security_headers.hsts_preload_max_age_too_low",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "hsts preload is asked for with a max_age below 31536000, and preload is turned "
+    "off",
+)
+K_HSTS_PRELOAD_WITHOUT_INCLUDE_SUBDOMAINS = _kind(
+    "security_headers.hsts_preload_without_include_subdomains",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "hsts preload is asked for without includeSubDomains, and includeSubDomains is "
+    "turned on",
+)
+K_CORS_WILDCARD_CREDENTIALS_DROPPED = _kind(
+    "cors.wildcard_origin_with_credentials_dropped",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a headers manager is given a wildcard origin and credentials, and drops the "
+    "credentials",
+)
+K_CORS_WILDCARD_CREDENTIALS_BLOCKED = _kind(
+    "cors.wildcard_origin_with_credentials_blocked",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a response with an Origin header meets a wildcard origin with credentials, and "
+    "no CORS header is emitted",
+)
+K_REDIS_PREFIX_SPLIT_CONNECTION = _kind(
+    "redis_prefix.split_connection",
+    "warn",
+    "runtime",
+    "the shared redis_prefix",
+    "two apps use one redis_prefix on different Redis connections",
+)
+K_BAN_UNENFORCED_FOR_APP = _kind(
+    "ban.unenforced_for_app",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a stored ban is on a trusted proxy or loopback address of the app, so the app "
+    "does not enforce it",
+)
+K_REDIS_URL_NONE_WITH_ENABLE_REDIS = _kind(
+    "redis_url.none_with_enable_redis",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "enable_redis is on and redis_url is None, so no Redis connection is made",
+)
+K_ROUTE_UNKNOWN_TO_DECORATOR = _kind(
+    "route.unknown_to_decorator",
+    "warn",
+    "runtime",
+    "the route id",
+    "a route carries a route id this SecurityDecorator does not know, so none of "
+    "its decorators apply",
+)
+K_MAX_REQUEST_SIZE_ZERO = _kind(
+    "decorator.max_request_size.zero",
+    "warn",
+    "decorators",
+    NO_SUBJECT,
+    "max_request_size(0) refuses any request body",
+)
+K_BYPASS_UNKNOWN_CHECK = _kind(
+    "decorator.bypass.unknown_check",
+    "warn",
+    "decorators",
+    "the unknown checks as given, sorted and joined by a comma and a space",
+    "a bypass names a check that does not exist, so it is ignored",
+)
+K_REQUIRE_AUTH_CAPITALIZED_SCHEME = _kind(
+    "decorator.require_auth.capitalized_scheme",
+    "warn",
+    "decorators",
+    NO_SUBJECT,
+    "require_auth names a built-in scheme with other capitalization",
+)
 K_TIME_WINDOW_INVALID_TIME = _kind(
     "decorator.time_window.invalid_time",
     "error",

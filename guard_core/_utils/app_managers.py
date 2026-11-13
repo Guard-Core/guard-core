@@ -5,6 +5,10 @@ from collections.abc import Callable
 from collections.abc import Hashable as Hashable
 from typing import TYPE_CHECKING, Generic, Protocol, TypeVar
 
+from guard_core._misconfiguration_kinds import (
+    K_REDIS_PREFIX_SPLIT_CONNECTION,
+    kinds_log_extra,
+)
 from guard_core._parked_records import APP_MANAGERS_RECORD, RELEASE_EPOCH_RECORD
 from guard_core._redis_enablement import (
     RedisFieldsConfig,
@@ -176,6 +180,7 @@ def _warn_split_connection(
         _describe_connection(
             _redact_redis_url(second.redis_url), [pair[1] for pair in differences]
         ),
+        extra=kinds_log_extra(K_REDIS_PREFIX_SPLIT_CONNECTION, first.redis_prefix),
     )
 
 
