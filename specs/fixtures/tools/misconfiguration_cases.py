@@ -298,6 +298,27 @@ def config_cases() -> list[MisconfigurationCaseInput]:
             flag_stated=False,
         ),
         _config_case(
+            "agent_endpoint_http_to_a_remote_host",
+            ["agent_endpoint.insecure_remote_http"],
+            enable_agent=True,
+            agent_api_key="key",
+            agent_endpoint="http://agent.example.org",
+        ),
+        _config_case(
+            "agent_endpoint_http_to_loopback",
+            [],
+            enable_agent=True,
+            agent_api_key="key",
+            agent_endpoint="http://127.0.0.1:8000",
+        ),
+        _config_case(
+            "agent_endpoint_https",
+            [],
+            enable_agent=True,
+            agent_api_key="key",
+            agent_endpoint="https://agent.example.org",
+        ),
+        _config_case(
             "enabled_detection_categories_empty",
             ["enabled_detection_categories.empty"],
             enable_penetration_detection=True,
@@ -1004,6 +1025,64 @@ def runtime_cases() -> list[MisconfigurationCaseInput]:
             static_route_prefixes="raises",
         ),
         *_declared_path_param_cases(),
+        *_advisory_cases(),
+    ]
+
+
+def _advisory_cases() -> list[MisconfigurationCaseInput]:
+    lazy = "lazy_init.without_redis"
+    ipinfo = "ipinfo_download_url.ignored"
+    purge = "purge_dynamic_rules_on_start.left_set"
+    return [
+        _runtime_case(
+            "lazy_init_with_a_geo_handler",
+            [lazy],
+            "lazy_init_without_redis",
+            geo_handler=True,
+            cloud_providers=False,
+        ),
+        _runtime_case(
+            "lazy_init_with_cloud_ranges",
+            [lazy],
+            "lazy_init_without_redis",
+            geo_handler=False,
+            cloud_providers=True,
+        ),
+        _runtime_case(
+            "lazy_init_with_nothing_to_load",
+            [],
+            "lazy_init_without_redis",
+            geo_handler=False,
+            cloud_providers=False,
+        ),
+        _runtime_case(
+            "ipinfo_download_url_differs",
+            [ipinfo],
+            "ipinfo_download_url_ignored",
+            manager_download_url="https://a.example/db.mmdb",
+            download_url="https://b.example/db.mmdb",
+        ),
+        _runtime_case(
+            "ipinfo_download_url_same",
+            [],
+            "ipinfo_download_url_ignored",
+            manager_download_url="https://a.example/db.mmdb",
+            download_url="https://a.example/db.mmdb",
+        ),
+        _runtime_case(
+            "purge_on_start_matched",
+            [purge],
+            "purge_on_start_left_set",
+            target="rule-1:3",
+            matches=True,
+        ),
+        _runtime_case(
+            "purge_on_start_unmatched",
+            [purge],
+            "purge_on_start_left_set",
+            target="rule-1:3",
+            matches=False,
+        ),
     ]
 
 

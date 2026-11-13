@@ -43,6 +43,7 @@ import logging
 import warnings
 from collections.abc import Awaitable, Callable, Iterator
 from functools import partial
+from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
@@ -73,17 +74,22 @@ from guard_core.core.initialization._ban_threshold_report import (
 from guard_core.core.initialization._country_decorator_report import (
     report_country_decorators_without_geoip,
 )
+from guard_core.core.initialization._handler_initializer_steps import (
+    _HandlerInitializerStepsMixin,
+)
 from guard_core.core.initialization._nat64 import apply_nat64_prefixes
 from guard_core.core.initialization._redis_handler_members import (
     report_incomplete_redis_handler,
 )
 from guard_core.decorators import SecurityDecorator
 from guard_core.decorators.base import BaseSecurityDecorator
+from guard_core.handlers._dynamic_rule_purge import DynamicRulePurgeMixin
 from guard_core.handlers._dynamic_rule_validation import (
     MalformedDynamicRules,
     find_malformed_values,
 )
 from guard_core.handlers._ipban_prefix_contract import enforce_prefix_length_contract
+from guard_core.handlers.ipinfo_handler import IPInfoManager
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import DynamicRulesProtocol
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
@@ -111,6 +117,9 @@ SEAMS = (
     "endpoint_key_routes",
     "exclude_paths_routes",
     "declared_path_params",
+    "lazy_init_without_redis",
+    "ipinfo_download_url_ignored",
+    "purge_on_start_left_set",
 )
 _LOGGER = logging.getLogger("guard_core")
 _DYNAMIC_FIELDS = {
@@ -510,6 +519,58 @@ def _declared_path_params_driver(case_input: JsonObject) -> Driver:
     return drive
 
 
+def _lazy_init_driver(case_input: JsonObject) -> Driver:
+    stub = SimpleNamespace(
+        geo_ip_handler=object() if case_input["geo_handler"] else None,
+        logger=_LOGGER,
+        _cloud_providers_to_load=lambda: bool(case_input["cloud_providers"]),
+    )
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        _HandlerInitializerStepsMixin._warn_if_lazy_init_is_inert(
+            cast("_HandlerInitializerStepsMixin", stub)
+        )
+        return []
+
+    return drive
+
+
+def _ipinfo_driver(case_input: JsonObject) -> Driver:
+    manager = SimpleNamespace(
+        _download_url=case_input["manager_download_url"], logger=_LOGGER
+    )
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        IPInfoManager._warned_ignored_urls = set()
+        IPInfoManager._warn_once_if_download_url_ignored(
+            cast("IPInfoManager", manager),
+            Path("ipinfo.mmdb"),
+            cast("str | None", case_input["download_url"]),
+        )
+        return []
+
+    return drive
+
+
+def _purge_driver(case_input: JsonObject) -> Driver:
+    async def purge_dynamic_rules(rule_id: str, version: int) -> bool:
+        return bool(case_input["matches"])
+
+    stub = SimpleNamespace(
+        config=SimpleNamespace(purge_dynamic_rules_on_start=case_input["target"]),
+        logger=_LOGGER,
+        purge_dynamic_rules=purge_dynamic_rules,
+    )
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        await DynamicRulePurgeMixin.purge_configured_dynamic_rules(
+            cast("DynamicRulePurgeMixin", stub)
+        )
+        return []
+
+    return drive
+
+
 _RUNTIME_DRIVERS: dict[str, Callable[[JsonObject], Driver]] = {
     "ban_thresholds": _ban_threshold_driver,
     "nat64": _nat64_driver,
@@ -519,6 +580,9 @@ _RUNTIME_DRIVERS: dict[str, Callable[[JsonObject], Driver]] = {
     "endpoint_key_routes": _endpoint_key_routes_driver,
     "exclude_paths_routes": _exclude_paths_routes_driver,
     "declared_path_params": _declared_path_params_driver,
+    "lazy_init_without_redis": _lazy_init_driver,
+    "ipinfo_download_url_ignored": _ipinfo_driver,
+    "purge_on_start_left_set": _purge_driver,
 }
 
 

@@ -7,6 +7,10 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Protocol
 
 from guard_core._dynamic_rules import content_fingerprint
+from guard_core._misconfiguration_kinds import (
+    K_PURGE_DYNAMIC_RULES_LEFT_SET,
+    kinds_log_extra,
+)
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
@@ -82,6 +86,7 @@ class DynamicRulePurgeMixin:
             "matched the last-known snapshot and was purged"
             if matched
             else "did not match the last-known snapshot, nothing was purged",
+            extra=kinds_log_extra(K_PURGE_DYNAMIC_RULES_LEFT_SET, str(target)),
         )
         return matched
 

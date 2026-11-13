@@ -3,6 +3,10 @@ import logging
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Protocol
 
+from guard_core._misconfiguration_kinds import (
+    K_LAZY_INIT_WITHOUT_REDIS,
+    kinds_log_extra,
+)
 from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
 from guard_core._staged_defaults import signal_changed_defaults
 from guard_core._utils.app_scope import (
@@ -180,7 +184,8 @@ class _HandlerInitializerStepsMixin(
             "lazy_init has no effect without Redis (enable_redis=True and a "
             "redis_handler); cloud-IP ranges and the geo-IP database will "
             "initialize through their own on-demand paths regardless of "
-            "lazy_init's value."
+            "lazy_init's value.",
+            extra=kinds_log_extra(K_LAZY_INIT_WITHOUT_REDIS, None),
         )
 
     async def _connect_redis(self) -> bool:

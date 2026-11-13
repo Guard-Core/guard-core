@@ -28,6 +28,7 @@ from guard_core._config_field_revalidators import (
 )
 from guard_core._detection_constants import ALL_DETECTION_CATEGORIES
 from guard_core._misconfiguration_kinds import (
+    K_AGENT_ENDPOINT_INSECURE_REMOTE_HTTP,
     K_ENABLED_DETECTION_CATEGORIES_EMPTY,
     K_EXCLUDE_ALL_PATHS_ENABLED,
     K_EXEMPT_IPS_PREFIX_ZERO,
@@ -741,5 +742,6 @@ def warn_agent_endpoint_in_clear(config: "SecurityConfig[RequestT]") -> None:
     if parts.scheme == "http" and host not in _LOOPBACK_HOSTS:
         logger.warning(
             "agent_endpoint uses http:// to a host that is not this machine, so the "
-            "agent API key and the payload signature travel unencrypted; use https://"
+            "agent API key and the payload signature travel unencrypted; use https://",
+            extra=kinds_log_extra(K_AGENT_ENDPOINT_INSECURE_REMOTE_HTTP, None),
         )

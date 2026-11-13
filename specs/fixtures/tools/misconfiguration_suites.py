@@ -69,8 +69,10 @@ SUITE_DOCS = {
     "misconfiguration_runtime": (
         f"{_SHARED_DOC} Tier 2: each case names a seam (ban_thresholds, nat64, "
         "redis_handler, country_decorators, ipv6_prefix_length, endpoint_key_routes, "
-        "exclude_paths_routes, declared_path_params) and gives that seam's stubs; "
-        "a port wires the same stubs around its own reporter. The reference "
+        "exclude_paths_routes, declared_path_params, lazy_init_without_redis, "
+        "ipinfo_download_url_ignored, purge_on_start_left_set) and gives that "
+        "seam's stubs; a port wires the same stubs around its own reporter. The "
+        "reference "
         "reports a default redis_prefix once per process; a runner resets that "
         "memory per case."
     ),

@@ -5,6 +5,12 @@
   "engine_version": "5.0.0",
   "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Input: config, the stated SecurityConfig fields (snake_case, JSON safe, a tuple is a [limit, window] array); the runner adds fail_on_misconfiguration itself unless flag_stated is false, which leaves it unset. A config states exactly what it lists, because the changed_default.* kinds report a field the config leaves unset.",
   "kinds": {
+    "agent_endpoint.insecure_remote_http": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "enable_agent is on and agent_endpoint is http:// to a host that is not this machine"
+    },
     "changed_default.ban_on_hostile_signals": {
       "severity": "warn",
       "scope": "config",
@@ -1026,6 +1032,65 @@
             null
           ]
         ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "agent_endpoint_http_to_a_remote_host",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "enable_agent": true,
+          "agent_api_key": "key",
+          "agent_endpoint": "http://agent.example.org"
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "agent_endpoint.insecure_remote_http",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "agent_endpoint_http_to_loopback",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "enable_agent": true,
+          "agent_api_key": "key",
+          "agent_endpoint": "http://127.0.0.1:8000"
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "agent_endpoint_https",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "enable_agent": true,
+          "agent_api_key": "key",
+          "agent_endpoint": "https://agent.example.org"
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
         "fatal": []
       }
     },

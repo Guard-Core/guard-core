@@ -8,6 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from guard_core._misconfiguration_kinds import (
+    K_IPINFO_DOWNLOAD_URL_IGNORED,
+    kinds_log_extra,
+)
 from guard_core.sync.core.events.event_types import (
     EVENT_GEO_LOOKUP_FAILED,
 )
@@ -114,6 +118,7 @@ class IPInfoManager(
             download_url,
             key,
             manager._download_url,
+            extra=kinds_log_extra(K_IPINFO_DOWNLOAD_URL_IGNORED, download_url),
         )
 
     @classmethod

@@ -207,6 +207,37 @@ K_ENABLED_DETECTION_CATEGORIES_EMPTY = _kind(
     NO_SUBJECT,
     "enable_penetration_detection is on and enabled_detection_categories is empty",
 )
+K_AGENT_ENDPOINT_INSECURE_REMOTE_HTTP = _kind(
+    "agent_endpoint.insecure_remote_http",
+    "warn",
+    "config",
+    NO_SUBJECT,
+    "enable_agent is on and agent_endpoint is http:// to a host that is not this "
+    "machine",
+)
+K_LAZY_INIT_WITHOUT_REDIS = _kind(
+    "lazy_init.without_redis",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "lazy_init has no effect without Redis while cloud ranges or a GeoIP handler "
+    "are configured",
+)
+K_IPINFO_DOWNLOAD_URL_IGNORED = _kind(
+    "ipinfo_download_url.ignored",
+    "warn",
+    "runtime",
+    "the ignored ipinfo_download_url",
+    "ipinfo_download_url differs from the URL the database file already downloads "
+    "from, so it is ignored",
+)
+K_PURGE_DYNAMIC_RULES_LEFT_SET = _kind(
+    "purge_dynamic_rules_on_start.left_set",
+    "warn",
+    "runtime",
+    "the purge_dynamic_rules_on_start target as configured",
+    "purge_dynamic_rules_on_start is set at start",
+)
 K_AUTO_BAN_THRESHOLD_UNREACHABLE = _kind(
     "auto_ban_threshold.unreachable",
     "error",
