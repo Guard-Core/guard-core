@@ -44,6 +44,7 @@ import contextlib
 import logging
 import warnings
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from dataclasses import replace
 from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
@@ -59,11 +60,14 @@ from guard_core._misconfiguration_kinds import (
     KINDS,
     Problem,
 )
+from guard_core._security_headers_override import CorsParams
+from guard_core._utils import body_reader, ip_extraction
 from guard_core._utils.app_managers import (
     _PrefixedRedisConfig,
     _warn_split_connection,
 )
 from guard_core._utils.route_gate import detection_exclusion_path_param_problems
+from guard_core.core.behavioral import _throttle
 from guard_core.core.checks.endpoint_limit_keys import (
     EndpointLimitKeyMap,
     RouteResolver,
@@ -99,8 +103,13 @@ from guard_core.handlers._ipban_prefix_contract import enforce_prefix_length_con
 from guard_core.handlers._ipban_sharing import IpBanSharedAppsMixin
 from guard_core.handlers._security_headers_config import SecurityHeadersConfigMixin
 from guard_core.handlers._security_headers_cors import SecurityHeadersCorsMixin
+from guard_core.handlers._security_headers_override_state import (
+    SecurityHeadersOverrideMixin,
+)
+from guard_core.handlers.behavior_handler import BehaviorRule
 from guard_core.handlers.ipinfo_handler import IPInfoManager
 from guard_core.handlers.redis_handler import RedisManager
+from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import DynamicRulesProtocol
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
@@ -138,6 +147,12 @@ SEAMS = (
     "unenforced_ban",
     "route_unknown_to_decorator",
     "redis_url_none",
+    "cors_override",
+    "cors_header_value",
+    "dynamic_rules_agent",
+    "forwarded_header",
+    "body_reader_fallback",
+    "throttle_without_middleware",
 )
 _LOGGER = logging.getLogger("guard_core")
 QUIET_RUNTIME: JsonObject = {
@@ -703,6 +718,144 @@ def _redis_url_none_driver(case_input: JsonObject) -> Driver:
     return drive
 
 
+def _cors_override_driver(case_input: JsonObject) -> Driver:
+    base = CorsParams(
+        enabled=True,
+        origins=("https://a.example",),
+        credentials=False,
+        methods=("GET",),
+        headers=("*",),
+        max_age=3600,
+        expose=(),
+    )
+    wider = replace(base, origins=("https://a.example", "https://b.example"))
+    branches = {
+        "fields_refused": (wider, "why"),
+        "refused": (base, "why"),
+        "widens": (wider, None),
+        "unchanged": (base, None),
+    }
+    merged, reason = branches[cast("str", case_input["branch"])]
+    stub = cast("SecurityHeadersOverrideMixin", SimpleNamespace(logger=_LOGGER))
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        SecurityHeadersOverrideMixin._log_cors_override(stub, base, merged, reason)
+        return []
+
+    return drive
+
+
+def _cors_header_value_driver(case_input: JsonObject) -> Driver:
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        manager = SecurityHeadersManager.isolated()
+        manager.logger = _LOGGER
+        manager.cors_config = {
+            "origins": ["https://a.example"],
+            "allow_credentials": False,
+            "allow_methods": [cast("str", case_input["method"])],
+            "allow_headers": ["*"],
+            "max_age": 1,
+        }
+        await manager.get_cors_headers(cast("str", case_input["origin"]))
+        return []
+
+    return drive
+
+
+def _dynamic_rules_agent_driver(case_input: JsonObject) -> Driver:
+    stub = SimpleNamespace(
+        config=SimpleNamespace(enable_dynamic_rules=case_input["enable_dynamic_rules"]),
+        agent_handler=None,
+        logger=_LOGGER,
+    )
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        await _HandlerInitializerStepsMixin.initialize_dynamic_rule_manager(
+            cast("_HandlerInitializerStepsMixin", stub)
+        )
+        return []
+
+    return drive
+
+
+_FORWARDED_WARNINGS = {
+    "preempted": ("_forwarded_header_preemption_warned", 2),
+    "chain_too_short": ("_forwarded_header_chain_too_short_warned", 1),
+    "selects_trusted_proxy": (
+        "_forwarded_header_selected_entry_trusted_proxy_warned",
+        1,
+    ),
+    "overcounts_hops": ("_forwarded_header_depth_overcounts_hops_warned", 2),
+}
+
+
+def _forwarded_header_driver(case_input: JsonObject) -> Driver:
+    name = cast("str", case_input["warning"])
+    flag_name = _FORWARDED_WARNINGS[name][0]
+    repeat = cast("int", case_input.get("repeat", 1))
+    calls = {
+        "preempted": lambda: ip_extraction._warn_forwarded_header_preempted(
+            "203.0.113.7", "203.0.113.7, 198.51.100.1"
+        ),
+        "chain_too_short": lambda: ip_extraction._warn_forwarded_header_chain_too_short(
+            "198.51.100.1", 1
+        ),
+        "selects_trusted_proxy": lambda: (
+            ip_extraction._warn_forwarded_header_selected_entry_trusted_proxy(
+                "10.0.0.1"
+            )
+        ),
+        "overcounts_hops": lambda: (
+            ip_extraction._warn_forwarded_header_depth_overcounts_hops(
+                2, "198.51.100.1, 198.51.100.2"
+            )
+        ),
+    }
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        setattr(ip_extraction, flag_name, False)
+        for _ in range(repeat):
+            calls[name]()
+        return []
+
+    return drive
+
+
+class _PlainRequest:
+    pass
+
+
+def _body_reader_fallback_driver(case_input: JsonObject) -> Driver:
+    kind = (
+        body_reader._PREFIX
+        if case_input["reader"] == "prefix"
+        else body_reader._FULL_BODY
+    )
+    repeat = cast("int", case_input.get("repeat", 1))
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        body_reader._fallback_warned_kinds.clear()
+        request = cast("GuardRequest", _PlainRequest())
+        for _ in range(repeat):
+            body_reader._warn_body_reader_fallback_once_per_app(request, kind, None)
+        return []
+
+    return drive
+
+
+def _throttle_without_middleware_driver(case_input: JsonObject) -> Driver:
+    repeat = cast("int", case_input.get("repeat", 1))
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        _throttle._missing_middleware_warned = False
+        rules = [BehaviorRule("usage", 5, window=60, action="throttle")]
+        for _ in range(repeat):
+            _throttle.warn_throttle_needs_middleware(rules)
+        return []
+
+    return drive
+
+
 def _route_unknown_driver(case_input: JsonObject) -> Driver:
     repeat = cast("int", case_input.get("repeat", 1))
 
@@ -740,6 +893,12 @@ _RUNTIME_DRIVERS: dict[str, Callable[[JsonObject], Driver]] = {
     "unenforced_ban": _unenforced_ban_driver,
     "route_unknown_to_decorator": _route_unknown_driver,
     "redis_url_none": _redis_url_none_driver,
+    "cors_override": _cors_override_driver,
+    "cors_header_value": _cors_header_value_driver,
+    "dynamic_rules_agent": _dynamic_rules_agent_driver,
+    "forwarded_header": _forwarded_header_driver,
+    "body_reader_fallback": _body_reader_fallback_driver,
+    "throttle_without_middleware": _throttle_without_middleware_driver,
 }
 
 

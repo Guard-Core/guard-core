@@ -4,6 +4,10 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
 
+from guard_core._misconfiguration_kinds import (
+    K_THROTTLE_NEEDS_MIDDLEWARE,
+    kinds_log_extra,
+)
 from guard_core._redis_enablement import redis_is_configured
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import BehaviorRuleConfig
@@ -56,7 +60,8 @@ def warn_throttle_needs_middleware(rules: Sequence[BehaviorRule]) -> None:
     _logger.warning(
         f"{_NEEDS_MIDDLEWARE_WARNING} Rules: {names}. Missing capability: a "
         "middleware with create_error_response, passed to the BehavioralContext "
-        "or reachable through the pipeline's checks."
+        "or reachable through the pipeline's checks.",
+        extra=kinds_log_extra(K_THROTTLE_NEEDS_MIDDLEWARE, None),
     )
 
 

@@ -6,6 +6,11 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from weakref import WeakKeyDictionary
 
+from guard_core._misconfiguration_kinds import (
+    K_BODY_READER_NO_BOUNDED_READER,
+    K_BODY_READER_NO_IDLE_DEADLINE,
+    kinds_log_extra,
+)
 from guard_core.exceptions import (
     BodyReadFailedError,
     BodyReadSlotsExhaustedError,
@@ -150,6 +155,7 @@ def _warn_body_reader_fallback_once_per_app(
             "read in full with no idle deadline, so a client that stops "
             "sending holds the request until the server's own timeout",
             adapter,
+            extra=kinds_log_extra(K_BODY_READER_NO_IDLE_DEADLINE, None),
         )
         return
     logger.warning(
@@ -157,6 +163,7 @@ def _warn_body_reader_fallback_once_per_app(
         "body() is read in full with no idle deadline, so a client that "
         "stops sending holds the request until the server's own timeout",
         adapter,
+        extra=kinds_log_extra(K_BODY_READER_NO_BOUNDED_READER, None),
     )
 
 

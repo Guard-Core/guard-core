@@ -2,6 +2,7 @@ import logging
 from abc import abstractmethod
 
 from guard_core._misconfiguration_kinds import (
+    K_CORS_HEADER_VALUE_INVALID,
     K_CORS_WILDCARD_CREDENTIALS_BLOCKED,
     kinds_log_extra,
 )
@@ -135,5 +136,8 @@ class SecurityHeadersCorsMixin:
                 origin, allowed_origins, allow_methods, allow_headers, cors_config
             )
         except ValueError:
-            self.logger.warning("CORS headers not emitted, a header value is invalid")
+            self.logger.warning(
+                "CORS headers not emitted, a header value is invalid",
+                extra=kinds_log_extra(K_CORS_HEADER_VALUE_INVALID, None),
+            )
             return {}

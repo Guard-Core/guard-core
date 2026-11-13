@@ -779,7 +779,8 @@ def refresh_suite_counts(fresh_index: dict) -> None:
     path = CASES_DIR / "index.json"
     committed = json.loads(path.read_text())
     committed["suites"].update(fresh_index["suites"])
-    path.write_text(json.dumps(committed, indent=2) + "\n")
+    # indent=1 is how the chained cost and safety scripts leave the committed index.
+    path.write_text(json.dumps(committed, indent=1) + "\n")
 
 
 def suite_bytes(payload: dict) -> str:

@@ -391,6 +391,95 @@ K_REDIS_URL_NONE_WITH_ENABLE_REDIS = _kind(
     NO_SUBJECT,
     "enable_redis is on and redis_url is None, so no Redis connection is made",
 )
+K_CORS_OVERRIDE_FIELDS_REFUSED = _kind(
+    "cors_override.fields_refused",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a configure() override gives CORS fields this app refuses, and they are dropped",
+)
+K_CORS_OVERRIDE_REFUSED = _kind(
+    "cors_override.refused",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a configure() override of the CORS settings is refused, and the app keeps its own",
+)
+K_CORS_OVERRIDE_WIDENS = _kind(
+    "cors_override.widens",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a configure() override widens the CORS of this app",
+)
+K_CORS_HEADER_VALUE_INVALID = _kind(
+    "cors.header_value_invalid",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a configured CORS value is not a valid header value, so no CORS header is emitted",
+)
+K_DYNAMIC_RULES_ENABLED_WITHOUT_AGENT = _kind(
+    "dynamic_rules.enabled_without_agent",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "enable_dynamic_rules is on and the app has no agent handler, so dynamic rules "
+    "never arrive",
+)
+K_FORWARDED_HEADER_PREEMPTED = _kind(
+    "forwarded_header.preempted_by_server",
+    "warn",
+    "runtime",
+    "the trusted_proxy_depth setting",
+    "the application server resolved the client from X-Forwarded-For before guard- "
+    "core ran",
+)
+K_TRUSTED_PROXY_DEPTH_CHAIN_TOO_SHORT = _kind(
+    "trusted_proxy_depth.chain_too_short",
+    "warn",
+    "runtime",
+    "the trusted_proxy_depth setting",
+    "the X-Forwarded-For chain is shorter than trusted_proxy_depth",
+)
+K_TRUSTED_PROXY_DEPTH_SELECTS_TRUSTED_PROXY = _kind(
+    "trusted_proxy_depth.selects_trusted_proxy",
+    "warn",
+    "runtime",
+    "the trusted_proxy_depth setting",
+    "trusted_proxy_depth selects an address that is itself a trusted proxy",
+)
+K_TRUSTED_PROXY_DEPTH_OVERCOUNTS_HOPS = _kind(
+    "trusted_proxy_depth.overcounts_hops",
+    "warn",
+    "runtime",
+    "the trusted_proxy_depth setting",
+    "trusted_proxy_depth is higher than the proxy hops listed in trusted_proxies",
+)
+K_BODY_READER_NO_IDLE_DEADLINE = _kind(
+    "body_reader.prefix_without_idle_deadline",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "the request class has read_body_prefix but not read_body_prefix_until_idle, so "
+    "a stalled body has no idle deadline",
+)
+K_BODY_READER_NO_BOUNDED_READER = _kind(
+    "body_reader.no_bounded_reader",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "the request class has no bounded body reader, so the body is read in full with "
+    "no idle deadline",
+)
+K_THROTTLE_NEEDS_MIDDLEWARE = _kind(
+    "behavior_rules.throttle_needs_middleware",
+    "warn",
+    "runtime",
+    NO_SUBJECT,
+    "a throttle behavior rule is declared and the adapter passes no middleware, so "
+    "it is only logged",
+)
 K_ROUTE_UNKNOWN_TO_DECORATOR = _kind(
     "route.unknown_to_decorator",
     "warn",

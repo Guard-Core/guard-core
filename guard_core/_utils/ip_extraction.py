@@ -10,6 +10,13 @@ from ipaddress import (
     ip_network,
 )
 
+from guard_core._misconfiguration_kinds import (
+    K_FORWARDED_HEADER_PREEMPTED,
+    K_TRUSTED_PROXY_DEPTH_CHAIN_TOO_SHORT,
+    K_TRUSTED_PROXY_DEPTH_OVERCOUNTS_HOPS,
+    K_TRUSTED_PROXY_DEPTH_SELECTS_TRUSTED_PROXY,
+    kinds_log_extra,
+)
 from guard_core._utils.agent_events import send_agent_event
 from guard_core._utils.forwarded_config import ForwardedForConfig
 from guard_core._utils.logging_utils import _sanitize_for_log
@@ -315,6 +322,7 @@ def _warn_forwarded_header_preempted(
         "TLS-terminating hosts such as Render or Heroku. This warning is "
         "logged once.",
         _sanitize_for_log(connecting_ip),
+        extra=kinds_log_extra(K_FORWARDED_HEADER_PREEMPTED, "trusted_proxy_depth"),
     )
 
 
@@ -483,6 +491,9 @@ def _warn_forwarded_header_chain_too_short(
         "connecting peer as the client. This warning is logged once.",
         chain_length,
         _sanitize_for_log(_display_forwarded_chain(forwarded_for)),
+        extra=kinds_log_extra(
+            K_TRUSTED_PROXY_DEPTH_CHAIN_TOO_SHORT, "trusted_proxy_depth"
+        ),
     )
 
 
@@ -500,6 +511,9 @@ def _warn_forwarded_header_selected_entry_trusted_proxy(entry: str) -> None:
         "likely has more proxy hops than trusted_proxy_depth accounts for. "
         "This warning is logged once.",
         _sanitize_for_log(entry),
+        extra=kinds_log_extra(
+            K_TRUSTED_PROXY_DEPTH_SELECTS_TRUSTED_PROXY, "trusted_proxy_depth"
+        ),
     )
 
 
@@ -521,6 +535,9 @@ def _warn_forwarded_header_depth_overcounts_hops(
         "that append to X-Forwarded-For. This warning is logged once.",
         unlisted_right_entries,
         _sanitize_for_log(_display_forwarded_chain(forwarded_for)),
+        extra=kinds_log_extra(
+            K_TRUSTED_PROXY_DEPTH_OVERCOUNTS_HOPS, "trusted_proxy_depth"
+        ),
     )
 
 

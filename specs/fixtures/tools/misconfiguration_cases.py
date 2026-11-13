@@ -1343,11 +1343,112 @@ def _warning_runtime_cases() -> list[MisconfigurationCaseInput]:
             "redis_url_none",
             enable_redis=False,
         ),
+        *_wiring_cases(),
         _runtime_case(
             "route_unknown_to_the_decorator_is_reported_once",
             ["route.unknown_to_decorator"],
             "route_unknown_to_decorator",
             route_id="pkg.module.handler",
+            repeat=2,
+        ),
+    ]
+
+
+def _wiring_cases() -> list[MisconfigurationCaseInput]:
+    return [
+        _runtime_case(
+            "cors_override_fields_refused",
+            ["cors_override.fields_refused"],
+            "cors_override",
+            branch="fields_refused",
+        ),
+        _runtime_case(
+            "cors_override_refused",
+            ["cors_override.refused"],
+            "cors_override",
+            branch="refused",
+        ),
+        _runtime_case(
+            "cors_override_widens",
+            ["cors_override.widens"],
+            "cors_override",
+            branch="widens",
+        ),
+        _runtime_case(
+            "cors_override_unchanged", [], "cors_override", branch="unchanged"
+        ),
+        _runtime_case(
+            "cors_configured_method_is_no_header_value",
+            ["cors.header_value_invalid"],
+            "cors_header_value",
+            origin="https://a.example",
+            method="GE\nT",
+        ),
+        _runtime_case(
+            "cors_request_origin_with_a_control_character",
+            [],
+            "cors_header_value",
+            origin="https://a.example\r\nX: y",
+            method="GET",
+        ),
+        _runtime_case(
+            "dynamic_rules_enabled_without_an_agent",
+            ["dynamic_rules.enabled_without_agent"],
+            "dynamic_rules_agent",
+            enable_dynamic_rules=True,
+        ),
+        _runtime_case(
+            "dynamic_rules_disabled_without_an_agent",
+            [],
+            "dynamic_rules_agent",
+            enable_dynamic_rules=False,
+        ),
+        _runtime_case(
+            "forwarded_chain_preempted_by_the_server_is_reported_once",
+            ["forwarded_header.preempted_by_server"],
+            "forwarded_header",
+            warning="preempted",
+            repeat=2,
+        ),
+        _runtime_case(
+            "forwarded_chain_shorter_than_the_depth_is_reported_once",
+            ["trusted_proxy_depth.chain_too_short"],
+            "forwarded_header",
+            warning="chain_too_short",
+            repeat=2,
+        ),
+        _runtime_case(
+            "depth_selecting_a_trusted_proxy_is_reported_once",
+            ["trusted_proxy_depth.selects_trusted_proxy"],
+            "forwarded_header",
+            warning="selects_trusted_proxy",
+            repeat=2,
+        ),
+        _runtime_case(
+            "depth_overcounting_the_hops_is_reported_once",
+            ["trusted_proxy_depth.overcounts_hops"],
+            "forwarded_header",
+            warning="overcounts_hops",
+            repeat=2,
+        ),
+        _runtime_case(
+            "request_class_without_an_idle_deadline_is_reported_once",
+            ["body_reader.prefix_without_idle_deadline"],
+            "body_reader_fallback",
+            reader="prefix",
+            repeat=2,
+        ),
+        _runtime_case(
+            "request_class_without_a_bounded_reader_is_reported_once",
+            ["body_reader.no_bounded_reader"],
+            "body_reader_fallback",
+            reader="full",
+            repeat=2,
+        ),
+        _runtime_case(
+            "throttle_rule_without_a_middleware_is_reported_once",
+            ["behavior_rules.throttle_needs_middleware"],
+            "throttle_without_middleware",
             repeat=2,
         ),
     ]

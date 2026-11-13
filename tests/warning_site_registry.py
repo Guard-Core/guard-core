@@ -13,6 +13,11 @@ EXCLUSION_REASONS: dict[str, str] = {
         "the framework adapter's request, response or middleware lacks an optional "
         "capability; the adapter's code decides, not a setting"
     ),
+    "api_call_argument": (
+        "one argument of a public call names something the engine does not hold (a "
+        "reset of a foreign config, an unscoped ban call), not a setting or "
+        "declaration"
+    ),
     "attack_signal": (
         "a client sent something the engine reports as an attack signal (a CSP "
         "violation report, a spoofed X-Forwarded-For header)"
@@ -26,8 +31,8 @@ EXCLUSION_REASONS: dict[str, str] = {
         "security event"
     ),
     "check_failure_decision": (
-        "a check, rebuild or time-window evaluation raised and the outcome (fail "
-        "open or fail secure) is logged"
+        "a check, rebuild or time-window evaluation raised and the outcome (fail open "
+        "or fail secure) is logged"
     ),
     "dependency_state": (
         "an optional dependency or collaborator (agent, logfire, OpenTelemetry) is "
@@ -44,10 +49,6 @@ EXCLUSION_REASONS: dict[str, str] = {
         "the engine's own cleanup or recovery bookkeeping failed, not a setting"
     ),
     "io_failure": ("an external fetch, file, cache, database or GeoIP load failed"),
-    "operation_misuse": (
-        "one call to a public operation named something the engine does not hold (an "
-        "unscoped call, a reset of a foreign config), not a setting or declaration"
-    ),
     "override_reported_by_event": (
         "a configure() override was refused or changed; the override events are the "
         "structured channel"
@@ -117,8 +118,8 @@ SITES: dict[tuple[str, str], tuple[str, ...]] = {
         "_warn_body_inspect_bytes_cap_reached_no_bounded_reader",
     ): ("request_cap",),
     ("_utils/body_reader.py", "_warn_body_reader_fallback_once_per_app"): (
-        "adapter_capability",
-        "adapter_capability",
+        "kinded",
+        "kinded",
     ),
     ("_utils/detection_scan.py", "_check_value_enhanced"): ("detection_signal",),
     ("_utils/detection_scan.py", "_fallback_pattern_check"): ("detection_signal",),
@@ -133,19 +134,15 @@ SITES: dict[tuple[str, str], tuple[str, ...]] = {
     ("_utils/ip_extraction.py", "_resolve_client_ip_from_forwarded_chain"): (
         "check_failure_decision",
     ),
-    ("_utils/ip_extraction.py", "_warn_forwarded_header_chain_too_short"): (
-        "request_dependent",
-    ),
+    ("_utils/ip_extraction.py", "_warn_forwarded_header_chain_too_short"): ("kinded",),
     ("_utils/ip_extraction.py", "_warn_forwarded_header_depth_overcounts_hops"): (
-        "request_dependent",
+        "kinded",
     ),
-    ("_utils/ip_extraction.py", "_warn_forwarded_header_preempted"): (
-        "request_dependent",
-    ),
+    ("_utils/ip_extraction.py", "_warn_forwarded_header_preempted"): ("kinded",),
     (
         "_utils/ip_extraction.py",
         "_warn_forwarded_header_selected_entry_trusted_proxy",
-    ): ("request_dependent",),
+    ): ("kinded",),
     ("_utils/logging_utils.py", "_log_at_level"): (
         "audit_log_line",
         "audit_log_line",
@@ -161,9 +158,7 @@ SITES: dict[tuple[str, str], tuple[str, ...]] = {
         "core/behavioral/_throttle.py",
         "BehavioralThrottleMixin._throttle_check_failed",
     ): ("check_failure_decision", "check_failure_decision"),
-    ("core/behavioral/_throttle.py", "warn_throttle_needs_middleware"): (
-        "adapter_capability",
-    ),
+    ("core/behavioral/_throttle.py", "warn_throttle_needs_middleware"): ("kinded",),
     ("core/bypass/handler.py", "_warn_no_client_address"): ("request_dependent",),
     ("core/checks/_ip_ban_read.py", "IpBanReadMixin.warn_ban_lookup_skipped"): (
         "redis_outage",
@@ -294,7 +289,7 @@ SITES: dict[tuple[str, str], tuple[str, ...]] = {
     (
         "core/initialization/_handler_initializer_steps.py",
         "_HandlerInitializerStepsMixin.initialize_dynamic_rule_manager",
-    ): ("dependency_state",),
+    ): ("kinded",),
     (
         "core/initialization/_redis_cold_start_recovery.py",
         "RedisColdStartRecoveryMixin._attempt_custom_initialize",
@@ -581,7 +576,7 @@ SITES: dict[tuple[str, str], tuple[str, ...]] = {
         "redis_outage",
     ),
     ("handlers/_ipban_sharing.py", "IpBanSharedAppsMixin._across_apps_scopes"): (
-        "operation_misuse",
+        "api_call_argument",
     ),
     ("handlers/_ipban_sharing.py", "IpBanSharedAppsMixin._ban_stands_for"): ("kinded",),
     ("handlers/_ipban_version.py", "IpBanVersionMixin._bump_ban_version"): (
@@ -662,7 +657,7 @@ SITES: dict[tuple[str, str], tuple[str, ...]] = {
     (
         "handlers/_security_headers_cors.py",
         "SecurityHeadersCorsMixin.get_cors_headers",
-    ): ("request_dependent",),
+    ): ("kinded",),
     (
         "handlers/_security_headers_events.py",
         "SecurityHeadersEventsMixin.validate_csp_report",
@@ -674,11 +669,7 @@ SITES: dict[tuple[str, str], tuple[str, ...]] = {
     (
         "handlers/_security_headers_override_state.py",
         "SecurityHeadersOverrideMixin._log_cors_override",
-    ): (
-        "override_reported_by_event",
-        "override_reported_by_event",
-        "override_reported_by_event",
-    ),
+    ): ("kinded", "kinded", "kinded"),
     (
         "handlers/_security_headers_override_state.py",
         "SecurityHeadersOverrideMixin._log_override_change",
@@ -774,14 +765,14 @@ SITES: dict[tuple[str, str], tuple[str, ...]] = {
         "telemetry_failure",
     ),
     ("handlers/ratelimit_handler.py", "RateLimitManager._guarded_apps_to_reset"): (
-        "operation_misuse",
+        "api_call_argument",
     ),
     ("handlers/ratelimit_handler.py", "RateLimitManager._send_rate_limit_event"): (
         "telemetry_failure",
     ),
     ("handlers/ratelimit_handler.py", "RateLimitManager._warn_unbound_reset"): (
-        "operation_misuse",
-        "operation_misuse",
+        "api_call_argument",
+        "api_call_argument",
     ),
     ("handlers/ratelimit_handler.py", "RateLimitManager.initialize_redis"): (
         "redis_outage",
