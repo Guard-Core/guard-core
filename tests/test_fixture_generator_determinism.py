@@ -55,3 +55,29 @@ def test_committed_corpus_equals_a_fresh_regeneration_in_a_scratch_copy(
         if _masked(committed_dir, name) != _masked(fresh_dir, name)
     ]
     assert not stale, f"committed suites a fresh run would change: {stale}"
+
+
+def test_events_corpus_detection_method_does_not_depend_on_suite_order() -> None:
+    probe = (
+        "import asyncio, generate_fixtures as g\n"
+        "from guard_core.models import SecurityConfig\n"
+        "suites = asyncio.run(g.run_corpus(SecurityConfig(**g.STAGED_FIELDS),"
+        " only='events'))\n"
+        "case = next(c for c in suites['event_stream']['cases']"
+        " if c['id'] == 'evt_pattern_detected_xss')\n"
+        "print(case['expected'][0]['metadata']['detection_method'])\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        cwd=_REPO_ROOT,
+        env={
+            **os.environ,
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONPATH": str(_REPO_ROOT / "specs" / "fixtures" / "tools"),
+        },
+        timeout=300,
+    )
+    assert completed.returncode == 0, completed.stderr[-2000:]
+    assert completed.stdout.strip().splitlines()[-1] == "enhanced"
