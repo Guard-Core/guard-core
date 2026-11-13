@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from guard_core._utils.route_gate import (
     declared_path_param_spans,
     isolate_declared_path_params,
@@ -40,18 +42,23 @@ def test_the_query_string_stays_untouched_when_a_path_param_is_isolated() -> Non
     assert isolated[1].endswith("?x=../etc")
 
 
-def test_a_request_without_a_route_template_reports_no_root_path_param() -> None:
+def test_a_request_without_a_route_template_reports_no_root_path_param(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(enable_redis=False)
+    middleware.config = SecurityConfig(
+        enable_redis=False, fail_on_misconfiguration=True
+    )
     check = SuspiciousActivityCheck(middleware)
     route_config = RouteConfig()
     route_config.excluded_detection_path_params = {"name"}
 
-    check._report_declared_path_param_problems(
-        MockGuardRequest(path="/x"), route_config
-    )
+    with caplog.at_level("WARNING"):
+        check._report_declared_path_param_problems(
+            MockGuardRequest(path="/x"), route_config
+        )
 
-    assert check._reported_path_param_problems == set()
+    assert [r for r in caplog.records if "@detection_exclusion" in r.getMessage()] == []
 
 
 def test_a_declared_group_that_did_not_take_part_in_the_match_gets_no_span() -> None:

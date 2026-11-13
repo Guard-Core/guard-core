@@ -2,11 +2,15 @@ import math
 from collections.abc import Collection
 from typing import TYPE_CHECKING
 
+from guard_core._misconfiguration import (
+    config_logger,
+    declared_path_problems_of,
+    report_declared_path_param_problems,
+)
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.route_gate import (
     ROUTE_TEMPLATE_STATE_ATTR,
     STATIC_FILE_STATE_ATTR,
-    declared_path_param_problems,
     might_be_a_gated_probe,
     might_be_a_static_file,
     record_route_template,
@@ -160,7 +164,6 @@ async def _refusal(check: SecurityCheck, stalled: bool) -> GuardResponse:
 class SuspiciousActivityCheck(SecurityCheck):
     def __init__(self, middleware: "GuardMiddlewareProtocol") -> None:
         super().__init__(middleware)
-        self._reported_path_param_problems: set[tuple[str, str]] = set()
 
     @property
     def check_name(self) -> str:
@@ -314,15 +317,12 @@ class SuspiciousActivityCheck(SecurityCheck):
         if not isinstance(template, str):
             return
         route = str(getattr(request.state, "guard_route_id", template))
-        problems = declared_path_param_problems(template, declared)
-        for name, problem in problems.items():
-            if (template, name) in self._reported_path_param_problems:
-                continue
-            self._reported_path_param_problems.add((template, name))
-            self.logger.warning(
-                f"@detection_exclusion(path_params=...) on route {route!r} "
-                f"declares {name!r}, which {problem}"
-            )
+        report_declared_path_param_problems(
+            self.config,
+            declared_path_problems_of(self.config, route, template, declared),
+            logger=config_logger,
+            stacklevel=2,
+        )
 
     async def _record_served_static_file(self, request: GuardRequest) -> None:
         state = request.state
@@ -345,18 +345,22 @@ class SuspiciousActivityCheck(SecurityCheck):
             setattr(state, STATIC_FILE_STATE_ATTR, True)
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:
+        route_config = getattr(request.state, "route_config", None)
+        if route_config is not None and route_config.excluded_detection_path_params:
+            # Before the whitelist return: with the flag on, a whitelisted client
+            # is refused on the declaring route too.
+            self._record_route_template(request)
+            self._report_declared_path_param_problems(request, route_config)
+
         if getattr(request.state, "is_whitelisted", False):
             return None
 
         client_ip = getattr(request.state, "client_ip", None)
-        route_config = getattr(request.state, "route_config", None)
 
         if not client_ip:
             return None
 
         self._record_route_template(request)
-        if route_config is not None and route_config.excluded_detection_path_params:
-            self._report_declared_path_param_problems(request, route_config)
         await self._record_served_static_file(request)
         result = await get_cached_detection_result(
             request,

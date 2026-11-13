@@ -36,11 +36,10 @@ def _request(
     return request
 
 
-@pytest.mark.parametrize("flag", [True, False])
-async def test_a_root_capture_never_raises_per_request(
-    flag: bool, caplog: pytest.LogCaptureFixture
+async def test_a_root_capture_warns_once_per_request_with_the_flag_off(
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=flag))
+    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=False))
     request = _request("/item", "/{item_id}", {"item_id"})
 
     with caplog.at_level(logging.WARNING):
@@ -64,11 +63,10 @@ def test_a_name_after_a_literal_segment_is_still_isolated() -> None:
         assert isolate_declared_path_params("/items/language", "recon") is not None
 
 
-@pytest.mark.parametrize("flag", [True, False])
 async def test_a_name_the_template_lacks_warns_once_per_template_and_name(
-    flag: bool, caplog: pytest.LogCaptureFixture
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=flag))
+    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=False))
     request = _request("/items/1", "/items/{id}", {"ghost"})
     other = _request("/things/1", "/things/{id}", {"ghost"}, route_id="app.thing")
 
@@ -93,14 +91,11 @@ def _blocking_check(flag: bool) -> SuspiciousActivityCheck:
     return check
 
 
-@pytest.mark.parametrize("flag", [True, False])
 @pytest.mark.parametrize("path", ["/wp-admin", "/language"])
-async def test_a_probe_on_a_root_capture_route_is_still_blocked(
-    flag: bool, path: str
-) -> None:
+async def test_a_probe_on_a_root_capture_route_is_still_blocked(path: str) -> None:
     request = _request(path, "/{item_id}", {"item_id"})
 
-    response = await _blocking_check(flag).check(request)
+    response = await _blocking_check(False).check(request)
 
     assert response is not None
     assert response.status_code == 400

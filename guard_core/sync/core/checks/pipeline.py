@@ -3,6 +3,7 @@ import threading
 import time
 from collections.abc import Callable
 
+from guard_core._misconfiguration_kinds import MisconfigurationError
 from guard_core._parked_records import RELEASE_EPOCH_RECORD
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SyncSecurityConfig
@@ -152,6 +153,12 @@ class SecurityCheckPipeline:
     def _handle_check_error(
         self, check: SecurityCheck, request: SyncGuardRequest, error: Exception
     ) -> GuardResponse | None:
+        if isinstance(error, MisconfigurationError):
+            # A refused misconfiguration reaches the host framework, whatever
+            # passive_mode or fail_secure say: it is the app's own mistake, not a
+            # check failure.
+            raise error
+
         muted = check.check_name in self.muted_check_logs
 
         if isinstance(error, GuardRedisError) and check.config.redis_fail_open:
@@ -260,7 +267,7 @@ class SecurityCheckPipeline:
             exc_info=True,
         )
         config = self._config
-        if config is None:
+        if config is None or isinstance(error, MisconfigurationError):
             raise error
         if not config.fail_secure:
             return None

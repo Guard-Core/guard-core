@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import TYPE_CHECKING
 
 from guard_core._misconfiguration_kinds import (
@@ -20,6 +20,7 @@ from guard_core._misconfiguration_kinds import (
 )
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core._security_headers_defaults import unknown_security_headers_keys
+from guard_core._utils.sampling import PerApp, WarnedKeys
 
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
@@ -71,6 +72,67 @@ def report_misconfigurations(
             extra=problem_log_extra(problem),
             stacklevel=stacklevel,
         )
+
+
+_declared_path_params_reported: PerApp[WarnedKeys] = PerApp(
+    "declared_path_params", WarnedKeys
+)
+
+
+_DECLARED_PROBLEMS_CAP = 4096
+
+
+class _DeclaredProblems(dict[tuple[str, str, frozenset[str]], list[Problem]]):
+    """The problems of each (route, template, declared names) one app asked about."""
+
+
+_declared_problems_found: PerApp[_DeclaredProblems] = PerApp(
+    "declared_path_problems", _DeclaredProblems
+)
+
+
+def declared_path_problems_of(
+    config: "SecurityConfig[RequestT]",
+    route_id: str,
+    template: str,
+    declared: Collection[str],
+) -> list[Problem]:
+    """The kinded problems of one declaration, built once per app: a later request
+    on the same route is a dict lookup, not a walk of the template."""
+    from guard_core._utils.route_gate import detection_exclusion_path_param_problems
+
+    found = _declared_problems_found.for_app(config)
+    key = (route_id, template, frozenset(declared))
+    problems = found.get(key)
+    if problems is None:
+        if len(found) >= _DECLARED_PROBLEMS_CAP:
+            found.clear()
+        problems = found[key] = detection_exclusion_path_param_problems(
+            route_id, template, declared
+        )
+    return problems
+
+
+def report_declared_path_param_problems(
+    config: "SecurityConfig[RequestT]",
+    problems: Sequence[Problem],
+    *,
+    logger: logging.Logger,
+    stacklevel: int,
+) -> None:
+    """The one report point of the @detection_exclusion(path_params=...) problems,
+    shared by every adapter and the engine's own request-time check. With the flag
+    on every call raises a fresh error listing every problem; with it off each
+    problem warns once per app, whichever caller finds it first."""
+    if config.fail_on_misconfiguration:
+        report_misconfigurations(
+            config, problems, logger=logger, stacklevel=stacklevel + 1
+        )
+        return
+    reported = _declared_path_params_reported.for_app(config)
+    fresh = [problem for problem in problems if str(problem) not in reported]
+    reported.update(str(problem) for problem in fresh)
+    report_misconfigurations(config, fresh, logger=logger, stacklevel=stacklevel + 1)
 
 
 def _non_positive_rate_limit_problems(

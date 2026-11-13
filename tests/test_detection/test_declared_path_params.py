@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from guard_core._misconfiguration_kinds import MisconfigurationError
 from guard_core.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -301,12 +302,20 @@ async def test_a_root_capture_warns_when_the_flag_is_off(
     assert "'path'" in problems[0].getMessage()
 
 
-async def test_a_root_capture_never_raises_when_the_flag_is_on() -> None:
+async def test_a_root_capture_refuses_every_request_when_the_flag_is_on() -> None:
     check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=True))
     request = _request("/{path:path}", {"path"})
+    errors = []
 
-    assert await check.check(request) is None
-    assert await check.check(request) is None
+    for _ in range(3):
+        with pytest.raises(MisconfigurationError) as refused:
+            await check.check(request)
+        errors.append(refused.value)
+
+    assert len({id(error) for error in errors}) == 3
+    assert [p.kind for p in errors[0].problems] == [
+        "decorator.detection_exclusion.param_without_literal_segment"
+    ]
 
 
 @pytest.mark.parametrize(
@@ -323,7 +332,7 @@ async def test_a_root_capture_never_raises_when_the_flag_is_on() -> None:
 async def test_a_parameter_with_a_literal_segment_before_it_is_not_reported(
     template: str, path_params: set[str] | dict[str, set[str]] | None
 ) -> None:
-    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=True))
+    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=False))
 
     assert await check.check(_request(template, path_params)) is None
 
@@ -342,7 +351,7 @@ async def test_a_parameter_with_a_literal_segment_before_it_is_not_reported(
 async def test_every_syntax_of_a_root_capture_is_reported(
     template: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=True))
+    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=False))
 
     with caplog.at_level(logging.WARNING):
         await check.check(_request(template, {"path"}))
