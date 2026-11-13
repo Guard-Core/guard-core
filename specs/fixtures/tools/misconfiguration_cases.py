@@ -1016,7 +1016,7 @@ def _declared_case(
         "declared_path_params",
         config=dict(QUIET),
         template=template,
-        declared=declared,
+        declared=[*declared],
     )
 
 
