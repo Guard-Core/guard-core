@@ -125,6 +125,14 @@ def _guard_core_logger_names() -> list[str]:
     ]
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _engine_default_redis_url_follows_redis_url() -> None:
+    # A SecurityConfig built without redis_url falls back to localhost:6379, the
+    # host Redis, which the network guard refuses.
+    SecurityConfig.model_fields["redis_url"].default = REDIS_URL
+    SecurityConfig.model_rebuild(force=True)
+
+
 @pytest.fixture(autouse=True)
 def _no_outbound_network() -> Iterator[None]:
     network_guard.reset()

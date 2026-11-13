@@ -69,6 +69,9 @@ def is_allowed(family: int, address: _Address) -> bool:
         return True
     if isinstance(address, tuple) and len(address) >= 2 and isinstance(address[0], str):
         host, port = address[0], address[1]
+        if port == _DEFAULT_REDIS_PORT and _host_is_loopback(host):
+            # The host Redis is nobody's test: only a REDIS_URL on 6379 opens it.
+            return any(p == _DEFAULT_REDIS_PORT for _, p in _configured_endpoints)
         return _host_is_loopback(host) or (_normalized(host), port) in (
             _configured_endpoints
         )
