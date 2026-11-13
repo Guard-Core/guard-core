@@ -35,6 +35,12 @@
       "subject": "null",
       "description": "the country list is empty"
     },
+    "decorator.bypass.unknown_check": {
+      "severity": "warn",
+      "scope": "decorators",
+      "subject": "the unknown checks as given, sorted and joined by a comma and a space",
+      "description": "a bypass names a check that does not exist, so it is ignored"
+    },
     "decorator.country_rule.geoip_download_extras_missing": {
       "severity": "error",
       "scope": "decorators",
@@ -68,11 +74,23 @@
       "subject": "the country key as given",
       "description": "an entry has a limit or a window below 1"
     },
+    "decorator.max_request_size.zero": {
+      "severity": "warn",
+      "scope": "decorators",
+      "subject": "null",
+      "description": "max_request_size(0) refuses any request body"
+    },
     "decorator.rate_limit.below_one": {
       "severity": "error",
       "scope": "decorators",
       "subject": "null",
       "description": "requests or window is below 1"
+    },
+    "decorator.require_auth.capitalized_scheme": {
+      "severity": "warn",
+      "scope": "decorators",
+      "subject": "null",
+      "description": "require_auth names a built-in scheme with other capitalization"
     },
     "decorator.require_ip.empty_whitelist": {
       "severity": "error",
@@ -1213,6 +1231,168 @@
             null
           ]
         ]
+      }
+    },
+    {
+      "id": "max_request_size_zero",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "max_request_size",
+            "args": {
+              "size_bytes": 0
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "decorator.max_request_size.zero",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "max_request_size_one",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "max_request_size",
+            "args": {
+              "size_bytes": 1
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "bypass_unknown_check",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "bypass",
+            "args": {
+              "checks": [
+                "rate_limit",
+                "nope"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "decorator.bypass.unknown_check",
+            "nope"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "bypass_known_checks",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "bypass",
+            "args": {
+              "checks": [
+                "rate_limit"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "require_auth_capitalized_scheme",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "require_auth",
+            "args": {
+              "type": "Bearer"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "decorator.require_auth.capitalized_scheme",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "require_auth_plain_scheme",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "geo": null,
+        "decorators": [
+          {
+            "name": "require_auth",
+            "args": {}
+          }
+        ]
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
       }
     }
   ]

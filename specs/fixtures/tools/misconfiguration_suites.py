@@ -51,7 +51,9 @@ SUITE_DOCS = {
         "(snake_case, JSON safe, a tuple is a [limit, window] array); the runner "
         "adds fail_on_misconfiguration itself unless flag_stated is false, which "
         "leaves it unset. A config states exactly what it lists, because the "
-        "changed_default.* kinds report a field the config leaves unset."
+        "changed_default.* kinds report a field the config leaves unset. geo, "
+        'optional, is "stub" for a config that holds a configured GeoIP handler, '
+        "which the country fields need."
     ),
     "misconfiguration_dynamic_rules": (
         f"{_SHARED_DOC} Input: dynamic_rules, the DynamicRulesProtocol fields the "
@@ -70,7 +72,9 @@ SUITE_DOCS = {
         f"{_SHARED_DOC} Tier 2: each case names a seam (ban_thresholds, nat64, "
         "redis_handler, country_decorators, ipv6_prefix_length, endpoint_key_routes, "
         "exclude_paths_routes, declared_path_params, lazy_init_without_redis, "
-        "ipinfo_download_url_ignored, purge_on_start_left_set) and gives that "
+        "ipinfo_download_url_ignored, purge_on_start_left_set, "
+        "security_headers_config, cors_response_wildcard, redis_prefix_split, "
+        "unenforced_ban, route_unknown_to_decorator, redis_url_none) and gives that "
         "seam's stubs; a port wires the same stubs around its own reporter. The "
         "reference "
         "reports a default redis_prefix once per process; a runner resets that "

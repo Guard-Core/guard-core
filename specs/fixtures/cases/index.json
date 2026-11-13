@@ -275,7 +275,7 @@
    ]
   },
   "misconfiguration_config": {
-   "case_count": 93,
+   "case_count": 98,
    "kind": "misconfiguration",
    "consumers": [
     "python"
@@ -289,14 +289,14 @@
    ]
   },
   "misconfiguration_decorators": {
-   "case_count": 32,
+   "case_count": 38,
    "kind": "misconfiguration",
    "consumers": [
     "python"
    ]
   },
   "misconfiguration_runtime": {
-   "case_count": 47,
+   "case_count": 65,
    "kind": "misconfiguration",
    "consumers": [
     "python"

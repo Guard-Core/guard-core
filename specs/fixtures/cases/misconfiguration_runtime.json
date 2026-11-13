@@ -3,13 +3,31 @@
   "kind": "misconfiguration",
   "spec_version": "4.1.0",
   "engine_version": "5.0.0",
-  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Tier 2: each case names a seam (ban_thresholds, nat64, redis_handler, country_decorators, ipv6_prefix_length, endpoint_key_routes, exclude_paths_routes, declared_path_params, lazy_init_without_redis, ipinfo_download_url_ignored, purge_on_start_left_set) and gives that seam's stubs; a port wires the same stubs around its own reporter. The reference reports a default redis_prefix once per process; a runner resets that memory per case.",
+  "doc": "Misconfiguration suite. Each case drives the reference engine twice on the same input: once with fail_on_misconfiguration=False (expected.reported) and once with fail_on_misconfiguration=True (expected.raises, expected.fatal). A pair is [kind, subject]; subject is null when the kind has none. The kinds block lists every kind the file can hold with its severity (error or warn), scope, what the subject is and what the kind means. Only kind and subject are normative. Tier 2: each case names a seam (ban_thresholds, nat64, redis_handler, country_decorators, ipv6_prefix_length, endpoint_key_routes, exclude_paths_routes, declared_path_params, lazy_init_without_redis, ipinfo_download_url_ignored, purge_on_start_left_set, security_headers_config, cors_response_wildcard, redis_prefix_split, unenforced_ban, route_unknown_to_decorator, redis_url_none) and gives that seam's stubs; a port wires the same stubs around its own reporter. The reference reports a default redis_prefix once per process; a runner resets that memory per case.",
   "kinds": {
     "auto_ban_threshold.unreachable": {
       "severity": "error",
       "scope": "runtime",
       "subject": "null",
       "description": "auto_ban_threshold is above the strikes one client can produce in the window"
+    },
+    "ban.unenforced_for_app": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "a stored ban is on a trusted proxy or loopback address of the app, so the app does not enforce it"
+    },
+    "cors.wildcard_origin_with_credentials_blocked": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "a response with an Origin header meets a wildcard origin with credentials, and no CORS header is emitted"
+    },
+    "cors.wildcard_origin_with_credentials_dropped": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "a headers manager is given a wildcard origin and credentials, and drops the credentials"
     },
     "decorator.detection_exclusion.param_not_in_template": {
       "severity": "error",
@@ -89,11 +107,47 @@
       "subject": "null",
       "description": "the Redis handler lacks members of the handler protocol"
     },
+    "redis_prefix.split_connection": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the shared redis_prefix",
+      "description": "two apps use one redis_prefix on different Redis connections"
+    },
+    "redis_url.none_with_enable_redis": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "enable_redis is on and redis_url is None, so no Redis connection is made"
+    },
     "route.country_rule_without_geoip": {
       "severity": "error",
       "scope": "runtime",
       "subject": "the route id",
       "description": "a route uses a country rule and no GeoIP source is configured"
+    },
+    "route.unknown_to_decorator": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the route id",
+      "description": "a route carries a route id this SecurityDecorator does not know, so none of its decorators apply"
+    },
+    "security_headers.csp_unsafe_source": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "the CSP directive",
+      "description": "a csp directive holds 'unsafe-inline' or 'unsafe-eval', and is kept as given"
+    },
+    "security_headers.hsts_preload_max_age_too_low": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "hsts preload is asked for with a max_age below 31536000, and preload is turned off"
+    },
+    "security_headers.hsts_preload_without_include_subdomains": {
+      "severity": "warn",
+      "scope": "runtime",
+      "subject": "null",
+      "description": "hsts preload is asked for without includeSubDomains, and includeSubDomains is turned on"
     },
     "threat_ban_config.unreachable": {
       "severity": "error",
@@ -1296,6 +1350,341 @@
           [
             "purge_dynamic_rules_on_start.left_set",
             "rule-1:3"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "csp_unsafe_inline",
+      "input": {
+        "seam": "security_headers_config",
+        "csp": {
+          "script-src": [
+            "'self'",
+            "'unsafe-inline'"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "security_headers.csp_unsafe_source",
+            "script-src"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "csp_unsafe_eval_in_two_directives",
+      "input": {
+        "seam": "security_headers_config",
+        "csp": {
+          "script-src": [
+            "'unsafe-eval'"
+          ],
+          "style-src": [
+            "'unsafe-inline'"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "security_headers.csp_unsafe_source",
+            "script-src"
+          ],
+          [
+            "security_headers.csp_unsafe_source",
+            "style-src"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "csp_without_unsafe_sources",
+      "input": {
+        "seam": "security_headers_config",
+        "csp": {
+          "default-src": [
+            "'self'"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "hsts_preload_with_a_short_max_age",
+      "input": {
+        "seam": "security_headers_config",
+        "hsts": {
+          "max_age": 86400,
+          "include_subdomains": true,
+          "preload": true
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "security_headers.hsts_preload_max_age_too_low",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "hsts_preload_without_include_subdomains",
+      "input": {
+        "seam": "security_headers_config",
+        "hsts": {
+          "max_age": 31536000,
+          "include_subdomains": false,
+          "preload": true
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "security_headers.hsts_preload_without_include_subdomains",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "hsts_preload_short_max_age_and_no_include_subdomains",
+      "input": {
+        "seam": "security_headers_config",
+        "hsts": {
+          "max_age": 86400,
+          "include_subdomains": false,
+          "preload": true
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "security_headers.hsts_preload_max_age_too_low",
+            null
+          ],
+          [
+            "security_headers.hsts_preload_without_include_subdomains",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "hsts_preload_valid",
+      "input": {
+        "seam": "security_headers_config",
+        "hsts": {
+          "max_age": 31536000,
+          "include_subdomains": true,
+          "preload": true
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "hsts_without_preload",
+      "input": {
+        "seam": "security_headers_config",
+        "hsts": {
+          "max_age": 86400,
+          "include_subdomains": false,
+          "preload": false
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_wildcard_origin_with_credentials_is_dropped",
+      "input": {
+        "seam": "security_headers_config",
+        "cors": {
+          "origins": [
+            "*"
+          ],
+          "allow_credentials": true
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "cors.wildcard_origin_with_credentials_dropped",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_wildcard_origin_without_credentials",
+      "input": {
+        "seam": "security_headers_config",
+        "cors": {
+          "origins": [
+            "*"
+          ],
+          "allow_credentials": false
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_response_wildcard_with_credentials_is_blocked",
+      "input": {
+        "seam": "cors_response_wildcard",
+        "origins": [
+          "*"
+        ],
+        "allow_credentials": true
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "cors.wildcard_origin_with_credentials_blocked",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "cors_response_wildcard_without_credentials",
+      "input": {
+        "seam": "cors_response_wildcard",
+        "origins": [
+          "*"
+        ],
+        "allow_credentials": false
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "redis_prefix_on_two_connections",
+      "input": {
+        "seam": "redis_prefix_split",
+        "prefix": "guard_core:",
+        "first_url": "redis://a.example:6379/0",
+        "second_url": "redis://b.example:6379/0"
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "redis_prefix.split_connection",
+            "guard_core:"
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "unenforced_ban_is_reported_once_per_address",
+      "input": {
+        "seam": "unenforced_ban",
+        "self_dos": true,
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "ban.unenforced_for_app",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "enforced_ban_is_not_reported",
+      "input": {
+        "seam": "unenforced_ban",
+        "self_dos": false
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "redis_enabled_without_a_url",
+      "input": {
+        "seam": "redis_url_none",
+        "enable_redis": true
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "redis_url.none_with_enable_redis",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "redis_disabled_without_a_url",
+      "input": {
+        "seam": "redis_url_none",
+        "enable_redis": false
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
+        "fatal": []
+      }
+    },
+    {
+      "id": "route_unknown_to_the_decorator_is_reported_once",
+      "input": {
+        "seam": "route_unknown_to_decorator",
+        "route_id": "pkg.module.handler",
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "route.unknown_to_decorator",
+            "pkg.module.handler"
           ]
         ],
         "fatal": []

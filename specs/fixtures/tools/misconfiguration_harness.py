@@ -18,7 +18,9 @@ the subject is ``null`` when the kind has none):
 misconfiguration_config
     ``config``: the stated SecurityConfig fields, snake_case, JSON safe. The runner
     states ``fail_on_misconfiguration`` itself, unless ``flag_stated`` is false,
-    which leaves the field unset (the case then holds no error problem).
+    which leaves the field unset (the case then holds no error problem). ``geo``:
+    optional, ``"stub"`` gives the config a GeoIP handler, which the country fields
+    need.
 
 misconfiguration_dynamic_rules
     ``dynamic_rules``: the DynamicRulesProtocol fields the validator reads. A field
@@ -41,7 +43,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import warnings
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
@@ -56,6 +58,10 @@ from guard_core._misconfiguration import report_misconfigurations
 from guard_core._misconfiguration_kinds import (
     KINDS,
     Problem,
+)
+from guard_core._utils.app_managers import (
+    _PrefixedRedisConfig,
+    _warn_split_connection,
 )
 from guard_core._utils.route_gate import detection_exclusion_path_param_problems
 from guard_core.core.checks.endpoint_limit_keys import (
@@ -80,6 +86,7 @@ from guard_core.core.initialization._nat64 import apply_nat64_prefixes
 from guard_core.core.initialization._redis_handler_members import (
     report_incomplete_redis_handler,
 )
+from guard_core.core.routing.resolver import RouteConfigResolver
 from guard_core.decorators import SecurityDecorator
 from guard_core.decorators.base import BaseSecurityDecorator
 from guard_core.exceptions import MisconfigurationError
@@ -89,11 +96,16 @@ from guard_core.handlers._dynamic_rule_validation import (
     find_malformed_values,
 )
 from guard_core.handlers._ipban_prefix_contract import enforce_prefix_length_contract
+from guard_core.handlers._ipban_sharing import IpBanSharedAppsMixin
+from guard_core.handlers._security_headers_config import SecurityHeadersConfigMixin
+from guard_core.handlers._security_headers_cors import SecurityHeadersCorsMixin
 from guard_core.handlers.ipinfo_handler import IPInfoManager
+from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import DynamicRulesProtocol
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.route_identity import RouteIdentity
 
 Pair = tuple[str, str | None]
@@ -120,8 +132,19 @@ SEAMS = (
     "lazy_init_without_redis",
     "ipinfo_download_url_ignored",
     "purge_on_start_left_set",
+    "security_headers_config",
+    "cors_response_wildcard",
+    "redis_prefix_split",
+    "unenforced_ban",
+    "route_unknown_to_decorator",
+    "redis_url_none",
 )
 _LOGGER = logging.getLogger("guard_core")
+QUIET_RUNTIME: JsonObject = {
+    "enable_redis": False,
+    "rate_limit": 10,
+    "ban_on_hostile_signals": False,
+}
 _DYNAMIC_FIELDS = {
     "ip_blacklist": list,
     "ip_whitelist": list,
@@ -244,9 +267,16 @@ def _config(
 def _config_driver(case_input: JsonObject) -> Driver:
     stated = cast("JsonObject", case_input["config"])
     flag_stated = case_input.get("flag_stated", True) is not False
+    geo = case_input.get("geo")
 
     async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
-        _try_fatal(fatal, lambda: _config(stated, flag, flag_stated=flag_stated))
+        handler = _StubGeo() if geo == "stub" else None
+        _try_fatal(
+            fatal,
+            lambda: _config(
+                stated, flag, flag_stated=flag_stated, geo_ip_handler=handler
+            ),
+        )
         return []
 
     return drive
@@ -571,6 +601,127 @@ def _purge_driver(case_input: JsonObject) -> Driver:
     return drive
 
 
+def _security_headers_driver(case_input: JsonObject) -> Driver:
+    csp = cast("dict[str, list[str]] | None", case_input.get("csp"))
+    hsts = cast("JsonObject | None", case_input.get("hsts"))
+    cors = cast("JsonObject | None", case_input.get("cors"))
+    stub = cast("SecurityHeadersConfigMixin", SimpleNamespace(logger=_LOGGER))
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        SecurityHeadersConfigMixin._compute_csp_config(stub, csp)
+        if hsts is not None:
+            SecurityHeadersConfigMixin._compute_hsts_config(
+                stub,
+                cast("int", hsts["max_age"]),
+                cast("bool", hsts["include_subdomains"]),
+                cast("bool", hsts["preload"]),
+            )
+        if cors is not None:
+            SecurityHeadersConfigMixin._compute_cors_config(
+                stub,
+                cast("list[str]", cors["origins"]),
+                cast("bool", cors["allow_credentials"]),
+                None,
+                None,
+            )
+        return []
+
+    return drive
+
+
+def _cors_response_driver(case_input: JsonObject) -> Driver:
+    origins = cast("list[str]", case_input["origins"])
+    credentials = cast("bool", case_input["allow_credentials"])
+    stub = cast("SecurityHeadersCorsMixin", SimpleNamespace(logger=_LOGGER))
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        SecurityHeadersCorsMixin._is_wildcard_with_credentials(
+            stub, origins, {"allow_credentials": credentials}
+        )
+        return []
+
+    return drive
+
+
+def _redis_prefix_split_driver(case_input: JsonObject) -> Driver:
+    first = SimpleNamespace(
+        redis_prefix=case_input["prefix"], redis_url=case_input["first_url"]
+    )
+    second = SimpleNamespace(
+        redis_prefix=case_input["prefix"], redis_url=case_input["second_url"]
+    )
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        _warn_split_connection(
+            cast("_PrefixedRedisConfig", first),
+            cast("_PrefixedRedisConfig", second),
+            None,
+            None,
+        )
+        return []
+
+    return drive
+
+
+def _unenforced_ban_driver(case_input: JsonObject) -> Driver:
+    repeat = cast("int", case_input.get("repeat", 1))
+    refuses = case_input["self_dos"] is True
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        config = _config(dict(QUIET_RUNTIME), flag)
+        stub = SimpleNamespace(
+            logger=_LOGGER,
+            _self_dos_refusal_reason=lambda ip, config: "loopback" if refuses else None,
+        )
+        manager = cast("IpBanSharedAppsMixin", stub)
+        for _ in range(repeat):
+            IpBanSharedAppsMixin._ban_stands_for(manager, "192.0.2.7", config)
+        return []
+
+    return drive
+
+
+def _redis_url_none_driver(case_input: JsonObject) -> Driver:
+    @contextlib.asynccontextmanager
+    async def lock() -> AsyncIterator[None]:
+        yield
+
+    async def discard_client() -> None:
+        return None
+
+    stub = SimpleNamespace(
+        config=SimpleNamespace(enable_redis=case_input["enable_redis"], redis_url=None),
+        logger=_LOGGER,
+        _connection_lock_here=lock,
+        _discard_client=discard_client,
+    )
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        await RedisManager.initialize(cast("RedisManager", stub))
+        return []
+
+    return drive
+
+
+def _route_unknown_driver(case_input: JsonObject) -> Driver:
+    repeat = cast("int", case_input.get("repeat", 1))
+
+    async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
+        resolver = SimpleNamespace(
+            _warned_foreign_route_ids=set(), context=SimpleNamespace(logger=_LOGGER)
+        )
+        request = SimpleNamespace(state=SimpleNamespace())
+        for _ in range(repeat):
+            RouteConfigResolver._flag_route_unknown_to_decorator(
+                cast("RouteConfigResolver", resolver),
+                cast("GuardRequest", request),
+                cast("str", case_input["route_id"]),
+            )
+        return []
+
+    return drive
+
+
 _RUNTIME_DRIVERS: dict[str, Callable[[JsonObject], Driver]] = {
     "ban_thresholds": _ban_threshold_driver,
     "nat64": _nat64_driver,
@@ -583,6 +734,12 @@ _RUNTIME_DRIVERS: dict[str, Callable[[JsonObject], Driver]] = {
     "lazy_init_without_redis": _lazy_init_driver,
     "ipinfo_download_url_ignored": _ipinfo_driver,
     "purge_on_start_left_set": _purge_driver,
+    "security_headers_config": _security_headers_driver,
+    "cors_response_wildcard": _cors_response_driver,
+    "redis_prefix_split": _redis_prefix_split_driver,
+    "unenforced_ban": _unenforced_ban_driver,
+    "route_unknown_to_decorator": _route_unknown_driver,
+    "redis_url_none": _redis_url_none_driver,
 }
 
 

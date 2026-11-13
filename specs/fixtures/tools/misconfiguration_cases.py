@@ -432,6 +432,7 @@ def config_cases() -> list[MisconfigurationCaseInput]:
             endpoint_rate_limits={key: [5, 60]},
         )
     )
+    cases.extend(_warning_config_cases())
     return cases
 
 
@@ -805,6 +806,7 @@ def decorator_cases() -> list[MisconfigurationCaseInput]:
             ("rate_limit", {"requests": 0, "window": 60}),
             ("block_countries", {"countries": []}),
         ),
+        *_warning_decorator_cases(),
     ]
 
 
@@ -1026,6 +1028,7 @@ def runtime_cases() -> list[MisconfigurationCaseInput]:
         ),
         *_declared_path_param_cases(),
         *_advisory_cases(),
+        *_warning_runtime_cases(),
     ]
 
 
@@ -1173,6 +1176,180 @@ def _declared_path_param_cases() -> list[MisconfigurationCaseInput]:
             ["path"],
         ),
         _declared_case("no_declared_params", [], "/items/{item_id}", []),
+    ]
+
+
+def _geo_config_case(
+    case_id: str, intends: list[str], **fields: JsonValue
+) -> MisconfigurationCaseInput:
+    return _bare_config_case(case_id, intends, {**QUIET, **fields}, geo="stub")
+
+
+def _warning_config_cases() -> list[MisconfigurationCaseInput]:
+    return [
+        _config_case(
+            "unknown_field_is_reported", ["config.unknown_field"], colour="red"
+        ),
+        _config_case(
+            "two_unknown_fields_are_reported",
+            ["config.unknown_field", "config.unknown_field"],
+            colour="red",
+            shade="blue",
+        ),
+        _geo_config_case(
+            "whitelist_countries_shadows_blocked_countries",
+            ["whitelist_countries.shadows_blocked_countries"],
+            whitelist_countries=["FR"],
+            blocked_countries=["CN"],
+        ),
+        _geo_config_case("whitelist_countries_alone", [], whitelist_countries=["FR"]),
+        _geo_config_case("blocked_countries_alone", [], blocked_countries=["CN"]),
+    ]
+
+
+def _warning_decorator_cases() -> list[MisconfigurationCaseInput]:
+    return [
+        _decorator_case(
+            "max_request_size_zero",
+            ["decorator.max_request_size.zero"],
+            ("max_request_size", {"size_bytes": 0}),
+        ),
+        _decorator_case(
+            "max_request_size_one", [], ("max_request_size", {"size_bytes": 1})
+        ),
+        _decorator_case(
+            "bypass_unknown_check",
+            ["decorator.bypass.unknown_check"],
+            ("bypass", {"checks": ["rate_limit", "nope"]}),
+        ),
+        _decorator_case(
+            "bypass_known_checks", [], ("bypass", {"checks": ["rate_limit"]})
+        ),
+        _decorator_case(
+            "require_auth_capitalized_scheme",
+            ["decorator.require_auth.capitalized_scheme"],
+            ("require_auth", {"type": "Bearer"}),
+        ),
+        _decorator_case("require_auth_plain_scheme", [], ("require_auth", {})),
+    ]
+
+
+def _headers_case(
+    case_id: str, intends: list[str], **fields: JsonValue
+) -> MisconfigurationCaseInput:
+    return _runtime_case(case_id, intends, "security_headers_config", **fields)
+
+
+def _hsts(
+    max_age: int, include_subdomains: bool, preload: bool
+) -> dict[str, JsonValue]:
+    return {
+        "max_age": max_age,
+        "include_subdomains": include_subdomains,
+        "preload": preload,
+    }
+
+
+def _warning_runtime_cases() -> list[MisconfigurationCaseInput]:
+    csp = "security_headers.csp_unsafe_source"
+    return [
+        _headers_case(
+            "csp_unsafe_inline",
+            [csp],
+            csp={"script-src": ["'self'", "'unsafe-inline'"]},
+        ),
+        _headers_case(
+            "csp_unsafe_eval_in_two_directives",
+            [csp, csp],
+            csp={"script-src": ["'unsafe-eval'"], "style-src": ["'unsafe-inline'"]},
+        ),
+        _headers_case(
+            "csp_without_unsafe_sources", [], csp={"default-src": ["'self'"]}
+        ),
+        _headers_case(
+            "hsts_preload_with_a_short_max_age",
+            ["security_headers.hsts_preload_max_age_too_low"],
+            hsts=_hsts(86400, True, True),
+        ),
+        _headers_case(
+            "hsts_preload_without_include_subdomains",
+            ["security_headers.hsts_preload_without_include_subdomains"],
+            hsts=_hsts(31536000, False, True),
+        ),
+        _headers_case(
+            "hsts_preload_short_max_age_and_no_include_subdomains",
+            [
+                "security_headers.hsts_preload_max_age_too_low",
+                "security_headers.hsts_preload_without_include_subdomains",
+            ],
+            hsts=_hsts(86400, False, True),
+        ),
+        _headers_case("hsts_preload_valid", [], hsts=_hsts(31536000, True, True)),
+        _headers_case("hsts_without_preload", [], hsts=_hsts(86400, False, False)),
+        _headers_case(
+            "cors_wildcard_origin_with_credentials_is_dropped",
+            ["cors.wildcard_origin_with_credentials_dropped"],
+            cors={"origins": ["*"], "allow_credentials": True},
+        ),
+        _headers_case(
+            "cors_wildcard_origin_without_credentials",
+            [],
+            cors={"origins": ["*"], "allow_credentials": False},
+        ),
+        _runtime_case(
+            "cors_response_wildcard_with_credentials_is_blocked",
+            ["cors.wildcard_origin_with_credentials_blocked"],
+            "cors_response_wildcard",
+            origins=["*"],
+            allow_credentials=True,
+        ),
+        _runtime_case(
+            "cors_response_wildcard_without_credentials",
+            [],
+            "cors_response_wildcard",
+            origins=["*"],
+            allow_credentials=False,
+        ),
+        _runtime_case(
+            "redis_prefix_on_two_connections",
+            ["redis_prefix.split_connection"],
+            "redis_prefix_split",
+            prefix="guard_core:",
+            first_url="redis://a.example:6379/0",
+            second_url="redis://b.example:6379/0",
+        ),
+        _runtime_case(
+            "unenforced_ban_is_reported_once_per_address",
+            ["ban.unenforced_for_app"],
+            "unenforced_ban",
+            self_dos=True,
+            repeat=2,
+        ),
+        _runtime_case(
+            "enforced_ban_is_not_reported",
+            [],
+            "unenforced_ban",
+            self_dos=False,
+        ),
+        _runtime_case(
+            "redis_enabled_without_a_url",
+            ["redis_url.none_with_enable_redis"],
+            "redis_url_none",
+            enable_redis=True,
+        ),
+        _runtime_case(
+            "redis_disabled_without_a_url",
+            [],
+            "redis_url_none",
+            enable_redis=False,
+        ),
+        _runtime_case(
+            "route_unknown_to_the_decorator_is_reported_once",
+            ["route.unknown_to_decorator"],
+            "route_unknown_to_decorator",
+            route_id="pkg.module.handler",
+            repeat=2,
+        ),
     ]
 
 
