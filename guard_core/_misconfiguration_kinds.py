@@ -482,11 +482,11 @@ K_THROTTLE_NEEDS_MIDDLEWARE = _kind(
 )
 K_ROUTE_UNKNOWN_TO_DECORATOR = _kind(
     "route.unknown_to_decorator",
-    "warn",
+    "error",
     "runtime",
-    "the route id",
-    "a route carries a route id this SecurityDecorator does not know, so none of "
-    "its decorators apply",
+    "the route's label",
+    "a route carries a route id stamped by a SecurityDecorator other than the one "
+    "the middleware uses, so none of its route decorators apply",
 )
 K_MAX_REQUEST_SIZE_ZERO = _kind(
     "decorator.max_request_size.zero",

@@ -87,6 +87,7 @@ def test_get_route_config_decorator_returns_none(
     resolver: RouteConfigResolver,
     mock_guard_decorator: BaseSecurityDecorator,
 ) -> None:
+    resolver.context.config.fail_on_misconfiguration = False
     cast(Any, mock_guard_decorator).get_route_config = Mock(return_value=None)
 
     mock_request = Mock()

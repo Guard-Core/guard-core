@@ -312,10 +312,6 @@ SITES: dict[tuple[str, str], tuple[str, ...]] = {
     ("core/responses/modifier_view.py", "report_body_refused"): (
         "user_callback_raised",
     ),
-    (
-        "core/routing/resolver.py",
-        "RouteConfigResolver._flag_route_unknown_to_decorator",
-    ): ("kinded",),
     ("decorators/access_control.py", "AccessControlMixin.bypass.decorator"): (
         "kinded",
     ),

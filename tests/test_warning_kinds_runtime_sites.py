@@ -8,6 +8,7 @@ from guard_core._utils.app_managers import _warn_split_connection
 from guard_core.core.routing.context import RoutingContext
 from guard_core.core.routing.resolver import RouteConfigResolver
 from guard_core.decorators import SecurityDecorator
+from guard_core.exceptions import MisconfigurationError
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.security_headers_handler import SecurityHeadersManager
@@ -218,12 +219,24 @@ def test_an_unenforced_ban_warns_once_with_its_kind(
     assert _problems(record) == (("ban.unenforced_for_app", None),)
 
 
-@pytest.mark.parametrize("flag", _FLAGS)
-def test_a_route_unknown_to_the_decorator_warns_once_with_its_kind(
-    flag: bool, caplog: pytest.LogCaptureFixture
+def test_an_unknown_route_is_refused_with_its_kind_with_the_flag_on() -> None:
+    logger = logging.getLogger("guard_core.routing.kind_pin")
+    resolver = RouteConfigResolver(RoutingContext(_config(True), logger))
+    request = cast("GuardRequest", SimpleNamespace(state=SimpleNamespace()))
+
+    for _ in range(2):
+        with pytest.raises(MisconfigurationError) as refused:
+            resolver._flag_route_unknown_to_decorator(request, "pkg.handler")
+        assert [(p.kind, p.subject) for p in refused.value.problems] == [
+            ("route.unknown_to_decorator", "pkg.handler")
+        ]
+
+
+def test_an_unknown_route_warns_once_with_its_kind_with_the_flag_off(
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     logger = logging.getLogger("guard_core.routing.kind_pin")
-    resolver = RouteConfigResolver(RoutingContext(_config(flag), logger))
+    resolver = RouteConfigResolver(RoutingContext(_config(False), logger))
     request = cast("GuardRequest", SimpleNamespace(state=SimpleNamespace()))
 
     with caplog.at_level(logging.WARNING):
@@ -234,7 +247,9 @@ def test_a_route_unknown_to_the_decorator_warns_once_with_its_kind(
     assert record.getMessage() == (
         "Route 'pkg.handler' carries a route id that this SecurityDecorator does "
         "not know: it was decorated by a different SecurityDecorator instance "
-        "than the one the middleware uses, so none of its decorators apply."
+        "than the one the middleware uses, so none of its decorators apply. "
+        "Decorate the route with the SecurityDecorator the middleware uses. "
+        "fail_on_misconfiguration=False keeps starting with it."
     )
     assert _problems(record) == (("route.unknown_to_decorator", "pkg.handler"),)
 

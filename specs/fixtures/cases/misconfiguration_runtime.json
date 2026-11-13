@@ -180,10 +180,10 @@
       "description": "a route uses a country rule and no GeoIP source is configured"
     },
     "route.unknown_to_decorator": {
-      "severity": "warn",
+      "severity": "error",
       "scope": "runtime",
-      "subject": "the route id",
-      "description": "a route carries a route id this SecurityDecorator does not know, so none of its decorators apply"
+      "subject": "the route's label",
+      "description": "a route carries a route id stamped by a SecurityDecorator other than the one the middleware uses, so none of its route decorators apply"
     },
     "security_headers.csp_unsafe_source": {
       "severity": "warn",
@@ -1996,17 +1996,52 @@
       "id": "route_unknown_to_the_decorator_is_reported_once",
       "input": {
         "seam": "route_unknown_to_decorator",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
         "route_id": "pkg.module.handler",
+        "decorator_route_ids": [
+          "pkg.module.other"
+        ],
         "repeat": 2
       },
       "expected": {
-        "raises": false,
+        "raises": true,
         "reported": [
           [
             "route.unknown_to_decorator",
             "pkg.module.handler"
           ]
         ],
+        "fatal": [
+          [
+            "route.unknown_to_decorator",
+            "pkg.module.handler"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "route_shared_with_the_decorator_is_not_reported",
+      "input": {
+        "seam": "route_unknown_to_decorator",
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false
+        },
+        "route_id": "pkg.module.handler",
+        "decorator_route_ids": [
+          "pkg.module.other",
+          "pkg.module.handler"
+        ],
+        "repeat": 2
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
         "fatal": []
       }
     }

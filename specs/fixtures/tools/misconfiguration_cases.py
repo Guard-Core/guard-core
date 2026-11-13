@@ -1348,7 +1348,18 @@ def _warning_runtime_cases() -> list[MisconfigurationCaseInput]:
             "route_unknown_to_the_decorator_is_reported_once",
             ["route.unknown_to_decorator"],
             "route_unknown_to_decorator",
+            config=dict(QUIET),
             route_id="pkg.module.handler",
+            decorator_route_ids=["pkg.module.other"],
+            repeat=2,
+        ),
+        _runtime_case(
+            "route_shared_with_the_decorator_is_not_reported",
+            [],
+            "route_unknown_to_decorator",
+            config=dict(QUIET),
+            route_id="pkg.module.handler",
+            decorator_route_ids=["pkg.module.other", "pkg.module.handler"],
             repeat=2,
         ),
     ]
