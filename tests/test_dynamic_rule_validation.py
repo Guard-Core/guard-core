@@ -220,3 +220,23 @@ async def test_a_valid_emergency_whitelist_is_still_applied() -> None:
         _rules(emergency_mode=True, emergency_whitelist=["198.51.100.0/24", "::1"]),
     )
     assert config.emergency_mode is True
+
+
+@pytest.mark.asyncio
+async def test_the_rejection_log_line_carries_the_kind_of_each_problem(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager, _, _ = _manager()
+
+    with caplog.at_level("WARNING", logger="guard_core"):
+        await _poll(manager, _rules(ip_blacklist=["nope"], global_rate_limit=0))
+
+    carried = [
+        r.__dict__["problems"] for r in caplog.records if "problems" in r.__dict__
+    ]
+    assert carried == [
+        (
+            ("dynamic_rules.ip_blacklist.invalid_entry", "nope"),
+            ("dynamic_rules.global_rate_limit.below_one", None),
+        )
+    ]

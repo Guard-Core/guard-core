@@ -200,3 +200,48 @@ def test_the_log_extra_helper_pairs_every_subject() -> None:
 def test_every_kind_is_named_setting_dot_problem() -> None:
     assert ALL_KINDS == frozenset(KINDS)
     assert all(kind.count(".") >= 1 and kind == kind.lower() for kind in ALL_KINDS)
+
+
+def test_a_dynamic_rule_ban_threshold_warning_carries_its_kind(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from guard_core.core.initialization._ban_threshold_report import (
+        log_unreachable_ban_thresholds_after_rule_change,
+        remember_ban_threshold_context,
+    )
+
+    config = SecurityConfig(
+        enable_redis=False,
+        ban_on_hostile_signals=False,
+        fail_on_misconfiguration=False,
+        auto_ban_threshold=10**5,
+    )
+    remember_ban_threshold_context(lambda: (), lambda: False, config)
+
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        log_unreachable_ban_thresholds_after_rule_change(
+            config, logging.getLogger("guard_core")
+        )
+
+    carried = [
+        r.__dict__["problems"] for r in caplog.records if "problems" in r.__dict__
+    ]
+    assert carried == [(("auto_ban_threshold.unreachable", None),)]
+
+
+def test_the_empty_enabled_detection_categories_warning_carries_its_kind(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        SecurityConfig(
+            enable_redis=False,
+            ban_on_hostile_signals=False,
+            fail_on_misconfiguration=False,
+            enable_penetration_detection=True,
+            enabled_detection_categories=[],
+        )
+
+    carried = [
+        r.__dict__["problems"] for r in caplog.records if "problems" in r.__dict__
+    ]
+    assert (("enabled_detection_categories.empty", None),) in carried

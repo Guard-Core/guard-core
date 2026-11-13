@@ -14,7 +14,8 @@ _REPORT_CALLS = frozenset(
         "_report_misconfigurations",
     }
 )
-_TEXT_NODES = (ast.Constant, ast.JoinedStr, ast.BinOp)
+# A name, a list or a comprehension is checked by mypy: the reporters take Problem.
+_TYPED_BY_MYPY = (ast.Name, ast.List, ast.ListComp)
 _PRODUCERS = ("config_misconfigurations", "unreachable_ban_threshold_problems")
 _CONSTANTS = {
     name: value
@@ -67,8 +68,8 @@ def test_every_report_call_passes_a_problem_never_text() -> None:
         assert (
             _is_problem_call(argument)
             or produced_by_a_known_producer
-            or not isinstance(argument, _TEXT_NODES + (ast.Call,))
-        ), f"{path.name}:{call.lineno} reports text, not a Problem"
+            or isinstance(argument, _TYPED_BY_MYPY)
+        ), f"{path.name}:{call.lineno} passes {type(argument).__name__}, not a Problem"
 
 
 def test_every_problem_is_built_with_a_registry_constant_and_never_joined_text() -> (

@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -198,6 +199,13 @@ K_REDIS_PREFIX_LEFT_DEFAULT = _kind(
     "config",
     NO_SUBJECT,
     "Redis is enabled with the default redis_prefix",
+)
+K_ENABLED_DETECTION_CATEGORIES_EMPTY = _kind(
+    "enabled_detection_categories.empty",
+    "warn",
+    "config",
+    NO_SUBJECT,
+    "enable_penetration_detection is on and enabled_detection_categories is empty",
 )
 K_AUTO_BAN_THRESHOLD_UNREACHABLE = _kind(
     "auto_ban_threshold.unreachable",
@@ -523,6 +531,11 @@ def kinds_log_extra(kind: str, *subjects: str | None) -> dict[str, object]:
 
 def problem_log_extra(*problems: Problem) -> dict[str, object]:
     return {"problems": tuple((p.kind, p.subject) for p in problems)}
+
+
+def listed_problems_log_extra(problems: Sequence[str]) -> dict[str, object]:
+    """The log extra of a public ``list[str]`` whose items are Problems."""
+    return problem_log_extra(*[p for p in problems if isinstance(p, Problem)])
 
 
 def log_problem(

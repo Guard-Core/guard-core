@@ -28,11 +28,13 @@ from guard_core._config_field_revalidators import (
 )
 from guard_core._detection_constants import ALL_DETECTION_CATEGORIES
 from guard_core._misconfiguration_kinds import (
+    K_ENABLED_DETECTION_CATEGORIES_EMPTY,
     K_EXCLUDE_ALL_PATHS_ENABLED,
     K_EXEMPT_IPS_PREFIX_ZERO,
     K_TRUSTED_PROXIES_PREFIX_ZERO,
     K_WHITELIST_PREFIX_ZERO,
     Problem,
+    kinds_log_extra,
     log_problem,
 )
 from guard_core._security_config_blocked_user_agents import (
@@ -377,7 +379,8 @@ def _warn_empty_enabled_detection_categories() -> None:
         "enable_penetration_detection is True: penetration detection is "
         "enabled but will never match any category. Set "
         "enabled_detection_categories to a non-empty subset, or set "
-        "enable_penetration_detection=False."
+        "enable_penetration_detection=False.",
+        extra=kinds_log_extra(K_ENABLED_DETECTION_CATEGORIES_EMPTY, None),
     )
 
 

@@ -297,6 +297,18 @@ def config_cases() -> list[MisconfigurationCaseInput]:
             {},
             flag_stated=False,
         ),
+        _config_case(
+            "enabled_detection_categories_empty",
+            ["enabled_detection_categories.empty"],
+            enable_penetration_detection=True,
+            enabled_detection_categories=[],
+        ),
+        _config_case(
+            "enabled_detection_categories_listed",
+            [],
+            enable_penetration_detection=True,
+            enabled_detection_categories=["xss"],
+        ),
         _bare_config_case(
             "redis_prefix_left_default",
             ["redis_prefix.left_default"],

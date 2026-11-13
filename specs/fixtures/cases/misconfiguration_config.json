@@ -59,6 +59,12 @@
       "subject": "null",
       "description": "detection_threat_score_threshold is 0 or below"
     },
+    "enabled_detection_categories.empty": {
+      "severity": "warn",
+      "scope": "config",
+      "subject": "null",
+      "description": "enable_penetration_detection is on and enabled_detection_categories is empty"
+    },
     "endpoint_rate_limits.below_one": {
       "severity": "error",
       "scope": "config",
@@ -1020,6 +1026,47 @@
             null
           ]
         ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "enabled_detection_categories_empty",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "enable_penetration_detection": true,
+          "enabled_detection_categories": []
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [
+          [
+            "enabled_detection_categories.empty",
+            null
+          ]
+        ],
+        "fatal": []
+      }
+    },
+    {
+      "id": "enabled_detection_categories_listed",
+      "input": {
+        "config": {
+          "enable_redis": false,
+          "rate_limit": 10,
+          "ban_on_hostile_signals": false,
+          "enable_penetration_detection": true,
+          "enabled_detection_categories": [
+            "xss"
+          ]
+        }
+      },
+      "expected": {
+        "raises": false,
+        "reported": [],
         "fatal": []
       }
     },

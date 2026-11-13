@@ -21,6 +21,16 @@ from guard_core.sync.decorators.base import (
 )
 
 
+def _canonical_and_unknown_providers(
+    providers: list[str],
+) -> tuple[set[str], list[str]]:
+    resolved = [(p, canonicalize_cloud_provider_selector(p)) for p in providers]
+    return (
+        {canonical for _, canonical in resolved if canonical},
+        sorted(p for p, canonical in resolved if canonical is None),
+    )
+
+
 class AccessControlMixin(BaseSecurityMixin):
     def require_ip(
         self,
@@ -115,21 +125,10 @@ class AccessControlMixin(BaseSecurityMixin):
         return decorator
 
     def _checked_cloud_providers(self, providers: list[str] | None) -> set[str] | None:
-        canonical = (
-            None
-            if providers is None
-            else {
-                c for p in providers if (c := canonicalize_cloud_provider_selector(p))
-            }
-        )
-        unknown = (
-            []
-            if providers is None
-            else sorted(
-                p for p in providers if canonicalize_cloud_provider_selector(p) is None
-            )
-        )
-        if providers is not None and not providers:
+        if providers is None:
+            return None
+        canonical, unknown = _canonical_and_unknown_providers(providers)
+        if not providers:
             self._report_misconfiguration(
                 Problem(
                     "@block_clouds received an empty provider list: an empty "

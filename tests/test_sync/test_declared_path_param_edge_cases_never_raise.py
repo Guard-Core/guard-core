@@ -94,7 +94,7 @@ def _blocking_check(flag: bool) -> SuspiciousActivityCheck:
     check = _check(
         SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=flag)
     )
-    check.middleware.create_error_response = MagicMock(
+    check.middleware.__dict__["create_error_response"] = MagicMock(
         side_effect=lambda status_code, default_message: SimpleNamespace(
             status_code=status_code, message=default_message
         )

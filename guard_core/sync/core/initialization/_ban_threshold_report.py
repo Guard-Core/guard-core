@@ -8,6 +8,7 @@ from guard_core._misconfiguration_kinds import (
     K_AUTO_BAN_THRESHOLD_UNREACHABLE,
     K_THREAT_BAN_THRESHOLD_UNREACHABLE,
     Problem,
+    problem_log_extra,
 )
 from guard_core._parked_records import BAN_THRESHOLD_CONTEXT_RECORD
 from guard_core.sync.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
@@ -180,4 +181,4 @@ def log_unreachable_ban_thresholds_after_rule_change(
     if context is None:
         return
     for problem in unreachable_ban_threshold_problems(config, context):
-        logger.warning("Dynamic rule: %s", problem)
+        logger.warning("Dynamic rule: %s", problem, extra=problem_log_extra(problem))

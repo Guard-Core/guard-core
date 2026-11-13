@@ -85,7 +85,7 @@ async def test_a_name_the_template_lacks_warns_once_per_template_and_name(
 
 def _blocking_check(flag: bool) -> SuspiciousActivityCheck:
     check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=flag))
-    check.middleware.create_error_response = AsyncMock(
+    check.middleware.__dict__["create_error_response"] = AsyncMock(
         side_effect=lambda status_code, default_message: SimpleNamespace(
             status_code=status_code, message=default_message
         )

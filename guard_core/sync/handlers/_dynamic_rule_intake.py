@@ -4,6 +4,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 
 from guard_core._dynamic_rules import content_fingerprint
+from guard_core._misconfiguration_kinds import listed_problems_log_extra
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
 from guard_core.sync.handlers._dynamic_rule_purge import DynamicRulePurgeMixin
@@ -91,7 +92,8 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
             self._last_rejected_rule = key
             self.logger.warning(
                 f"Dynamic rule {rules.rule_id} v{rules.version} rejected, "
-                f"keeping the last-known rules: {problems}"
+                f"keeping the last-known rules: {problems}",
+                extra=listed_problems_log_extra(problems),
             )
             self._send_rule_rejected_event(rules, problems)
         return True

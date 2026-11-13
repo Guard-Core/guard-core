@@ -161,6 +161,20 @@ def _capture() -> Iterator[list[Pair]]:
             pairs.append((problem.kind, problem.subject))
 
 
+def _require_flag_true_log_is_the_warn_part(
+    reported: list[Pair], logged: list[Pair]
+) -> None:
+    """With the flag True the engine still logs every warn problem and logs no
+    error problem (it raises them): the log equals the warn part of reported."""
+    warn_part = sorted(pair for pair in reported if KINDS[pair[0]].severity == "warn")
+    if sorted(logged) != warn_part:
+        raise SystemExit(
+            f"with the flag True the engine logged {sorted(logged)} but the warn "
+            f"part of what it reports is {warn_part}: the reference rule of the "
+            "misconfiguration suites no longer holds"
+        )
+
+
 def _raised_pairs(error: BaseException) -> FatalSink:
     if isinstance(error, MisconfigurationError):
         return [(problem.kind, problem.subject) for problem in error.problems]
@@ -193,8 +207,9 @@ async def _observe(driver: Driver) -> JsonObject:
     with _capture() as reported:
         reported.extend(await driver(False, []))
     fatal: FatalSink = []
-    with _capture():
+    with _capture() as logged_when_refusing:
         await driver(True, fatal)
+    _require_flag_true_log_is_the_warn_part(reported, logged_when_refusing)
     return {
         "raises": bool(fatal),
         "reported": cast("JsonValue", _sorted(reported)),
