@@ -810,6 +810,10 @@ SUBS: list[tuple[str, str]] = [
     (r"from guard_core\._utils import", "from guard_core.sync._utils import"),
     (r"from guard_core\.utils", "from guard_core.sync.utils"),
     (r"from guard_core import utils\b", "from guard_core.sync import utils"),
+    (
+        r"import guard_core\.adapter_support as ",
+        "import guard_core.sync.adapter_support as ",
+    ),
     (r"from guard_core\.core\.", "from guard_core.sync.core."),
     (r"from guard_core\.detection_engine\b", "from guard_core.sync.detection_engine"),
     (r"from guard_core\.detection_result\b", "from guard_core.sync.detection_result"),

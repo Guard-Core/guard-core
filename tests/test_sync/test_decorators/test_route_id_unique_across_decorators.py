@@ -193,3 +193,86 @@ def test_decorators_decorating_in_parallel_never_share_an_id() -> None:
         thread.join()
 
     assert len(set(ids)) == workers
+
+
+def _stamped_in_registry() -> int:
+    return sum(len(v) for v in decorators_base._STAMPED_WEAK.values()) + sum(
+        len(v) for v in decorators_base._STAMPED_STRONG.values()
+    )
+
+
+def test_a_dropped_decorators_id_stays_reserved_while_its_function_lives(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = _config(fail_on_misconfiguration=False)
+    first = SecurityDecorator(config)
+    held, newcomer = _handler(), _handler()
+    first.rate_limit(5, 60)(held)
+    held_id = get_route_id(held)
+    del first
+    gc.collect()
+    active = SecurityDecorator(config)
+
+    active.rate_limit(9, 60)(newcomer)
+
+    assert get_route_id(newcomer) == f"{held_id}#2"
+    with caplog.at_level(logging.WARNING):
+        resolved, request = _resolve(active, held_id, config)
+    assert resolved is None
+    assert request.state.guard_route_unresolved is True
+    assert _foreign(caplog.records) == [(KIND, held_id)]
+
+
+def test_the_reservation_ends_when_the_stamped_function_dies() -> None:
+    gc.collect()
+    start = _stamped_in_registry()
+    first = SecurityDecorator(_config())
+    held = _handler()
+    first.rate_limit(5, 60)(held)
+    held_id = get_route_id(held)
+    del first, held
+    gc.collect()
+    active = SecurityDecorator(_config())
+    newcomer = _handler()
+
+    active.rate_limit(9, 60)(newcomer)
+
+    assert get_route_id(newcomer) == held_id
+    del active, newcomer
+    gc.collect()
+    assert _stamped_in_registry() == start
+
+
+def test_a_function_keeps_its_own_id_when_a_later_decorator_adopts_it() -> None:
+    first = SecurityDecorator(_config())
+    held = _handler()
+    first.rate_limit(5, 60)(held)
+    held_id = get_route_id(held)
+    del first
+    gc.collect()
+
+    SecurityDecorator(_config()).rate_limit(9, 60)(held)
+
+    assert get_route_id(held) == held_id
+
+
+def test_a_slotted_callable_reserves_its_id_for_the_process() -> None:
+    class Slotted:
+        __slots__ = ("_guard_route_id",)
+
+        def __call__(self) -> None:
+            return None
+
+    first = SecurityDecorator(_config())
+    slotted, newcomer = Slotted(), _handler()
+    newcomer.__qualname__ = Slotted.__qualname__
+    newcomer.__module__ = Slotted.__module__
+    first.rate_limit(5, 60)(slotted)
+    held_id = get_route_id(slotted)
+    del first
+    gc.collect()
+
+    SecurityDecorator(_config()).rate_limit(9, 60)(newcomer)
+
+    assert get_route_id(newcomer) == f"{held_id}#2"
+    assert id(slotted) in decorators_base._STAMPED_STRONG[held_id]
