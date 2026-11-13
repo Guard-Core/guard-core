@@ -42,6 +42,19 @@ async def _plan_floor_move(
     return floor_key, floor_target, floor if moves else None, floor_expiry_ms
 
 
+async def _read_live_ban(conn: "Redis", key: str) -> tuple[str, int] | None:
+    """A ban's value and absolute expiry in milliseconds, None when the key is gone
+    or has no remaining time."""
+    async with conn.pipeline() as pipe:
+        await pipe.get(key)
+        await pipe.pttl(key)
+        await pipe.time()
+        value, pttl, now = await pipe.execute()
+    if value is None or pttl <= 0:
+        return None
+    return value, _expiry_ms(now, pttl)
+
+
 class IpBanCarveMixin(IpBanLookupMixin):
     """Moves an active ban back to its base identity when its carve is gone.
 
@@ -52,7 +65,7 @@ class IpBanCarveMixin(IpBanLookupMixin):
     address resolves to without the entry, keeping its remaining time.
     """
 
-    def _base_identity_if_carve_is_gone(self, key: str) -> str | None:
+    def _carved_address_of(self, key: str) -> ipaddress.IPv6Address | None:
         try:
             network = ipaddress.ip_network(key, strict=False)
         except ValueError:
@@ -64,19 +77,33 @@ class IpBanCarveMixin(IpBanLookupMixin):
         )
         if network.version != 6 or network.prefixlen <= group_length:
             return None
-        address = network.network_address
+        return network.network_address
+
+    def _whitelist_still_produces_carve(
+        self, address: ipaddress.IPv6Address, key: str
+    ) -> bool:
         nat64 = nat64_table_of(self.config)
         entry = most_specific_whitelist_entry(
             address, getattr(self.config, "whitelist", None) or (), nat64
         )
-        text = str(address)
-        prefix_length = self._prefix_length(self.config)
-        if (
+        return (
             entry is not None
-            and _client_identity(text, prefix_length, entry, nat64) == key
-        ):
+            and _client_identity(
+                str(address), self._prefix_length(self.config), entry, nat64
+            )
+            == key
+        )
+
+    def _base_identity_if_carve_is_gone(self, key: str) -> str | None:
+        address = self._carved_address_of(key)
+        if address is None or self._whitelist_still_produces_carve(address, key):
             return None
-        return _client_identity(text, prefix_length, None, nat64)
+        return _client_identity(
+            str(address),
+            self._prefix_length(self.config),
+            None,
+            nat64_table_of(self.config),
+        )
 
     async def rewrite_carved_bans_without_whitelist(self) -> int:
         moved = self._rewrite_memory_carves()
@@ -109,15 +136,12 @@ class IpBanCarveMixin(IpBanLookupMixin):
                 target = self._base_identity_if_carve_is_gone(key[len(stem) :])
                 if target is None:
                     continue
-                async with conn.pipeline() as pipe:
-                    await pipe.get(key)
-                    await pipe.pttl(key)
-                    await pipe.time()
-                    value, pttl, now = await pipe.execute()
-                if value is None or pttl <= 0:
+                live = await _read_live_ban(conn, key)
+                if live is None:
                     continue
+                value, expires_at_ms = live
                 await self._move_identity_key(
-                    redis, conn, stem, key, target, value, _expiry_ms(now, pttl)
+                    redis, conn, stem, key, target, value, expires_at_ms
                 )
                 moved += 1
         return moved
