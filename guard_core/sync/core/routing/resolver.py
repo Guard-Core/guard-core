@@ -1,7 +1,5 @@
-from guard_core._misconfiguration_kinds import (
-    K_ROUTE_UNKNOWN_TO_DECORATOR,
-    kinds_log_extra,
-)
+from guard_core._misconfiguration import report_declared_path_param_problems
+from guard_core.sync._utils.route_gate import route_unknown_to_decorator_problem
 from guard_core.sync.core.routing.context import RoutingContext
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers._cloud_provider_registry import merge_cloud_selectors
@@ -11,21 +9,16 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 class RouteConfigResolver:
     def __init__(self, context: RoutingContext):
         self.context = context
-        self._warned_foreign_route_ids: set[str] = set()
 
     def _flag_route_unknown_to_decorator(
         self, request: SyncGuardRequest, route_id: str
     ) -> None:
         request.state.guard_route_unresolved = True
-        if route_id in self._warned_foreign_route_ids:
-            return
-        self._warned_foreign_route_ids.add(route_id)
-        self.context.logger.warning(
-            "Route %r carries a route id that this SecurityDecorator does not "
-            "know: it was decorated by a different SecurityDecorator instance "
-            "than the one the middleware uses, so none of its decorators apply.",
-            route_id,
-            extra=kinds_log_extra(K_ROUTE_UNKNOWN_TO_DECORATOR, route_id),
+        report_declared_path_param_problems(
+            self.context.config,
+            [route_unknown_to_decorator_problem(route_id)],
+            logger=self.context.logger,
+            stacklevel=2,
         )
 
     def get_route_config(self, request: SyncGuardRequest) -> RouteConfig | None:

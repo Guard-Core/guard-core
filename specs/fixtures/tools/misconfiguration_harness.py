@@ -90,9 +90,10 @@ from guard_core.core.initialization._nat64 import apply_nat64_prefixes
 from guard_core.core.initialization._redis_handler_members import (
     report_incomplete_redis_handler,
 )
+from guard_core.core.routing.context import RoutingContext
 from guard_core.core.routing.resolver import RouteConfigResolver
 from guard_core.decorators import SecurityDecorator
-from guard_core.decorators.base import BaseSecurityDecorator
+from guard_core.decorators.base import BaseSecurityDecorator, RouteConfig
 from guard_core.exceptions import MisconfigurationError
 from guard_core.handlers._dynamic_rule_purge import DynamicRulePurgeMixin
 from guard_core.handlers._dynamic_rule_validation import (
@@ -858,18 +859,31 @@ def _throttle_without_middleware_driver(case_input: JsonObject) -> Driver:
 
 def _route_unknown_driver(case_input: JsonObject) -> Driver:
     repeat = cast("int", case_input.get("repeat", 1))
+    stated = cast("JsonObject", case_input["config"])
+    route_id = cast("str", case_input["route_id"])
+    known = cast("list[str]", case_input["decorator_route_ids"])
+
+    def route_config_of(known_id: str) -> RouteConfig | None:
+        return RouteConfig() if known_id in known else None
 
     async def drive(flag: bool, fatal: FatalSink) -> list[Pair]:
-        resolver = SimpleNamespace(
-            _warned_foreign_route_ids=set(), context=SimpleNamespace(logger=_LOGGER)
-        )
-        request = SimpleNamespace(state=SimpleNamespace())
-        for _ in range(repeat):
-            RouteConfigResolver._flag_route_unknown_to_decorator(
-                cast("RouteConfigResolver", resolver),
-                cast("GuardRequest", request),
-                cast("str", case_input["route_id"]),
+        config = _config(stated, flag)
+        decorator = SimpleNamespace(get_route_config=route_config_of)
+        resolver = RouteConfigResolver(
+            RoutingContext(
+                config=config,
+                logger=_LOGGER,
+                guard_decorator=cast("BaseSecurityDecorator", decorator),
             )
+        )
+        request = SimpleNamespace(state=SimpleNamespace(guard_route_id=route_id))
+        for _ in range(repeat):
+            _try_fatal(
+                fatal,
+                lambda: resolver.get_route_config(cast("GuardRequest", request)),
+            )
+            if fatal:
+                break
         return []
 
     return drive

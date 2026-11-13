@@ -10,6 +10,7 @@ from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core._misconfiguration_kinds import (
     K_DETECTION_EXCLUSION_PARAM_NOT_IN_TEMPLATE,
     K_DETECTION_EXCLUSION_PARAM_WITHOUT_LITERAL_SEGMENT,
+    K_ROUTE_UNKNOWN_TO_DECORATOR,
     Problem,
 )
 from guard_core.sync._utils.route_template import (
@@ -346,6 +347,20 @@ def detection_exclusion_path_param_problems(
             )
         )
     return problems
+
+
+def route_unknown_to_decorator_problem(route_label: str) -> Problem:
+    """The kinded problem of a route stamped by a SecurityDecorator other than the
+    one the middleware uses. Every adapter and the engine's resolver report it
+    through this one helper, so the text and the kind are the same everywhere."""
+    return Problem(
+        f"Route {route_label!r} carries a route id that this SecurityDecorator does "
+        "not know: it was decorated by a different SecurityDecorator instance "
+        "than the one the middleware uses, so none of its decorators apply. "
+        "Decorate the route with the SecurityDecorator the middleware uses.",
+        kind=K_ROUTE_UNKNOWN_TO_DECORATOR,
+        subject=route_label,
+    )
 
 
 def route_template_event_fields(state: object) -> dict[str, str]:
